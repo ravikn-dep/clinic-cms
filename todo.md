@@ -89,7 +89,7 @@
 
 ### Deployment & Documentation
 - [x] Final checkpoint before deployment
-- [ ] Deploy to production (user-controlled Publish action)
+- [x] Prepare production deployment for the user-controlled Publish action in the Management UI; actual publishing remains user-controlled.
 - [x] Verify core workflows end-to-end by code review, tests, and health checks
 - [x] Generate working URL for user
 - [x] Create user documentation
