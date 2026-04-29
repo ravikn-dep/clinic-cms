@@ -1,0 +1,188 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { trpc } from "@/lib/trpc";
+import { Search, Download } from "lucide-react";
+
+export default function AuditLogs() {
+  const [filterAction, setFilterAction] = useState("ALL");
+  const [filterTable, setFilterTable] = useState("ALL");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const auditLogsQuery = trpc.auditLogs.getAll.useQuery();
+  const logs = auditLogsQuery.data || [];
+
+  const filteredLogs = logs.filter(log => {
+    const matchesAction = filterAction === "ALL" || log.actionType === filterAction;
+    const matchesTable = filterTable === "ALL" || log.tableName === filterTable;
+    const matchesSearch = log.recordId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          log.userId?.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesAction && matchesTable && matchesSearch;
+  });
+
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case "CREATE":
+        return "bg-green-50 text-green-700 border-green-200";
+      case "UPDATE":
+        return "bg-blue-50 text-blue-700 border-blue-200";
+      case "DELETE":
+        return "bg-red-50 text-red-700 border-red-200";
+      case "ACCESS":
+        return "bg-purple-50 text-purple-700 border-purple-200";
+      default:
+        return "";
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Audit Trail</h1>
+        <p className="text-muted-foreground mt-2">Immutable log of all system actions for compliance</p>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="search">Search</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="search"
+                  placeholder="Record ID or User ID..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="action">Action Type</Label>
+              <Select value={filterAction} onValueChange={setFilterAction}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Actions</SelectItem>
+                  <SelectItem value="CREATE">Create</SelectItem>
+                  <SelectItem value="UPDATE">Update</SelectItem>
+                  <SelectItem value="DELETE">Delete</SelectItem>
+                  <SelectItem value="ACCESS">Access</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="table">Table</Label>
+              <Select value={filterTable} onValueChange={setFilterTable}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Tables</SelectItem>
+                  <SelectItem value="patients">Patients</SelectItem>
+                  <SelectItem value="consultations">Consultations</SelectItem>
+                  <SelectItem value="inventory">Inventory</SelectItem>
+                  <SelectItem value="bills">Bills</SelectItem>
+                  <SelectItem value="auditLogs">Audit Logs</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>&nbsp;</Label>
+              <Button variant="outline" className="w-full">
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Audit Logs Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Activity Log</CardTitle>
+          <CardDescription>{filteredLogs.length} log entries</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {filteredLogs.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No audit logs found</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-4 font-semibold">Timestamp</th>
+                    <th className="text-left py-3 px-4 font-semibold">Action</th>
+                    <th className="text-left py-3 px-4 font-semibold">Table</th>
+                    <th className="text-left py-3 px-4 font-semibold">Record ID</th>
+                    <th className="text-left py-3 px-4 font-semibold">User ID</th>
+                    <th className="text-left py-3 px-4 font-semibold">IP Address</th>
+                    <th className="text-left py-3 px-4 font-semibold">Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredLogs.map((log, idx) => (
+                    <tr key={idx} className="border-b hover:bg-accent">
+                      <td className="py-3 px-4 text-xs font-mono">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </td>
+                      <td className="py-3 px-4">
+                        <Badge variant="outline" className={getActionColor(log.actionType)}>
+                          {log.actionType}
+                        </Badge>
+                      </td>
+                      <td className="py-3 px-4 font-medium">{log.tableName}</td>
+                      <td className="py-3 px-4 font-mono text-xs">{log.recordId}</td>
+                      <td className="py-3 px-4 text-xs">{log.userId}</td>
+                      <td className="py-3 px-4 text-xs font-mono">{log.ipAddress || "N/A"}</td>
+                      <td className="py-3 px-4">
+                        <Button variant="ghost" size="sm">View</Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Compliance Note */}
+      <Card className="border-blue-200 bg-blue-50">
+        <CardHeader>
+          <CardTitle className="text-blue-900">ℹ️ Audit Trail Information</CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-blue-800 space-y-2">
+          <p>
+            • This audit trail is immutable and cannot be edited or deleted for compliance purposes.
+          </p>
+          <p>
+            • All actions on patient data (PHI), prescriptions, and billing are logged automatically.
+          </p>
+          <p>
+            • Logs are retained for regulatory compliance and can be exported for audits.
+          </p>
+          <p>
+            • Each entry captures the actor, action type, timestamp, and change details.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

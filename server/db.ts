@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, and, desc, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, patients, consultations, inventory, bills, billItems, auditLogs, notifications } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,197 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// ============ PATIENT QUERIES ============
+
+export async function createPatient(patientData: typeof patients.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(patients).values(patientData);
+  return patientData;
+}
+
+export async function getPatientById(patientId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(patients).where(eq(patients.patientId, patientId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getAllPatients() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(patients).orderBy(desc(patients.createdAt));
+}
+
+export async function searchPatients(query: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Simplified search - in production, use full-text search
+  // For now, return all patients and filter on client side
+  return db.select().from(patients).limit(50);
+}
+
+// ============ CONSULTATION QUERIES ============
+
+export async function createConsultation(consultationData: typeof consultations.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(consultations).values(consultationData);
+  return consultationData;
+}
+
+export async function getConsultationById(consultationId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(consultations).where(eq(consultations.consultationId, consultationId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getConsultationsByPatientId(patientId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(consultations).where(eq(consultations.patientId, patientId)).orderBy(desc(consultations.consultationDate));
+}
+
+export async function updateConsultation(consultationId: string, updates: Partial<typeof consultations.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(consultations).set(updates).where(eq(consultations.consultationId, consultationId));
+}
+
+// ============ INVENTORY QUERIES ============
+
+export async function createInventoryItem(itemData: typeof inventory.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(inventory).values(itemData);
+  return itemData;
+}
+
+export async function getInventoryItemById(itemId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(inventory).where(eq(inventory.itemId, itemId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getAllInventoryItems() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(inventory).orderBy(desc(inventory.createdAt));
+}
+
+export async function getLowStockItems() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(inventory).where(lte(inventory.quantityAvailable, inventory.reorderLevel));
+}
+
+export async function updateInventoryItem(itemId: string, updates: Partial<typeof inventory.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(inventory).set(updates).where(eq(inventory.itemId, itemId));
+}
+
+// ============ BILLING QUERIES ============
+
+export async function createBill(billData: typeof bills.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(bills).values(billData);
+  return billData;
+}
+
+export async function getBillById(billId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(bills).where(eq(bills.billId, billId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getBillsByPatientId(patientId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(bills).where(eq(bills.patientId, patientId)).orderBy(desc(bills.createdAt));
+}
+
+export async function updateBill(billId: string, updates: Partial<typeof bills.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(bills).set(updates).where(eq(bills.billId, billId));
+}
+
+// ============ BILL ITEMS QUERIES ============
+
+export async function createBillItem(itemData: typeof billItems.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(billItems).values(itemData);
+  return itemData;
+}
+
+export async function getBillItemsByBillId(billId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(billItems).where(eq(billItems.billId, billId));
+}
+
+// ============ AUDIT LOG QUERIES ============
+
+export async function createAuditLog(logData: typeof auditLogs.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(auditLogs).values(logData);
+  return logData;
+}
+
+export async function getAuditLogs(limit: number = 100) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(auditLogs).orderBy(desc(auditLogs.timestamp)).limit(limit);
+}
+
+// ============ NOTIFICATION QUERIES ============
+
+export async function createNotification(notificationData: typeof notifications.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(notifications).values(notificationData);
+  return notificationData;
+}
+
+export async function getNotificationsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(notifications).where(eq(notifications.userId, userId)).orderBy(desc(notifications.createdAt));
+}
+
+export async function markNotificationAsRead(notificationId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(notifications).set({ isRead: true }).where(eq(notifications.notificationId, notificationId));
+}
