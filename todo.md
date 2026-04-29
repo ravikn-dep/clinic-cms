@@ -162,3 +162,13 @@
 - [x] Apply the friendly visual refresh consistently across registration, patient records, ambient scribe, pharmacy, billing, notifications, and audit logs.
 - [x] Validate the refreshed UI with automated tests, production build, and project health checks.
 - [x] Save a checkpoint after the friendly UI refresh for user review.
+
+## Publishing Guide and Training Video Request
+- [x] Create a practical end-user publishing guide for the Management UI, including checkpoint review, Publish action, domain/custom-domain options, and production readiness notes.
+- [x] Document CMS login flow and role-based access behavior for owner/admin and user roles.
+- [x] Document where clinic staff can edit patients, prices, inventory, billing status, notifications, and audit review items.
+- [x] Write a narrated training-video script that teaches CMS workflows by role and module.
+- [x] Generate narrated AI training-video media or a complete video-ready narrated package for user review.
+- [x] Save a checkpoint after adding the publishing and training deliverables.
+- [x] Produce actual MP4 training video with synchronized visuals and feminine narration, visually teaching publishing, login, roles, patient workflows, inventory/pricing, billing, notifications, audit logs, and where each edit is made.
+- [x] Fix observed jsPDF constructor issue affecting invoice PDF generation.

@@ -73,3 +73,17 @@ The refreshed interface now uses a warmer clinical visual language intended to m
 | Validation | `pnpm test` passed 37/37 tests, `pnpm build` completed successfully, and project health reported a running dev server with no LSP or TypeScript errors. | The refresh preserves behavior and build stability while improving visual presentation. |
 
 The friendly refresh remains intentionally conservative around compliance-heavy areas such as audit logs and billing: surfaces are warmer and more readable, but data density, role-based visibility, and immutable workflow behavior were preserved.
+
+## Training Video Delivery Evidence — 2026-04-29
+
+A full visual-and-audio training video has been rendered for the Clinic CMS rollout. The delivered MP4 is not a documentation-only package; it is an actual synchronized video with module-by-module visual slides and feminine narration. The video walks staff through publishing readiness, login expectations, admin/user role boundaries, patient registration and records, Ambient Scribe, Pharmacy Inventory, Billing, Notifications, Audit Logs, and where staff should edit patients, prices, inventory, invoices, and payment status.
+
+| Deliverable | Path | Evidence |
+|---|---|---|
+| Final MP4 training video | `/manus-storage/clinic-cms-role-based-training-video_d1bd9670.mp4`; local handoff copy: `/home/ubuntu/webdev-static-assets/clinic-cms-training/clinic-cms-role-based-training-video.mp4` | `ffprobe` confirmed H.264 video at 1920×1080 and AAC mono audio, with duration approximately 470.135 seconds. |
+| Feminine narration source | `/manus-storage/cms-training-narration-female_a123921b.wav`; local handoff copy: `/home/ubuntu/webdev-static-assets/clinic-cms-training/cms-training-narration-female.wav` | Used as the synchronized audio track for the final MP4. |
+| Visual slide assets | `training-media/slides/slide_01.png` through `slide_12.png` | Twelve HD visual teaching slides cover publishing, login, roles, reception, doctor, pharmacy, billing, oversight, edit map, rollout, and next steps. |
+| Build script | `training-media/build_training_video.py` | Generates the visual slides and assembles them with the narration into the final MP4. |
+| Visual QA notes | `training-media/video-visual-qa-notes.md` | Records readability review and stream validation evidence for the rendered training media. |
+
+The video should be used during staff onboarding after the owner reviews the latest checkpoint and before the clinic moves to daily production usage. Publishing remains controlled by the user through the Management UI **Publish** button.

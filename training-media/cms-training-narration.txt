@@ -1,0 +1,61 @@
+Welcome to the Clinic Management System training.
+
+In this walkthrough, you will learn how to publish the system for real clinic use, how staff log in, how roles work, and where to manage patients, clinical notes, pharmacy inventory, medicine prices, billing, notifications, and audit review.
+
+First, let us talk about publishing. The Clinic CMS is reviewed through the Management UI. Before it is used at full scale, the clinic owner should open the latest checkpoint, review the live preview, and test a complete sample visit. That sample test should include registering a patient, reviewing the patient record, creating a clinical note, adding a pharmacy item, creating an invoice, updating payment status, and checking audit activity. When the owner is comfortable, publishing is done from the Publish button in the Management UI. The system should not be considered live until the owner intentionally publishes it.
+
+For production use, you may also configure the site address from the Management UI. You can use the provided Manus-hosted address, adjust the generated domain prefix, or connect a custom clinic domain from the domain settings. If you use a custom domain, complete the domain setup, confirm the SSL-secured address opens correctly, and ask staff to use only the final published link.
+
+Now let us move to login. Every staff member should use their own login. Staff should not share accounts, because patient activity, billing activity, and clinical record access may be logged. Once a staff member opens the published clinic URL, they sign in through the authentication flow. After login, they arrive at the dashboard. The dashboard gives a friendly overview of clinic activity and provides shortcuts into the major work areas.
+
+The CMS has two main role types: admin and user.
+
+An admin is usually the clinic owner, manager, or a trusted compliance lead. Admins can perform normal clinic work and also access restricted oversight tools such as audit logs and administrative exports.
+
+A user is a normal staff account. Standard users can perform everyday clinic workflows such as patient registration, patient record review, clinical note creation, pharmacy inventory updates, billing, and notifications, depending on the clinic’s internal operating policy. However, users should not have access to admin-only oversight functions.
+
+To give a staff member access, ask them to sign in once. After they appear in the system users table, the owner can review that account from the Management UI database area. Most staff should remain in the user role. Only trusted staff who need audit review or administrative exports should be changed to admin. Keep admin access limited.
+
+Let us now review the CMS by clinic role.
+
+Reception staff usually start with Patient Registration. This is where a new patient is entered into the system. Reception should enter the patient’s first name, last name, date of birth, phone number, and any additional details such as gender, email, or address. After saving the patient, the CMS creates a patient identifier and tracking assets such as QR code, barcode, and a printable OPD slip. The printed slip can help the patient move through the clinic visit.
+
+If reception needs to find someone who has already visited, they should open Patient Records. Patient Records is the search and review area for existing patients. It shows patient profile information, identifiers, consultation history, billing records, and attached artifacts where available. This is the main place to look up patient history after registration.
+
+Doctors and clinical documentation staff use Ambient Scribe. Ambient Scribe supports consultation documentation by turning consultation audio into structured clinical notes. The doctor or authorized clinical staff member should upload or capture consultation audio, review the transcript, check the structured note sections, and only finalize the note after review. Ambient Scribe is a documentation assistant, not a replacement for clinical judgment.
+
+Pharmacy staff use Pharmacy Inventory. This is where medicines and stock items are managed. For each item, staff can enter the medicine or item name, batch number, expiry date, quantity, reorder level, and unit price. Quantity controls how much stock is available. Reorder level helps the system highlight low stock. Unit price is where pharmacy price information is maintained for inventory and billing reference.
+
+If the clinic wants to edit a medicine price, the appropriate place is Pharmacy Inventory. Open the inventory module, find or add the item, and update the unit price according to the clinic’s pricing policy. Price changes should be made carefully, because billing staff may use this information when preparing invoices.
+
+Billing staff use the Billing module. Billing is where invoices are created and payment status is managed. Staff select the patient, add billable line items, enter quantity and unit price, and apply any discount or tax if needed. After the invoice is created, staff should update the payment status. Use Pending when payment is not yet received, Paid when the bill is settled, and Partial when only part of the amount has been received.
+
+If you need to change a price on a specific invoice, edit it in the Billing module at the invoice line-item level. This is separate from the pharmacy inventory unit price. Inventory price is the reference price for the stock item. Billing line price is the price actually charged on that invoice.
+
+Notifications help staff stay aware of operational activity. The Notifications module shows alerts such as patient activity, invoice events, or inventory warnings. Staff can review messages and mark them as read so the team knows what still needs attention.
+
+Audit Logs are for admin users. Audit Logs help owners and managers review important activity in the CMS. This may include patient creation, patient data access, billing activity, inventory changes, exports, and other sensitive actions. Audit review is important for accountability. It should be checked regularly, especially when the clinic is first rolling out the system.
+
+Here is a simple summary of where to make edits.
+
+To add a patient, use Patient Registration.
+
+To review patient history, use Patient Records.
+
+To create or review consultation notes, use Ambient Scribe.
+
+To edit medicine inventory, quantity, reorder level, expiry, batch, or unit price, use Pharmacy Inventory.
+
+To create an invoice, edit invoice line prices, apply discount or tax, or update payment status, use Billing.
+
+To review operational alerts, use Notifications.
+
+To review staff activity and sensitive access, use Audit Logs as an admin.
+
+To change a staff role, use the Management UI database area and update the user’s role carefully.
+
+For full-scale end use, follow a staged rollout. First, publish only after owner review. Second, create one sample patient and run a complete mock visit. Third, add a small number of trained staff. Fourth, confirm each staff member understands their module. Fifth, monitor notifications, billing, inventory alerts, and audit logs during the first few clinic days.
+
+The safest operating habits are simple. Use separate accounts for every staff member. Keep admin access limited. Enter patient data carefully. Review clinical notes before finalizing them. Keep inventory quantities and prices current. Update invoice payment status immediately. Review audit logs regularly. And use the Management UI for publishing, domains, database inspection, and project-level settings.
+
+You are now ready to review the Clinic CMS, publish it when the owner is ready, train staff by role, and begin a controlled clinic rollout.
