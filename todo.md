@@ -172,3 +172,6 @@
 - [x] Save a checkpoint after adding the publishing and training deliverables.
 - [x] Produce actual MP4 training video with synchronized visuals and feminine narration, visually teaching publishing, login, roles, patient workflows, inventory/pricing, billing, notifications, audit logs, and where each edit is made.
 - [x] Fix observed jsPDF constructor issue affecting invoice PDF generation.
+
+## Administration Dashboard Preview Request
+- [x] Preview the administration dashboard and summarize the completed CMS actions for the user.
