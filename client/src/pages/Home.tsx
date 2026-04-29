@@ -33,9 +33,9 @@ export default function Home() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
             Welcome, {user?.name || "Doctor"}
           </h1>
           <p className="text-muted-foreground mt-2">
@@ -47,7 +47,7 @@ export default function Home() {
             })}
           </p>
         </div>
-        <Button onClick={() => navigate("/register-patient")} size="lg">
+        <Button onClick={() => navigate("/register-patient")} size="lg" className="w-full shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:w-auto">
           + New Patient
         </Button>
       </div>
@@ -61,8 +61,8 @@ export default function Home() {
       )}
 
       {/* Key Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card className="border-l-4 border-l-blue-500">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 xl:gap-6">
+        <Card className="card-hover border-l-4 border-l-blue-500">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Total Patients
@@ -76,7 +76,7 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-green-500">
+        <Card className="card-hover border-l-4 border-l-green-500">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Today's Queue
@@ -90,7 +90,7 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-amber-500">
+        <Card className="card-hover border-l-4 border-l-amber-500">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Low Stock Items
@@ -104,7 +104,7 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        <Card className="border-l-4 border-l-purple-500">
+        <Card className="card-hover border-l-4 border-l-purple-500">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               Inventory Items
@@ -120,7 +120,7 @@ export default function Home() {
       </div>
 
       {/* Today's Patient Queue */}
-      <Card>
+      <Card className="soft-panel">
         <CardHeader>
           <CardTitle>Today's Patient Queue</CardTitle>
             <CardDescription>Patients scheduled for consultation today. This queue refreshes every 30 seconds while the dashboard is open.</CardDescription>
@@ -137,7 +137,7 @@ export default function Home() {
           ) : (
             <div className="space-y-4">
               {todayConsultations.map((patient, idx) => (
-                <div key={patient.patientId} className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent transition-colors">
+                <div key={patient.patientId} className="flex flex-col gap-3 rounded-lg border p-4 transition-all hover:-translate-y-0.5 hover:bg-accent hover:shadow-sm sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-4">
                     <Badge variant="outline" className="text-lg font-semibold">
                       #{idx + 1}
@@ -163,9 +163,9 @@ export default function Home() {
 
       {/* Low Stock Alerts */}
       {lowStockItems.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50">
+        <Card className="soft-panel border-amber-200 bg-amber-50">
           <CardHeader>
-            <CardTitle className="text-amber-900">⚠️ Low Stock Alerts</CardTitle>
+            <CardTitle className="text-amber-900">Low Stock Alerts</CardTitle>
             <CardDescription className="text-amber-800">
               {lowStockItems.length} item(s) below reorder level
             </CardDescription>
@@ -173,7 +173,7 @@ export default function Home() {
           <CardContent>
             <div className="space-y-2">
               {lowStockItems.map((item) => (
-                <div key={item.itemId} className="flex items-center justify-between p-3 bg-white rounded border border-amber-200">
+                <div key={item.itemId} className="flex flex-col gap-3 rounded border border-amber-200 bg-white p-3 transition-all hover:-translate-y-0.5 hover:shadow-sm sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="font-semibold text-amber-900">{item.itemName}</p>
                     <p className="text-sm text-amber-700">
@@ -191,15 +191,15 @@ export default function Home() {
       )}
 
       {/* Quick Actions */}
-      <Card>
+      <Card className="soft-panel">
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
             <Button
               variant="outline"
-              className="h-24 flex-col"
+              className="h-24 flex-col transition-all hover:-translate-y-0.5 hover:shadow-md"
               onClick={() => navigate("/register-patient")}
             >
               <Users className="h-6 w-6 mb-2" />
@@ -207,7 +207,7 @@ export default function Home() {
             </Button>
             <Button
               variant="outline"
-              className="h-24 flex-col"
+              className="h-24 flex-col transition-all hover:-translate-y-0.5 hover:shadow-md"
               onClick={() => navigate("/scribe")}
             >
               <Clock className="h-6 w-6 mb-2" />
@@ -215,7 +215,7 @@ export default function Home() {
             </Button>
             <Button
               variant="outline"
-              className="h-24 flex-col"
+              className="h-24 flex-col transition-all hover:-translate-y-0.5 hover:shadow-md"
               onClick={() => navigate("/pharmacy")}
             >
               <AlertTriangle className="h-6 w-6 mb-2" />
@@ -223,7 +223,7 @@ export default function Home() {
             </Button>
             <Button
               variant="outline"
-              className="h-24 flex-col"
+              className="h-24 flex-col transition-all hover:-translate-y-0.5 hover:shadow-md"
               onClick={() => navigate("/billing")}
             >
               <AlertCircle className="h-6 w-6 mb-2" />

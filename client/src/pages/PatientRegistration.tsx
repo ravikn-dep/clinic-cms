@@ -122,34 +122,34 @@ export default function PatientRegistration() {
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <Card className="shadow-lg">
+        <Card className="border-slate-200 shadow-lg transition-shadow hover:shadow-xl">
           <CardHeader>
             <CardTitle>Patient Information</CardTitle>
             <CardDescription>Enter patient details to complete registration</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name *</Label>
-                  <Input id="firstName" placeholder="John" {...register("firstName")} className={errors.firstName ? "border-red-500" : ""} />
+                  <Input id="firstName" placeholder="John" {...register("firstName")} className={`transition-colors ${errors.firstName ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
                   {errors.firstName && <p className="text-sm text-red-500">{errors.firstName.message}</p>}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name *</Label>
-                  <Input id="lastName" placeholder="Doe" {...register("lastName")} className={errors.lastName ? "border-red-500" : ""} />
+                  <Input id="lastName" placeholder="Doe" {...register("lastName")} className={`transition-colors ${errors.lastName ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
                   {errors.lastName && <p className="text-sm text-red-500">{errors.lastName.message}</p>}
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="dob">Date of Birth *</Label>
-                <Input id="dob" type="date" {...register("dateOfBirth")} className={errors.dateOfBirth ? "border-red-500" : ""} />
+                <Input id="dob" type="date" {...register("dateOfBirth")} className={`transition-colors ${errors.dateOfBirth ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
                 {errors.dateOfBirth && <p className="text-sm text-red-500">{errors.dateOfBirth.message}</p>}
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="gender">Gender</Label>
                   <Select onValueChange={(value: "Male" | "Female" | "Other") => setValue("gender", value)}>
@@ -164,23 +164,23 @@ export default function PatientRegistration() {
 
                 <div className="space-y-2">
                   <Label htmlFor="contact">Contact Number *</Label>
-                  <Input id="contact" placeholder="+1 (555) 000-0000" {...register("contactNumber")} className={errors.contactNumber ? "border-red-500" : ""} />
+                  <Input id="contact" placeholder="+1 (555) 000-0000" {...register("contactNumber")} className={`transition-colors ${errors.contactNumber ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
                   {errors.contactNumber && <p className="text-sm text-red-500">{errors.contactNumber.message}</p>}
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="john@example.com" {...register("email")} className={errors.email ? "border-red-500" : ""} />
+                <Input id="email" type="email" placeholder="john@example.com" {...register("email")} className={`transition-colors ${errors.email ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
                 {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
-                <Textarea id="address" placeholder="Enter patient's address" {...register("address")} rows={3} />
+                <Textarea id="address" placeholder="Enter patient's address" {...register("address")} rows={3} className="transition-colors focus-visible:ring-teal-200" />
               </div>
 
-              <Button type="submit" disabled={isSubmitting} className="w-full">
+              <Button type="submit" disabled={isSubmitting} className="w-full shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Register Patient
               </Button>
             </form>
@@ -188,7 +188,7 @@ export default function PatientRegistration() {
         </Card>
 
         {registeredPatient ? (
-          <Card className="border-green-200 bg-green-50 shadow-lg">
+          <Card className="border-green-200 bg-green-50 shadow-lg transition-shadow hover:shadow-xl">
             <CardHeader>
               <CardTitle className="text-green-950">Registration Successful</CardTitle>
               <CardDescription className="text-green-800">Patient ID, QR code, and barcode were generated and stored.</CardDescription>
@@ -200,32 +200,32 @@ export default function PatientRegistration() {
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-xl border bg-white p-4 text-center">
+                <div className="rounded-xl border bg-white p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                   <Label className="mb-3 block text-green-950">QR Code</Label>
                   {registeredPatient.qrcodeImageUrl ? <img src={registeredPatient.qrcodeImageUrl} alt={`QR code for ${registeredPatient.patientId}`} className="mx-auto h-40 w-40 rounded-lg border object-contain p-2" /> : <QrCode className="mx-auto h-20 w-20 text-slate-300" />}
                 </div>
-                <div className="rounded-xl border bg-white p-4 text-center">
+                <div className="rounded-xl border bg-white p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                   <Label className="mb-3 block text-green-950">Barcode</Label>
                   {registeredPatient.barcodeImageUrl ? <img src={registeredPatient.barcodeImageUrl} alt={`Barcode for ${registeredPatient.patientId}`} className="mx-auto h-32 w-full rounded-lg border object-contain p-2" /> : <p className="text-sm text-muted-foreground">Barcode unavailable</p>}
                 </div>
               </div>
 
-              <div className="rounded-xl border bg-white p-4 text-center">
+              <div className="rounded-xl border bg-white p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                 <Label className="text-green-950">Barcode Data</Label>
                 <p className="mt-2 break-all font-mono text-sm">{registeredPatient.barcodeData}</p>
               </div>
 
-              <div className="flex gap-2">
-                <Button className="flex-1" variant="default" onClick={printTrackingSlip}><Printer className="mr-2 h-4 w-4" />Print Slip</Button>
-                {registeredPatient.qrcodeImageUrl && <Button className="flex-1" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("qr_code")}><Download className="mr-2 h-4 w-4" />QR Code</Button>}
-                {registeredPatient.barcodeImageUrl && <Button className="flex-1" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("barcode")}><Download className="mr-2 h-4 w-4" />Barcode</Button>}
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button className="flex-1 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" variant="default" onClick={printTrackingSlip}><Printer className="mr-2 h-4 w-4" />Print Slip</Button>
+                {registeredPatient.qrcodeImageUrl && <Button className="flex-1 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("qr_code")}><Download className="mr-2 h-4 w-4" />QR Code</Button>}
+                {registeredPatient.barcodeImageUrl && <Button className="flex-1 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("barcode")}><Download className="mr-2 h-4 w-4" />Barcode</Button>}
               </div>
 
-              <Button className="w-full" variant="outline" onClick={() => { setRegisteredPatient(null); reset(); }}>Register Another Patient</Button>
+              <Button className="w-full bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" variant="outline" onClick={() => { setRegisteredPatient(null); reset(); }}>Register Another Patient</Button>
             </CardContent>
           </Card>
         ) : (
-          <Card className="flex min-h-[420px] items-center justify-center border-dashed bg-slate-50/70">
+          <Card className="flex min-h-[420px] items-center justify-center border-dashed bg-slate-50/70 shadow-sm transition-shadow hover:shadow-md">
             <CardContent className="text-center">
               <QrCode className="mx-auto mb-4 h-12 w-12 text-slate-400" />
               <h2 className="text-xl font-semibold text-slate-900">OPD tracking assets appear here</h2>

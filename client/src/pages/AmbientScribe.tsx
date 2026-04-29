@@ -175,8 +175,8 @@ export default function AmbientScribe() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="shadow-lg border-slate-200">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <Card className="border-slate-200 shadow-lg transition-shadow hover:shadow-xl">
           <CardHeader>
             <CardTitle>Audio Input</CardTitle>
             <CardDescription>Live recording and uploaded files are stored before transcription for reliable retrieval.</CardDescription>
@@ -184,13 +184,13 @@ export default function AmbientScribe() {
           <CardContent className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="patientId">Patient ID *</Label>
-              <Input id="patientId" placeholder="e.g., PAT-ABC12345" value={patientId} onChange={(e) => setPatientId(e.target.value)} />
+              <Input id="patientId" placeholder="e.g., PAT-ABC12345" value={patientId} onChange={(e) => setPatientId(e.target.value)} className="transition-colors focus-visible:ring-teal-200" />
             </div>
 
             <div className="space-y-4">
               <div>
                 <Label className="mb-3 block">Live Recording</Label>
-                <Button onClick={isRecording ? handleStopRecording : handleStartRecording} className="w-full" variant={isRecording ? "destructive" : "default"}>
+                <Button onClick={isRecording ? handleStopRecording : handleStartRecording} className="w-full shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" variant={isRecording ? "destructive" : "default"}>
                   <Mic className="mr-2 h-4 w-4" />
                   {isRecording ? "Stop Recording" : "Start Recording"}
                 </Button>
@@ -208,7 +208,7 @@ export default function AmbientScribe() {
 
               <div>
                 <Label className="mb-3 block">Upload Audio File</Label>
-                <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center transition hover:border-teal-400 hover:bg-teal-50/40">
+                <div className="rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center shadow-inner transition-all hover:-translate-y-0.5 hover:border-teal-400 hover:bg-teal-50/40 hover:shadow-md">
                   <Upload className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
                   <Label htmlFor="audioFile" className="cursor-pointer">
                     <span className="text-sm font-medium">Click to upload</span>
@@ -225,16 +225,16 @@ export default function AmbientScribe() {
               </div>
             </div>
 
-            <Button onClick={handleTranscribeAndParse} disabled={isBusy || !patientId || !audioFile} className="w-full" size="lg">
+            <Button onClick={handleTranscribeAndParse} disabled={isBusy || !patientId || !audioFile} className="w-full shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md disabled:hover:translate-y-0" size="lg">
               {isBusy ? "Uploading, transcribing, and parsing..." : "Transcribe & Parse"}
             </Button>
           </CardContent>
         </Card>
 
         {parsedData ? (
-          <Card className="border-emerald-200 bg-emerald-50 shadow-lg">
+          <Card className="border-emerald-200 bg-emerald-50 shadow-lg transition-shadow hover:shadow-xl">
             <CardHeader>
-              <div className="flex items-center justify-between gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="text-emerald-950">Clinical Documentation</CardTitle>
                   <CardDescription className="text-emerald-800">Auto-parsed from the stored audio transcript</CardDescription>
@@ -250,18 +250,18 @@ export default function AmbientScribe() {
 
               <div className="rounded-xl border bg-white p-4">
                 <Label htmlFor="signature" className="mb-2 flex items-center gap-2 font-semibold text-slate-900"><PenLine className="h-4 w-4" />Digital Signature</Label>
-                <Textarea id="signature" placeholder="Type doctor's name and credentials to finalize this note" value={digitalSignature} onChange={(e) => setDigitalSignature(e.target.value)} disabled={isFinalized} />
+                <Textarea id="signature" placeholder="Type doctor's name and credentials to finalize this note" value={digitalSignature} onChange={(e) => setDigitalSignature(e.target.value)} disabled={isFinalized} className="transition-colors focus-visible:ring-teal-200" />
               </div>
 
-              <div className="flex gap-2">
-                <Button className="flex-1" onClick={handleFinalize} disabled={isFinalized || finalizeConsultation.isPending || !digitalSignature.trim()}>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button className="flex-1 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md disabled:hover:translate-y-0" onClick={handleFinalize} disabled={isFinalized || finalizeConsultation.isPending || !digitalSignature.trim()}>
                   <Check className="mr-2 h-4 w-4" />{isFinalized ? "Finalized" : "Finalize & Sign"}
                 </Button>
               </div>
             </CardContent>
           </Card>
         ) : (
-          <Card className="border-slate-200 bg-slate-50/80 shadow-lg">
+          <Card className="border-slate-200 bg-slate-50/80 shadow-lg transition-shadow hover:shadow-xl">
             <CardContent className="flex min-h-[420px] flex-col items-center justify-center text-center">
               <Mic className="mb-4 h-12 w-12 text-slate-400" />
               <h2 className="text-xl font-semibold text-slate-900">No clinical note generated yet</h2>
@@ -278,7 +278,7 @@ function ClinicalSection({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <Label className="mb-2 block font-semibold text-emerald-950">{label}</Label>
-      <div className="rounded-xl border bg-white p-3 text-sm leading-6 text-slate-800 shadow-sm">{value || "Not documented"}</div>
+      <div className="rounded-xl border bg-white p-3 text-sm leading-6 text-slate-800 shadow-sm transition-colors hover:bg-emerald-50/50">{value || "Not documented"}</div>
     </div>
   );
 }

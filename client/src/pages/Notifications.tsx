@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { AlertCircle, Bell, Check, Loader2, Search, Trash2 } from "lucide-react";
+import { AlertCircle, AlertTriangle, Bell, Check, CheckCircle2, FileText, Loader2, Megaphone, Search, Trash2, UserRound } from "lucide-react";
 
 export default function Notifications() {
   const [filterType, setFilterType] = useState("ALL");
@@ -56,15 +56,15 @@ export default function Notifications() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "patient_registration":
-        return "👤";
+        return <UserRound className="h-5 w-5 text-blue-700" />;
       case "invoice_generated":
-        return "📄";
+        return <FileText className="h-5 w-5 text-green-700" />;
       case "low_stock":
-        return "⚠️";
+        return <AlertTriangle className="h-5 w-5 text-orange-700" />;
       case "consultation_completed":
-        return "✓";
+        return <CheckCircle2 className="h-5 w-5 text-purple-700" />;
       default:
-        return "📢";
+        return <Megaphone className="h-5 w-5 text-slate-700" />;
     }
   };
 
@@ -100,18 +100,19 @@ export default function Notifications() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Notifications</h1>
           <p className="text-muted-foreground mt-2">
             {unreadCount > 0 ? `${unreadCount} unread notification(s)` : "All notifications read"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <Button
             variant={autoRefresh ? "default" : "outline"}
             size="sm"
             onClick={() => setAutoRefresh(!autoRefresh)}
+            className="shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
           >
             <Bell className="h-4 w-4 mr-2" />
             {autoRefresh ? "Auto-refresh On" : "Auto-refresh Off"}
@@ -121,6 +122,7 @@ export default function Notifications() {
             size="sm"
             onClick={() => notificationsQuery.refetch()}
             disabled={notificationsQuery.isFetching}
+            className="bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
           >
             {notificationsQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Refresh
@@ -129,7 +131,7 @@ export default function Notifications() {
       </div>
 
       {/* Filters */}
-      <Card>
+      <Card className="border-slate-200 shadow-sm transition-shadow hover:shadow-md">
         <CardHeader>
           <CardTitle>Filters</CardTitle>
         </CardHeader>
@@ -144,7 +146,7 @@ export default function Notifications() {
                   placeholder="Search notifications..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 transition-colors focus-visible:ring-teal-200"
                 />
               </div>
             </div>
@@ -167,7 +169,7 @@ export default function Notifications() {
 
             <div className="space-y-2">
               <Label>&nbsp;</Label>
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" onClick={() => { setFilterType("ALL"); setSearchQuery(""); }}>
                 Clear Filters
               </Button>
             </div>
@@ -209,16 +211,16 @@ export default function Notifications() {
           filteredNotifications.map((notif) => (
             <Card
               key={notif.notificationId}
-              className={`${getNotificationColor(notif.notificationType)} border ${!notif.isRead ? "border-l-4" : ""}`}
+              className={`${getNotificationColor(notif.notificationType)} border shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${!notif.isRead ? "border-l-4" : ""}`}
             >
               <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3 flex-1">
-                    <div className="text-2xl mt-1">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex flex-1 items-start gap-3">
+                    <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-white/80 shadow-sm">
                       {getNotificationIcon(notif.notificationType)}
                     </div>
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
                         <h3 className="font-semibold">{notif.title}</h3>
                         {!notif.isRead && (
                           <Badge variant="default" className="text-xs">
@@ -242,6 +244,7 @@ export default function Notifications() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleMarkAsRead(notif.notificationId)}
+                        className="transition-all hover:-translate-y-0.5"
                       >
                         <Check className="h-4 w-4" />
                       </Button>
@@ -249,7 +252,8 @@ export default function Notifications() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-destructive hover:text-destructive"
+                      className="text-destructive transition-all hover:-translate-y-0.5 hover:text-destructive"
+                      onClick={() => toast.info("Notification deletion is coming soon.")}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -262,31 +266,31 @@ export default function Notifications() {
       </div>
 
       {/* Notification Settings */}
-      <Card>
+      <Card className="border-slate-200 shadow-sm transition-shadow hover:shadow-md">
         <CardHeader>
           <CardTitle>Notification Settings</CardTitle>
           <CardDescription>Configure how you receive notifications</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between rounded-lg border bg-white p-3 shadow-sm">
               <Label>Patient Registration Alerts</Label>
-              <input type="checkbox" defaultChecked className="h-4 w-4" />
+              <input type="checkbox" defaultChecked className="h-4 w-4 accent-teal-700" />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between rounded-lg border bg-white p-3 shadow-sm">
               <Label>Invoice Generation Alerts</Label>
-              <input type="checkbox" defaultChecked className="h-4 w-4" />
+              <input type="checkbox" defaultChecked className="h-4 w-4 accent-teal-700" />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between rounded-lg border bg-white p-3 shadow-sm">
               <Label>Low Stock Alerts</Label>
-              <input type="checkbox" defaultChecked className="h-4 w-4" />
+              <input type="checkbox" defaultChecked className="h-4 w-4 accent-teal-700" />
             </div>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between rounded-lg border bg-white p-3 shadow-sm">
               <Label>Email Notifications</Label>
-              <input type="checkbox" className="h-4 w-4" />
+              <input type="checkbox" className="h-4 w-4 accent-teal-700" />
             </div>
           </div>
-          <Button>Save Settings</Button>
+          <Button className="shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" onClick={() => toast.info("Notification preference persistence is coming soon.")}>Save Settings</Button>
         </CardContent>
       </Card>
     </div>

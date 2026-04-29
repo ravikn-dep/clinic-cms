@@ -116,7 +116,7 @@ export default function PatientRecords() {
             variant="outline"
             onClick={() => exportPatientsCsv.mutate()}
             disabled={exportPatientsCsv.isPending}
-            className="shadow-sm"
+            className="shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
           >
             {exportPatientsCsv.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -130,7 +130,7 @@ export default function PatientRecords() {
         )}
       </div>
 
-      <Card>
+      <Card className="border-slate-200 shadow-sm transition-shadow hover:shadow-md">
         <CardHeader>
           <CardTitle>Search Patients</CardTitle>
           <CardDescription>Find patients by name, patient ID, contact number, or email.</CardDescription>
@@ -143,7 +143,7 @@ export default function PatientRecords() {
                 placeholder="Search by name, patient ID, contact number, or email..."
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="pl-10"
+                className="pl-10 transition-colors focus-visible:ring-teal-200"
               />
             </div>
           </div>
@@ -151,7 +151,7 @@ export default function PatientRecords() {
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)]">
-        <Card>
+        <Card className="border-slate-200 shadow-sm">
           <CardHeader>
             <CardTitle>Patient List</CardTitle>
             <CardDescription>{filteredPatients.length} patient(s) found</CardDescription>
@@ -166,9 +166,9 @@ export default function PatientRecords() {
                 <p className="text-muted-foreground">No patients found.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-lg border">
+              <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/60">
+                  <thead className="bg-muted/70 text-muted-foreground">
                     <tr className="border-b">
                       <th className="text-left py-3 px-4 font-semibold">Patient ID</th>
                       <th className="text-left py-3 px-4 font-semibold">Name</th>
@@ -179,7 +179,7 @@ export default function PatientRecords() {
                   </thead>
                   <tbody>
                     {filteredPatients.map((patient) => (
-                      <tr key={patient.patientId} className={`border-b hover:bg-accent ${selectedPatientId === patient.patientId ? "bg-primary/5" : ""}`}>
+                      <tr key={patient.patientId} className={`border-b transition-colors hover:bg-accent/70 ${selectedPatientId === patient.patientId ? "border-l-4 border-l-primary bg-primary/10" : ""}`}>
                         <td className="py-3 px-4 font-mono text-xs">{patient.patientId}</td>
                         <td className="py-3 px-4">
                           <div className="font-medium">{patient.firstName} {patient.lastName}</div>
@@ -188,7 +188,7 @@ export default function PatientRecords() {
                         <td className="py-3 px-4">{patient.contactNumber}</td>
                         <td className="py-3 px-4 text-xs text-muted-foreground">{formatDate(patient.createdAt)}</td>
                         <td className="py-3 px-4">
-                          <Button variant="outline" size="sm" onClick={() => setSelectedPatientId(patient.patientId)}>
+                          <Button variant="outline" size="sm" onClick={() => setSelectedPatientId(patient.patientId)} className="bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                             View Profile
                           </Button>
                         </td>
@@ -201,7 +201,7 @@ export default function PatientRecords() {
           </CardContent>
         </Card>
 
-        <Card className="min-h-[520px]">
+        <Card className="min-h-[520px] border-slate-200 shadow-sm transition-shadow hover:shadow-md">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserRound className="h-5 w-5 text-primary" /> Patient Profile
@@ -210,7 +210,7 @@ export default function PatientRecords() {
           </CardHeader>
           <CardContent>
             {!selectedPatientId ? (
-              <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed text-center">
+              <div className="flex min-h-[360px] flex-col items-center justify-center rounded-xl border border-dashed bg-slate-50/70 p-6 text-center">
                 <UserRound className="mb-3 h-10 w-10 text-muted-foreground" />
                 <p className="font-medium">Select a patient to review their profile.</p>
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">Opening a profile records a PHI access event in the immutable audit trail.</p>
@@ -223,7 +223,7 @@ export default function PatientRecords() {
               <div className="py-12 text-center text-muted-foreground">Patient profile not found.</div>
             ) : (
               <div className="space-y-5">
-                <div className="rounded-xl border bg-card p-4">
+                <div className="rounded-xl border bg-card p-4 shadow-sm">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <h2 className="text-xl font-semibold">{selectedPatient.firstName} {selectedPatient.lastName}</h2>
@@ -241,7 +241,7 @@ export default function PatientRecords() {
                 </div>
 
                 <Tabs defaultValue="consultations" className="w-full">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className="grid w-full grid-cols-3 rounded-xl bg-muted/70 p-1">
                     <TabsTrigger value="consultations">Consultations</TabsTrigger>
                     <TabsTrigger value="billing">Billing</TabsTrigger>
                     <TabsTrigger value="files">Files</TabsTrigger>
@@ -253,7 +253,7 @@ export default function PatientRecords() {
                     ) : consultations.length === 0 ? (
                       <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No consultations recorded yet.</div>
                     ) : consultations.map((consultation) => (
-                      <div key={consultation.consultationId} className="rounded-lg border p-4">
+                      <div key={consultation.consultationId} className="rounded-lg border bg-white p-4 shadow-sm transition-colors hover:bg-accent/30">
                         <div className="flex items-center justify-between gap-3">
                           <div className="font-medium">{consultation.consultationId}</div>
                           <Badge variant={consultation.isFinalized ? "default" : "outline"}>{consultation.isFinalized ? "Finalized" : "Draft"}</Badge>
@@ -277,7 +277,7 @@ export default function PatientRecords() {
                     ) : bills.length === 0 ? (
                       <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No billing records found.</div>
                     ) : bills.map((bill) => (
-                      <div key={bill.billId} className="rounded-lg border p-4">
+                      <div key={bill.billId} className="rounded-lg border bg-white p-4 shadow-sm transition-colors hover:bg-accent/30">
                         <div className="flex items-center justify-between gap-3">
                           <div className="font-medium">{bill.billId}</div>
                           <Badge variant={statusVariant(bill.paymentStatus)}>{bill.paymentStatus}</Badge>
@@ -291,7 +291,7 @@ export default function PatientRecords() {
                               <Button
                                 type="button"
                                 variant="link"
-                                className="h-auto p-0 text-primary"
+                                className="h-auto p-0 text-primary transition-colors hover:text-primary/80"
                                 disabled={artifactLink.isPending}
                                 onClick={() => openProtectedArtifact({
                                   key: bill.invoicePdfKey,
@@ -324,7 +324,7 @@ export default function PatientRecords() {
                           type="button"
                           disabled={artifactLink.isPending}
                           onClick={() => openProtectedArtifact(file)}
-                          className="flex w-full items-center justify-between rounded-lg border p-3 text-left text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-70"
+                          className="flex w-full items-center justify-between rounded-lg border bg-white p-3 text-left text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:bg-accent/60 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
                         >
                           <span className="flex items-center gap-2"><Icon className="h-4 w-4 text-primary" /> {file.label}</span>
                           {artifactLink.isPending ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <ExternalLink className="h-4 w-4 text-muted-foreground" />}
