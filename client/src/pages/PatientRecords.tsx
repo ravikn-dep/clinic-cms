@@ -105,18 +105,18 @@ export default function PatientRecords() {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="friendly-page space-y-8">
+      <div className="friendly-hero flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Patient Records</h1>
-          <p className="text-muted-foreground mt-2">Search, review, and export patient history for external reporting.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-teal-950">Patient Records</h1>
+          <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">Search, review, and export patient history for external reporting.</p>
         </div>
         {isAdmin ? (
           <Button
             variant="outline"
             onClick={() => exportPatientsCsv.mutate()}
             disabled={exportPatientsCsv.isPending}
-            className="shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+            className="friendly-action"
           >
             {exportPatientsCsv.isPending ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -130,7 +130,7 @@ export default function PatientRecords() {
         )}
       </div>
 
-      <Card className="border-slate-200 shadow-sm transition-shadow hover:shadow-md">
+      <Card className="friendly-card">
         <CardHeader>
           <CardTitle>Search Patients</CardTitle>
           <CardDescription>Find patients by name, patient ID, contact number, or email.</CardDescription>
@@ -151,7 +151,7 @@ export default function PatientRecords() {
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)]">
-        <Card className="border-slate-200 shadow-sm">
+        <Card className="friendly-card">
           <CardHeader>
             <CardTitle>Patient List</CardTitle>
             <CardDescription>{filteredPatients.length} patient(s) found</CardDescription>
@@ -188,7 +188,7 @@ export default function PatientRecords() {
                         <td className="py-3 px-4">{patient.contactNumber}</td>
                         <td className="py-3 px-4 text-xs text-muted-foreground">{formatDate(patient.createdAt)}</td>
                         <td className="py-3 px-4">
-                          <Button variant="outline" size="sm" onClick={() => setSelectedPatientId(patient.patientId)} className="bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                          <Button variant="outline" size="sm" onClick={() => setSelectedPatientId(patient.patientId)} className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50">
                             View Profile
                           </Button>
                         </td>

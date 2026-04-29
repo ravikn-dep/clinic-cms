@@ -114,15 +114,15 @@ export default function PatientRegistration() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="rounded-3xl bg-gradient-to-r from-slate-950 via-teal-950 to-emerald-900 p-8 text-white shadow-xl">
-        <Badge className="border-white/20 bg-white/10 text-white">Patient intake</Badge>
-        <h1 className="mt-4 text-3xl font-bold tracking-tight">Patient Registration</h1>
-        <p className="mt-2 max-w-3xl text-teal-50">Register a new patient, auto-generate a unique Patient ID, and securely store QR/barcode assets for OPD tracking.</p>
+    <div className="friendly-page space-y-8">
+      <div className="friendly-hero">
+        <Badge className="friendly-chip border-teal-200 bg-teal-50 text-teal-800">Patient intake</Badge>
+        <h1 className="mt-4 text-3xl font-bold tracking-tight text-teal-950">Patient Registration</h1>
+        <p className="mt-2 max-w-3xl leading-6 text-muted-foreground">Welcome each patient with a calmer intake flow, auto-generate a unique Patient ID, and securely store QR/barcode assets for OPD tracking.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <Card className="border-slate-200 shadow-lg transition-shadow hover:shadow-xl">
+        <Card className="friendly-card">
           <CardHeader>
             <CardTitle>Patient Information</CardTitle>
             <CardDescription>Enter patient details to complete registration</CardDescription>
@@ -180,7 +180,7 @@ export default function PatientRegistration() {
                 <Textarea id="address" placeholder="Enter patient's address" {...register("address")} rows={3} className="transition-colors focus-visible:ring-teal-200" />
               </div>
 
-              <Button type="submit" disabled={isSubmitting} className="w-full shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+              <Button type="submit" disabled={isSubmitting} className="friendly-action w-full bg-teal-600 text-white hover:bg-teal-700">
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Register Patient
               </Button>
             </form>
@@ -188,7 +188,7 @@ export default function PatientRegistration() {
         </Card>
 
         {registeredPatient ? (
-          <Card className="border-green-200 bg-green-50 shadow-lg transition-shadow hover:shadow-xl">
+          <Card className="friendly-card border-green-200 bg-green-50/80">
             <CardHeader>
               <CardTitle className="text-green-950">Registration Successful</CardTitle>
               <CardDescription className="text-green-800">Patient ID, QR code, and barcode were generated and stored.</CardDescription>
@@ -200,35 +200,35 @@ export default function PatientRegistration() {
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-xl border bg-white p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div className="rounded-3xl border border-white/80 bg-white/85 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                   <Label className="mb-3 block text-green-950">QR Code</Label>
                   {registeredPatient.qrcodeImageUrl ? <img src={registeredPatient.qrcodeImageUrl} alt={`QR code for ${registeredPatient.patientId}`} className="mx-auto h-40 w-40 rounded-lg border object-contain p-2" /> : <QrCode className="mx-auto h-20 w-20 text-slate-300" />}
                 </div>
-                <div className="rounded-xl border bg-white p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                <div className="rounded-3xl border border-white/80 bg-white/85 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                   <Label className="mb-3 block text-green-950">Barcode</Label>
                   {registeredPatient.barcodeImageUrl ? <img src={registeredPatient.barcodeImageUrl} alt={`Barcode for ${registeredPatient.patientId}`} className="mx-auto h-32 w-full rounded-lg border object-contain p-2" /> : <p className="text-sm text-muted-foreground">Barcode unavailable</p>}
                 </div>
               </div>
 
-              <div className="rounded-xl border bg-white p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+              <div className="rounded-3xl border border-white/80 bg-white/85 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
                 <Label className="text-green-950">Barcode Data</Label>
                 <p className="mt-2 break-all font-mono text-sm">{registeredPatient.barcodeData}</p>
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
-                <Button className="flex-1 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" variant="default" onClick={printTrackingSlip}><Printer className="mr-2 h-4 w-4" />Print Slip</Button>
-                {registeredPatient.qrcodeImageUrl && <Button className="flex-1 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("qr_code")}><Download className="mr-2 h-4 w-4" />QR Code</Button>}
-                {registeredPatient.barcodeImageUrl && <Button className="flex-1 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("barcode")}><Download className="mr-2 h-4 w-4" />Barcode</Button>}
+                <Button className="friendly-action flex-1" variant="default" onClick={printTrackingSlip}><Printer className="mr-2 h-4 w-4" />Print Slip</Button>
+                {registeredPatient.qrcodeImageUrl && <Button className="friendly-action flex-1 border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("qr_code")}><Download className="mr-2 h-4 w-4" />QR Code</Button>}
+                {registeredPatient.barcodeImageUrl && <Button className="friendly-action flex-1 border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("barcode")}><Download className="mr-2 h-4 w-4" />Barcode</Button>}
               </div>
 
-              <Button className="w-full bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" variant="outline" onClick={() => { setRegisteredPatient(null); reset(); }}>Register Another Patient</Button>
+              <Button className="friendly-action w-full border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" variant="outline" onClick={() => { setRegisteredPatient(null); reset(); }}>Register Another Patient</Button>
             </CardContent>
           </Card>
         ) : (
-          <Card className="flex min-h-[420px] items-center justify-center border-dashed bg-slate-50/70 shadow-sm transition-shadow hover:shadow-md">
+          <Card className="friendly-card flex min-h-[420px] items-center justify-center border-dashed border-teal-200 bg-teal-50/45">
             <CardContent className="text-center">
-              <QrCode className="mx-auto mb-4 h-12 w-12 text-slate-400" />
-              <h2 className="text-xl font-semibold text-slate-900">OPD tracking assets appear here</h2>
+              <QrCode className="mx-auto mb-4 h-12 w-12 text-teal-500" />
+              <h2 className="text-xl font-semibold text-teal-950">OPD tracking assets appear here</h2>
               <p className="mt-2 max-w-sm text-sm text-muted-foreground">After successful registration, QR and barcode images will be shown for printing and external OPD tracking.</p>
             </CardContent>
           </Card>

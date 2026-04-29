@@ -172,14 +172,14 @@ export default function Billing() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="friendly-page space-y-8">
+      <div className="friendly-hero flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Billing</h1>
-          <p className="text-muted-foreground mt-2">Generate invoices, track payments, and export billing history.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-teal-950">Billing</h1>
+          <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">Generate invoices, track payments, and export billing history.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <Button variant="outline" onClick={() => billsQuery.refetch()} disabled={billsQuery.isFetching} className="shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <Button variant="outline" onClick={() => billsQuery.refetch()} disabled={billsQuery.isFetching} className="friendly-action">
             <RefreshCcw className={`mr-2 h-4 w-4 ${billsQuery.isFetching ? "animate-spin" : ""}`} />
             Refresh
           </Button>
@@ -188,13 +188,13 @@ export default function Billing() {
               variant="outline"
               onClick={() => exportBillingCsv.mutate()}
               disabled={exportBillingCsv.isPending || bills.length === 0}
-              className="shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+              className="friendly-action"
             >
               {exportBillingCsv.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               Export Billing CSV
             </Button>
           ) : null}
-          <Button onClick={() => setShowNewBill((value) => !value)} className="shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <Button onClick={() => setShowNewBill((value) => !value)} className="friendly-action">
             <Plus className="mr-2 h-4 w-4" />
             New Bill
           </Button>
@@ -202,7 +202,7 @@ export default function Billing() {
       </div>
 
       {showNewBill && (
-        <Card className="border-slate-200 shadow-lg transition-shadow hover:shadow-xl">
+        <Card className="friendly-card">
           <CardHeader>
             <CardTitle>Create New Invoice</CardTitle>
             <CardDescription>Generate a bill for consultation, procedure, or medicine charges.</CardDescription>
@@ -267,11 +267,11 @@ export default function Billing() {
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
-                <Button type="submit" className="flex-1 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" disabled={createBill.isPending}>
+                <Button type="submit" className="friendly-action flex-1" disabled={createBill.isPending}>
                   {createBill.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
                   Create Invoice
                 </Button>
-                <Button type="button" variant="outline" className="flex-1 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" onClick={() => setShowNewBill(false)} disabled={createBill.isPending}>
+                <Button type="button" variant="outline" className="friendly-action flex-1 border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" onClick={() => setShowNewBill(false)} disabled={createBill.isPending}>
                   Cancel
                 </Button>
               </div>
@@ -280,7 +280,7 @@ export default function Billing() {
         </Card>
       )}
 
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="friendly-card">
         <CardHeader>
           <CardTitle>Recent Invoices</CardTitle>
           <CardDescription>
@@ -359,11 +359,11 @@ export default function Billing() {
                       <td className="py-3 px-4">
                         <div className="flex gap-2">
                           {isAdmin ? (
-                            <Button variant="ghost" size="sm" onClick={() => exportBillingCsv.mutate()} disabled={exportBillingCsv.isPending} aria-label="Export billing CSV" className="transition-all hover:-translate-y-0.5">
+                            <Button variant="ghost" size="sm" onClick={() => exportBillingCsv.mutate()} disabled={exportBillingCsv.isPending} aria-label="Export billing CSV" className="transition-all hover:-translate-y-0.5 hover:text-teal-700">
                               {exportBillingCsv.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                             </Button>
                           ) : null}
-                          <Button variant="outline" size="sm" onClick={() => openInvoicePdf(bill)} disabled={getInvoiceLink.isPending} className="bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+                          <Button variant="outline" size="sm" onClick={() => openInvoicePdf(bill)} disabled={getInvoiceLink.isPending} className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50">
                             View PDF
                           </Button>
                         </div>
@@ -378,7 +378,7 @@ export default function Billing() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="border-slate-200 shadow-sm transition-shadow hover:shadow-md">
+        <Card className="friendly-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
           </CardHeader>
@@ -387,7 +387,7 @@ export default function Billing() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm transition-shadow hover:shadow-md">
+        <Card className="friendly-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">Pending Amount</CardTitle>
           </CardHeader>
@@ -396,7 +396,7 @@ export default function Billing() {
           </CardContent>
         </Card>
 
-        <Card className="border-slate-200 shadow-sm transition-shadow hover:shadow-md">
+        <Card className="friendly-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">Partial Payments</CardTitle>
           </CardHeader>

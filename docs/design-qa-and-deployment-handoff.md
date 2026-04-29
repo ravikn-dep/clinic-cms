@@ -58,3 +58,18 @@ Deployment remains a **user-controlled Publish action**. The final checkpoint gi
 ## Handoff Conclusion
 
 The final design QA evidence gap is closed for the current review scope. The main clinic workflows now have documented typography/color evidence, polished component treatment, responsive behavior, loading/error/empty-state handling, and restrained micro-interactions. The project has passed automated tests and build validation, and the next step is to save a checkpoint so the user can review or publish from the Management UI.
+
+
+## Friendly UI Refresh Evidence — 2026-04-29
+
+The refreshed interface now uses a warmer clinical visual language intended to make the workspace feel calmer and more approachable without changing the underlying workflow logic. The global stylesheet defines reusable `friendly-page`, `friendly-hero`, `friendly-card`, `friendly-chip`, and `friendly-action` utilities, which are then applied across the authenticated shell and key workflow screens for consistent surface treatment, motion, and hierarchy.
+
+| Area | Evidence | User-facing result |
+|---|---|---|
+| Dashboard first impression | `client/src/pages/Home.tsx` uses `friendly-page` and `friendly-hero`, adds warm greeting copy, date and clinic-readiness chips, and promotes `+ New Patient` and `Start Scribe` CTAs in the hero section. | The landing screen now feels welcoming and task-oriented rather than purely administrative. |
+| Dashboard cards and hierarchy | `Home.tsx` applies gradient stat cards, rounded `friendly-card` containers, softer empty states, and hover elevation for queue rows and quick actions. | Key numbers and next actions are easier to scan while retaining clinical clarity. |
+| Authenticated shell | `client/src/components/DashboardLayout.tsx` adds a warm gradient sign-in state, softer sidebar background, rounded active navigation states, and friendlier workspace labeling. | The navigation frame feels more personal and less stark across all pages. |
+| Workflow consistency | The friendly utilities were applied across registration, patient records, ambient scribe, pharmacy, billing, notifications, and audit logs, with additional manual polish on pharmacy, audit logs, and registration. | Core clinic flows now share a cohesive visual language with softer cards and clearer interaction affordances. |
+| Validation | `pnpm test` passed 37/37 tests, `pnpm build` completed successfully, and project health reported a running dev server with no LSP or TypeScript errors. | The refresh preserves behavior and build stability while improving visual presentation. |
+
+The friendly refresh remains intentionally conservative around compliance-heavy areas such as audit logs and billing: surfaces are warmer and more readable, but data density, role-based visibility, and immutable workflow behavior were preserved.

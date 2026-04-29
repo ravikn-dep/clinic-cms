@@ -41,14 +41,15 @@ export default function AuditLogs() {
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Audit Trail</h1>
-        <p className="text-muted-foreground mt-2">Immutable log of all system actions for compliance</p>
+    <div className="friendly-page space-y-8">
+      <div className="friendly-hero">
+        <span className="friendly-chip mb-3 inline-flex items-center gap-2"><Info className="h-3.5 w-3.5" /> Compliance comfort</span>
+        <h1 className="text-3xl font-bold tracking-tight text-teal-950">Audit Trail</h1>
+        <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">Review immutable system activity in a calmer compliance view designed for quick, confident scanning.</p>
       </div>
 
       {/* Filters */}
-      <Card className="border-slate-200 shadow-sm transition-shadow hover:shadow-md">
+      <Card className="friendly-card">
         <CardHeader>
           <CardTitle>Filters</CardTitle>
         </CardHeader>
@@ -103,7 +104,7 @@ export default function AuditLogs() {
 
             <div className="space-y-2">
               <Label>&nbsp;</Label>
-              <Button variant="outline" className="w-full bg-white shadow-sm" disabled>
+              <Button variant="outline" className="friendly-action w-full border-teal-200 bg-white/85 text-teal-800" disabled>
                 <Download className="mr-2 h-4 w-4" />
                 Export unavailable
               </Button>
@@ -113,18 +114,18 @@ export default function AuditLogs() {
       </Card>
 
       {/* Audit Logs Table */}
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="friendly-card">
         <CardHeader>
           <CardTitle>Activity Log</CardTitle>
           <CardDescription>{filteredLogs.length} log entries</CardDescription>
         </CardHeader>
         <CardContent>
           {auditLogsQuery.isLoading ? (
-            <div className="flex items-center justify-center rounded-lg border border-dashed py-12 text-muted-foreground">
+            <div className="flex items-center justify-center rounded-3xl border border-dashed border-teal-200 bg-teal-50/45 py-12 text-muted-foreground">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading audit logs...
             </div>
           ) : auditLogsQuery.isError ? (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 py-12 text-center">
+            <div className="flex flex-col items-center justify-center gap-3 rounded-3xl border border-destructive/30 bg-destructive/5 py-12 text-center">
               <AlertCircle className="h-10 w-10 text-destructive" />
               <div>
                 <p className="font-medium text-destructive">Unable to load audit logs.</p>
@@ -133,15 +134,15 @@ export default function AuditLogs() {
               <Button variant="outline" onClick={() => auditLogsQuery.refetch()}>Try again</Button>
             </div>
           ) : filteredLogs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed bg-slate-50/70 py-12 text-center">
+            <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-teal-200 bg-teal-50/45 py-12 text-center">
               <Search className="mb-3 h-8 w-8 text-muted-foreground" />
               <p className="font-medium">No audit logs found</p>
               <p className="mt-1 text-sm text-muted-foreground">Adjust the filters or search terms to review activity.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-3xl border border-white/80 bg-white/80 shadow-sm">
               <table className="w-full text-sm">
-                <thead className="bg-muted/70 text-muted-foreground">
+                <thead className="bg-teal-50/80 text-teal-900">
                   <tr className="border-b">
                     <th className="text-left py-3 px-4 font-semibold">Timestamp</th>
                     <th className="text-left py-3 px-4 font-semibold">Action</th>
@@ -154,7 +155,7 @@ export default function AuditLogs() {
                 </thead>
                 <tbody>
                   {filteredLogs.map((log, idx) => (
-                    <tr key={idx} className="border-b transition-colors hover:bg-accent/70">
+                    <tr key={idx} className="border-b transition-colors hover:bg-teal-50/70">
                       <td className="py-3 px-4 text-xs font-mono">
                         {new Date(log.timestamp).toLocaleString()}
                       </td>
@@ -168,7 +169,7 @@ export default function AuditLogs() {
                       <td className="py-3 px-4 text-xs">{log.userId}</td>
                       <td className="py-3 px-4 text-xs font-mono">{log.ipAddress || "N/A"}</td>
                       <td className="py-3 px-4">
-                        <Button variant="ghost" size="sm" className="transition-all hover:-translate-y-0.5" onClick={() => toast.info("Detailed audit-log diff viewing is coming soon.")}>View</Button>
+                        <Button variant="ghost" size="sm" className="transition-all hover:-translate-y-0.5 hover:text-teal-700" onClick={() => toast.info("Detailed audit-log diff viewing is coming soon.")}>View</Button>
                       </td>
                     </tr>
                   ))}
@@ -180,11 +181,11 @@ export default function AuditLogs() {
       </Card>
 
       {/* Compliance Note */}
-      <Card className="border-blue-200 bg-blue-50 shadow-sm transition-shadow hover:shadow-md">
+      <Card className="friendly-card border-teal-200 bg-teal-50/80">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-blue-900"><Info className="h-5 w-5" /> Audit Trail Information</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-teal-950"><Info className="h-5 w-5 text-teal-700" /> Audit Trail Information</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm leading-6 text-blue-800">
+        <CardContent className="space-y-2 text-sm leading-6 text-teal-800">
           <p>
             This audit trail is immutable and cannot be edited or deleted for compliance purposes.
           </p>

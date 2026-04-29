@@ -99,11 +99,11 @@ export default function Notifications() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="friendly-page space-y-8">
+      <div className="friendly-hero flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Notifications</h1>
-          <p className="text-muted-foreground mt-2">
+          <h1 className="text-3xl font-bold tracking-tight text-teal-950">Notifications</h1>
+          <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">
             {unreadCount > 0 ? `${unreadCount} unread notification(s)` : "All notifications read"}
           </p>
         </div>
@@ -112,7 +112,7 @@ export default function Notifications() {
             variant={autoRefresh ? "default" : "outline"}
             size="sm"
             onClick={() => setAutoRefresh(!autoRefresh)}
-            className="shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+            className="friendly-action"
           >
             <Bell className="h-4 w-4 mr-2" />
             {autoRefresh ? "Auto-refresh On" : "Auto-refresh Off"}
@@ -122,7 +122,7 @@ export default function Notifications() {
             size="sm"
             onClick={() => notificationsQuery.refetch()}
             disabled={notificationsQuery.isFetching}
-            className="bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+            className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50"
           >
             {notificationsQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Refresh
@@ -131,7 +131,7 @@ export default function Notifications() {
       </div>
 
       {/* Filters */}
-      <Card className="border-slate-200 shadow-sm transition-shadow hover:shadow-md">
+      <Card className="friendly-card">
         <CardHeader>
           <CardTitle>Filters</CardTitle>
         </CardHeader>
@@ -169,7 +169,7 @@ export default function Notifications() {
 
             <div className="space-y-2">
               <Label>&nbsp;</Label>
-              <Button variant="outline" className="w-full bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" onClick={() => { setFilterType("ALL"); setSearchQuery(""); }}>
+              <Button variant="outline" className="friendly-action w-full border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" onClick={() => { setFilterType("ALL"); setSearchQuery(""); }}>
                 Clear Filters
               </Button>
             </div>
@@ -186,7 +186,7 @@ export default function Notifications() {
             </CardContent>
           </Card>
         ) : notificationsQuery.isError ? (
-          <Card className="border-destructive/30 bg-destructive/5">
+          <Card className="border-destructive/30 bg-destructive/5 shadow-sm">
             <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
               <AlertCircle className="h-10 w-10 text-destructive" />
               <div>
@@ -197,7 +197,7 @@ export default function Notifications() {
             </CardContent>
           </Card>
         ) : filteredNotifications.length === 0 ? (
-          <Card className="border-dashed">
+          <Card className="friendly-card border-dashed border-teal-200 bg-teal-50/45">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Bell className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
               <p className="text-muted-foreground text-center">
@@ -214,7 +214,7 @@ export default function Notifications() {
               className={`${getNotificationColor(notif.notificationType)} border shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${!notif.isRead ? "border-l-4" : ""}`}
             >
               <CardContent className="p-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="friendly-hero flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex flex-1 items-start gap-3">
                     <div className="mt-1 flex h-10 w-10 items-center justify-center rounded-full bg-white/80 shadow-sm">
                       {getNotificationIcon(notif.notificationType)}
@@ -244,7 +244,7 @@ export default function Notifications() {
                         variant="ghost"
                         size="sm"
                         onClick={() => handleMarkAsRead(notif.notificationId)}
-                        className="transition-all hover:-translate-y-0.5"
+                        className="transition-all hover:-translate-y-0.5 hover:text-teal-700"
                       >
                         <Check className="h-4 w-4" />
                       </Button>
@@ -266,7 +266,7 @@ export default function Notifications() {
       </div>
 
       {/* Notification Settings */}
-      <Card className="border-slate-200 shadow-sm transition-shadow hover:shadow-md">
+      <Card className="friendly-card">
         <CardHeader>
           <CardTitle>Notification Settings</CardTitle>
           <CardDescription>Configure how you receive notifications</CardDescription>
@@ -290,7 +290,7 @@ export default function Notifications() {
               <input type="checkbox" className="h-4 w-4 accent-teal-700" />
             </div>
           </div>
-          <Button className="shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md" onClick={() => toast.info("Notification preference persistence is coming soon.")}>Save Settings</Button>
+          <Button className="friendly-action" onClick={() => toast.info("Notification preference persistence is coming soon.")}>Save Settings</Button>
         </CardContent>
       </Card>
     </div>

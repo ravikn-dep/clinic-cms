@@ -166,7 +166,7 @@ export default function AmbientScribe() {
   const isBusy = isProcessing || uploadAudio.isPending || createConsultation.isPending || transcribeAndParse.isPending;
 
   return (
-    <div className="space-y-8">
+    <div className="friendly-page space-y-8">
       <div className="rounded-3xl bg-gradient-to-r from-slate-950 via-slate-900 to-teal-950 p-8 text-white shadow-xl">
         <Badge className="bg-teal-400/20 text-teal-100 border-teal-300/30">Ambient clinical documentation</Badge>
         <h1 className="mt-4 text-3xl font-bold tracking-tight">Ambient Scribe</h1>
@@ -176,7 +176,7 @@ export default function AmbientScribe() {
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <Card className="border-slate-200 shadow-lg transition-shadow hover:shadow-xl">
+        <Card className="friendly-card">
           <CardHeader>
             <CardTitle>Audio Input</CardTitle>
             <CardDescription>Live recording and uploaded files are stored before transcription for reliable retrieval.</CardDescription>
@@ -234,7 +234,7 @@ export default function AmbientScribe() {
         {parsedData ? (
           <Card className="border-emerald-200 bg-emerald-50 shadow-lg transition-shadow hover:shadow-xl">
             <CardHeader>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="friendly-hero flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="text-emerald-950">Clinical Documentation</CardTitle>
                   <CardDescription className="text-emerald-800">Auto-parsed from the stored audio transcript</CardDescription>

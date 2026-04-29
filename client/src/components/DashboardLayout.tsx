@@ -64,14 +64,17 @@ export default function DashboardLayout({
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-amber-50 via-white to-teal-50 p-4">
+        <div className="flex w-full max-w-md flex-col items-center gap-8 rounded-[2rem] border border-white/75 bg-white/85 p-8 text-center shadow-2xl shadow-teal-900/10 backdrop-blur">
           <div className="flex flex-col items-center gap-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-center">
-              Sign in to continue
+            <div className="rounded-full border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-medium text-teal-800">
+              Dr.Deepthi’s Ortho clinic CMS
+            </div>
+            <h1 className="text-3xl font-semibold tracking-tight text-center">
+              Welcome back to your clinic workspace
             </h1>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Access to this dashboard requires authentication. Continue to launch the login flow.
+            <p className="max-w-sm text-sm leading-6 text-muted-foreground">
+              Sign in to continue managing patient intake, clinical notes, billing, inventory, and audit records from one calm workspace.
             </p>
           </div>
           <Button
@@ -79,7 +82,7 @@ export default function DashboardLayout({
               window.location.href = getLoginUrl();
             }}
             size="lg"
-            className="w-full shadow-lg hover:shadow-xl transition-all"
+            className="friendly-action w-full bg-teal-600 text-white hover:bg-teal-700"
           >
             Sign in
           </Button>
@@ -161,12 +164,12 @@ function DashboardLayoutContent({
   return (
     <>
       <div className="relative" ref={sidebarRef}>
-        <Sidebar
-          collapsible="icon"
-          className="border-r-0"
+          <Sidebar
+            collapsible="icon"
+            className="border-r border-white/70 bg-sidebar/90 shadow-xl shadow-teal-900/5 backdrop-blur-xl"
           disableTransition={isResizing}
         >
-          <SidebarHeader className="h-16 justify-center">
+          <SidebarHeader className="h-20 justify-center border-b border-white/70 bg-gradient-to-r from-teal-50/80 to-amber-50/70">
             <div className="flex items-center gap-3 px-2 transition-all w-full">
               <button
                 onClick={toggleSidebar}
@@ -177,9 +180,14 @@ function DashboardLayoutContent({
               </button>
               {!isCollapsed ? (
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-semibold tracking-tight truncate">
-                    Navigation
-                  </span>
+                  <div className="flex flex-col leading-tight">
+                    <span className="truncate font-semibold tracking-tight text-teal-950">
+                      Clinic workspace
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Friendly care flow
+                    </span>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -195,10 +203,10 @@ function DashboardLayoutContent({
                       isActive={isActive}
                       onClick={() => setLocation(item.path)}
                       tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
+                      className={`h-11 rounded-2xl font-medium transition-all hover:-translate-y-0.5 hover:bg-teal-50 hover:text-teal-900 hover:shadow-sm ${isActive ? "bg-teal-100/80 text-teal-950 shadow-sm" : ""}`}
                     >
                       <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                        className={`h-4 w-4 ${isActive ? "text-teal-700" : "text-muted-foreground"}`}
                       />
                       <span>{item.label}</span>
                     </SidebarMenuButton>
@@ -208,12 +216,12 @@ function DashboardLayoutContent({
             </SidebarMenu>
           </SidebarContent>
 
-          <SidebarFooter className="p-3">
+          <SidebarFooter className="border-t border-white/70 bg-gradient-to-r from-white/55 to-amber-50/55 p-3">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-3 rounded-lg px-1 py-1 hover:bg-accent/50 transition-colors w-full text-left group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Avatar className="h-9 w-9 border shrink-0">
-                    <AvatarFallback className="text-xs font-medium">
+                <button className="flex w-full items-center gap-3 rounded-2xl px-2 py-2 text-left transition-all hover:-translate-y-0.5 hover:bg-white/80 hover:shadow-sm group-data-[collapsible=icon]:justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <Avatar className="h-10 w-10 shrink-0 border border-teal-200 bg-teal-50 shadow-sm">
+                    <AvatarFallback className="bg-teal-50 text-xs font-semibold text-teal-800">
                       {user?.name?.charAt(0).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
@@ -251,7 +259,7 @@ function DashboardLayoutContent({
 
       <SidebarInset>
         {isMobile && (
-          <div className="flex border-b h-14 items-center justify-between bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
+          <div className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-white/70 bg-background/85 px-2 shadow-sm shadow-teal-900/5 backdrop-blur supports-[backdrop-filter]:backdrop-blur">
             <div className="flex items-center gap-2">
               <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />
               <div className="flex items-center gap-3">
@@ -264,7 +272,7 @@ function DashboardLayoutContent({
             </div>
           </div>
         )}
-        <main className="flex-1 p-4">{children}</main>
+        <main className="flex-1 p-3 sm:p-5 lg:p-6">{children}</main>
       </SidebarInset>
     </>
   );

@@ -155,3 +155,10 @@
 - [x] Review and document responsive layouts for key pages at mobile, tablet, and desktop breakpoints; add missing responsive fixes where needed.
 - [x] Add and verify tasteful micro-interactions on remaining key pages with concrete evidence.
 - [x] Save an updated checkpoint after final design QA evidence closure.
+
+## Friendly UI Refresh Request
+- [x] Refresh the global visual system with a warmer, friendlier clinical palette, softer surfaces, and more welcoming interaction states.
+- [x] Improve the dashboard first impression with friendlier hero messaging, softer cards, clearer CTAs, and more inviting visual hierarchy.
+- [x] Apply the friendly visual refresh consistently across registration, patient records, ambient scribe, pharmacy, billing, notifications, and audit logs.
+- [x] Validate the refreshed UI with automated tests, production build, and project health checks.
+- [x] Save a checkpoint after the friendly UI refresh for user review.

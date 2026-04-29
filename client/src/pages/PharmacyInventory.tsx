@@ -56,13 +56,14 @@ export default function PharmacyInventory() {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="friendly-page space-y-8">
+      <div className="friendly-hero flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Pharmacy Inventory</h1>
-          <p className="text-muted-foreground mt-2">Manage medicines and stock levels</p>
+          <span className="friendly-chip mb-3 inline-flex items-center gap-2"><AlertTriangle className="h-3.5 w-3.5" /> Stock visibility</span>
+          <h1 className="text-3xl font-bold tracking-tight text-teal-950">Pharmacy Inventory</h1>
+          <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">Manage medicines, batches, reorder levels, and pharmacy readiness with a calmer stock overview.</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)}>
+        <Button onClick={() => setShowForm(!showForm)} className="friendly-action bg-teal-600 text-white hover:bg-teal-700">
           <Plus className="mr-2 h-4 w-4" />
           Add Item
         </Button>
@@ -70,13 +71,13 @@ export default function PharmacyInventory() {
 
       {/* Add Item Form */}
       {showForm && (
-        <Card>
+        <Card className="friendly-card">
           <CardHeader>
             <CardTitle>Add New Item</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="itemName">Item Name *</Label>
                   <Input
@@ -100,7 +101,7 @@ export default function PharmacyInventory() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="expiryDate">Expiry Date *</Label>
                   <Input
@@ -148,9 +149,9 @@ export default function PharmacyInventory() {
                 {errors.unitPrice && <p className="text-sm text-red-500">{errors.unitPrice.message}</p>}
               </div>
 
-              <div className="flex gap-2">
-                <Button type="submit" className="flex-1">Add Item</Button>
-                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowForm(false)}>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button type="submit" className="friendly-action flex-1 bg-teal-600 text-white hover:bg-teal-700">Add Item</Button>
+                <Button type="button" variant="outline" className="friendly-action flex-1 border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" onClick={() => setShowForm(false)}>
                   Cancel
                 </Button>
               </div>
@@ -161,20 +162,20 @@ export default function PharmacyInventory() {
 
       {/* Low Stock Alerts */}
       {lowStockItems.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50">
+        <Card className="friendly-card border-amber-200 bg-amber-50/80">
           <CardHeader>
-            <CardTitle className="text-amber-900">⚠️ Low Stock Alerts</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-amber-900"><AlertTriangle className="h-5 w-5" /> Low Stock Alerts</CardTitle>
             <CardDescription className="text-amber-800">{lowStockItems.length} item(s) below reorder level</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {lowStockItems.map((item) => (
-                <div key={item.itemId} className="flex items-center justify-between p-3 bg-white rounded border border-amber-200">
+                <div key={item.itemId} className="flex flex-col gap-3 rounded-3xl border border-amber-200 bg-white/85 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="font-semibold text-amber-900">{item.itemName}</p>
                     <p className="text-sm text-amber-700">Qty: {item.quantityAvailable} / {item.reorderLevel}</p>
                   </div>
-                  <Button variant="outline" size="sm" className="text-amber-600">Reorder</Button>
+                  <Button variant="outline" size="sm" className="friendly-action border-amber-300 bg-white text-amber-700">Reorder</Button>
                 </div>
               ))}
             </div>
@@ -183,15 +184,16 @@ export default function PharmacyInventory() {
       )}
 
       {/* Inventory List */}
-      <Card>
+      <Card className="friendly-card">
         <CardHeader>
           <CardTitle>Current Inventory</CardTitle>
           <CardDescription>{items.length} item(s) in stock</CardDescription>
         </CardHeader>
         <CardContent>
           {items.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No items in inventory</p>
+            <div className="rounded-3xl border border-dashed border-teal-200 bg-teal-50/45 px-6 py-12 text-center">
+              <p className="font-semibold text-teal-950">No medicines have been added yet.</p>
+              <p className="mt-2 text-sm text-muted-foreground">Use Add Item to start building a clear pharmacy stock view.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -210,7 +212,7 @@ export default function PharmacyInventory() {
                   {items.map((item) => {
                     const isLowStock = (item.quantityAvailable ?? 0) <= (item.reorderLevel ?? 10);
                     return (
-                      <tr key={item.itemId} className="border-b hover:bg-accent">
+                      <tr key={item.itemId} className="border-b transition-colors hover:bg-teal-50/70">
                         <td className="py-3 px-4 font-medium">{item.itemName}</td>
                         <td className="py-3 px-4 text-xs">{item.batchNumber}</td>
                         <td className="py-3 px-4 text-xs">{item.expiryDate}</td>
