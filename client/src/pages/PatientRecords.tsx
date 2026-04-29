@@ -3,12 +3,24 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { Search } from "lucide-react";
+import { downloadCsvFile } from "@/lib/downloadCsv";
+import { Download, Loader2, Search } from "lucide-react";
+import { toast } from "sonner";
 
 export default function PatientRecords() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const patientsQuery = trpc.patients.getAll.useQuery();
+  const exportPatientsCsv = trpc.patients.exportCsv.useMutation({
+    onSuccess: (payload) => {
+      downloadCsvFile(payload);
+      toast.success(`Exported ${payload.rowCount} patient record(s) to CSV.`);
+    },
+    onError: (error) => {
+      toast.error(error.message || "Unable to export patient records.");
+    },
+  });
+
   const patients = patientsQuery.data || [];
 
   const filteredPatients = patients.filter(p =>
@@ -19,9 +31,24 @@ export default function PatientRecords() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Patient Records</h1>
-        <p className="text-muted-foreground mt-2">Search and view patient history</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Patient Records</h1>
+          <p className="text-muted-foreground mt-2">Search, review, and export patient history for external reporting</p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => exportPatientsCsv.mutate()}
+          disabled={exportPatientsCsv.isPending}
+          className="shadow-sm"
+        >
+          {exportPatientsCsv.isPending ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Download className="mr-2 h-4 w-4" />
+          )}
+          Export Patients CSV
+        </Button>
       </div>
 
       <Card>

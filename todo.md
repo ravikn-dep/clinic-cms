@@ -120,3 +120,13 @@
 - Spacing: Consistent grid system
 - Shadows: Subtle, refined depth
 - Animations: Smooth, purposeful transitions
+
+## Export & Reporting
+- [x] Add backend CSV export for patient records.
+- [x] Add backend CSV export for billing history.
+- [x] Add frontend controls to download patient records as CSV.
+- [x] Add frontend controls to download billing history as CSV.
+- [x] Add unit tests for CSV export formatting and escaping.
+- [x] Verify CSV export feature and save checkpoint.
+ per user request (2026-04-29)
+

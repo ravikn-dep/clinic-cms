@@ -6,10 +6,22 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plus, Download } from "lucide-react";
+import { Plus, Download, Loader2 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { downloadCsvFile } from "@/lib/downloadCsv";
 
 export default function Billing() {
   const [showNewBill, setShowNewBill] = useState(false);
+  const exportBillingCsv = trpc.bills.exportCsv.useMutation({
+    onSuccess: (payload) => {
+      downloadCsvFile(payload);
+      toast.success(`Exported ${payload.rowCount} billing record(s) to CSV.`);
+    },
+    onError: (error) => {
+      toast.error(error.message || "Unable to export billing history.");
+    },
+  });
+
   const [bills] = useState([
     {
       billId: "BIL-1704067200000-ABC123",
@@ -66,15 +78,30 @@ export default function Billing() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Billing</h1>
-          <p className="text-muted-foreground mt-2">Generate invoices and track payments</p>
+          <p className="text-muted-foreground mt-2">Generate invoices, track payments, and export billing history</p>
         </div>
-        <Button onClick={() => setShowNewBill(!showNewBill)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Bill
-        </Button>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            variant="outline"
+            onClick={() => exportBillingCsv.mutate()}
+            disabled={exportBillingCsv.isPending}
+            className="shadow-sm"
+          >
+            {exportBillingCsv.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            Export Billing CSV
+          </Button>
+          <Button onClick={() => setShowNewBill(!showNewBill)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Bill
+          </Button>
+        </div>
       </div>
 
       {/* Create New Bill Form */}
@@ -192,7 +219,7 @@ export default function Billing() {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
-                        <Button variant="ghost" size="sm">
+                        <Button variant="ghost" size="sm" onClick={() => exportBillingCsv.mutate()} disabled={exportBillingCsv.isPending}>
                           <Download className="h-4 w-4" />
                         </Button>
                         <Button variant="outline" size="sm">View</Button>

@@ -11,6 +11,7 @@ import { transcribeAudio } from "./_core/voiceTranscription";
 import { nanoid } from "nanoid";
 import * as barcodeGen from "./barcode";
 import * as invoiceGen from "./invoice";
+import { csvResponse, makeCsvFilename, toCsv } from "./csvExport";
 
 export const appRouter = router({
   system: systemRouter,
@@ -92,6 +93,35 @@ export const appRouter = router({
 
     getAll: protectedProcedure.query(async () => {
       return db.getAllPatients();
+    }),
+
+    exportCsv: protectedProcedure.mutation(async ({ ctx }) => {
+      const rows = await db.getAllPatients();
+      const csv = toCsv(rows, [
+        { header: "Patient ID", value: (row) => row.patientId },
+        { header: "First Name", value: (row) => row.firstName },
+        { header: "Last Name", value: (row) => row.lastName },
+        { header: "Date of Birth", value: (row) => row.dateOfBirth },
+        { header: "Gender", value: (row) => row.gender },
+        { header: "Contact Number", value: (row) => row.contactNumber },
+        { header: "Email", value: (row) => row.email },
+        { header: "Address", value: (row) => row.address },
+        { header: "Barcode Data", value: (row) => row.barcodeData },
+        { header: "Registered At", value: (row) => row.createdAt },
+        { header: "Updated At", value: (row) => row.updatedAt },
+      ]);
+
+      await db.createAuditLog({
+        logId: utils.generateAuditLogId(),
+        userId: ctx.user.id.toString(),
+        actionType: "EXPORT",
+        tableName: "patients",
+        recordId: "patient-records-csv",
+        newValue: JSON.stringify({ rowCount: rows.length, format: "csv" }),
+        timestamp: new Date(),
+      });
+
+      return csvResponse(csv, makeCsvFilename("patient-records"), rows.length);
     }),
 
     getById: protectedProcedure
@@ -443,6 +473,59 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getBillsByPatientId(input.patientId);
       }),
+
+    exportCsv: protectedProcedure.mutation(async ({ ctx }) => {
+      const bills = await db.getAllBills();
+      const rows = await Promise.all(
+        bills.map(async (bill) => {
+          const patient = await db.getPatientById(bill.patientId);
+          const items = await db.getBillItemsByBillId(bill.billId);
+          const itemSummary = items
+            .map((item) => `${item.itemType}: ${item.description || "N/A"} x${item.quantity || 0} @ ${item.unitPrice || "0.00"}`)
+            .join(" | ");
+
+          return {
+            ...bill,
+            patientName: patient ? `${patient.firstName} ${patient.lastName}` : "Unknown Patient",
+            patientContact: patient?.contactNumber || "",
+            patientEmail: patient?.email || "",
+            itemCount: items.length,
+            itemSummary,
+          };
+        })
+      );
+
+      const csv = toCsv(rows, [
+        { header: "Bill ID", value: (row) => row.billId },
+        { header: "Patient ID", value: (row) => row.patientId },
+        { header: "Patient Name", value: (row) => row.patientName },
+        { header: "Patient Contact", value: (row) => row.patientContact },
+        { header: "Patient Email", value: (row) => row.patientEmail },
+        { header: "Consultation ID", value: (row) => row.consultationId },
+        { header: "Total Amount", value: (row) => row.totalAmount },
+        { header: "Discount Amount", value: (row) => row.discountAmount },
+        { header: "Tax Amount", value: (row) => row.taxAmount },
+        { header: "Final Amount", value: (row) => row.finalAmount },
+        { header: "Payment Status", value: (row) => row.paymentStatus },
+        { header: "Item Count", value: (row) => row.itemCount },
+        { header: "Item Summary", value: (row) => row.itemSummary },
+        { header: "Invoice PDF URL", value: (row) => row.invoicePdfUrl },
+        { header: "Created At", value: (row) => row.createdAt },
+        { header: "Updated At", value: (row) => row.updatedAt },
+      ]);
+
+      await db.createAuditLog({
+        logId: utils.generateAuditLogId(),
+        userId: ctx.user.id.toString(),
+        actionType: "EXPORT",
+        tableName: "bills",
+        recordId: "billing-history-csv",
+        newValue: JSON.stringify({ rowCount: rows.length, format: "csv" }),
+        timestamp: new Date(),
+      });
+
+      return csvResponse(csv, makeCsvFilename("billing-history"), rows.length);
+    }),
 
     updatePaymentStatus: protectedProcedure
       .input(z.object({

@@ -219,6 +219,13 @@ export async function getBillsByPatientId(patientId: string) {
   return db.select().from(bills).where(eq(bills.patientId, patientId)).orderBy(desc(bills.createdAt));
 }
 
+export async function getAllBills() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return db.select().from(bills).orderBy(desc(bills.createdAt));
+}
+
 export async function updateBill(billId: string, updates: Partial<typeof bills.$inferInsert>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
