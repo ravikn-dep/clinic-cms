@@ -9,6 +9,8 @@ import { storagePut } from "./storage";
 import { invokeLLM } from "./_core/llm";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { nanoid } from "nanoid";
+import * as barcodeGen from "./barcode";
+import * as invoiceGen from "./invoice";
 
 export const appRouter = router({
   system: systemRouter,

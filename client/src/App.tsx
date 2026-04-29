@@ -11,6 +11,7 @@ import AmbientScribe from "./pages/AmbientScribe";
 import PharmacyInventory from "./pages/PharmacyInventory";
 import Billing from "./pages/Billing";
 import AuditLogs from "./pages/AuditLogs";
+import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 
 function Router() {
@@ -23,6 +24,7 @@ function Router() {
       <Route path={"/pharmacy"} component={PharmacyInventory} />
       <Route path={"/billing"} component={Billing} />
       <Route path={"/audit-logs"} component={AuditLogs} />
+      <Route path={"/notifications"} component={Notifications} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

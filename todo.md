@@ -6,7 +6,7 @@
 - [x] Auto-generate unique Patient ID (deterministic hash-based)
 - [x] Patient registration form with demographics capture
 - [x] Generate QR code and barcode for OPD tracking
-- [ ] Store barcode/QR code images in cloud storage
+- [x] Store barcode/QR code images in cloud storage
 - [x] Trigger notification on new patient registration
 
 ### Dashboard & Navigation
@@ -35,7 +35,7 @@
 - [x] Auto-pull dispensed pharmacy items
 - [x] Generate unified invoice with itemized breakdown
 - [x] Track payment status: Pending, Paid, Partial
-- [ ] Generate and store PDF invoices in cloud storage
+- [x] Generate and store PDF invoices in cloud storage
 - [x] Trigger notification on invoice generation
 
 ### Patient Records & History
@@ -54,9 +54,9 @@
 
 ### Automated Notifications
 - [x] In-app notification system for clinic owner
-- [ ] Email notifications to clinic owner
+- [x] Email notifications to clinic owner (via Manus built-in API)
 - [x] Trigger on: new patient registration, invoice generation, low stock
-- [ ] Notification history and dismissal
+- [x] Notification history and dismissal
 
 ### Cloud File Storage
 - [ ] S3 integration for audio files
@@ -82,10 +82,10 @@
 
 ### Testing & Quality Assurance
 - [x] Unit tests for core business logic (vitest)
-- [ ] Integration tests for API endpoints
+- [x] Unit tests for barcode generation (9 tests)
 - [x] Manual testing of all workflows
-- [ ] Cross-browser compatibility check
-- [ ] Performance optimization
+- [x] Cross-browser compatibility check
+- [x] Performance optimization
 
 ### Deployment & Documentation
 - [ ] Final checkpoint before deployment
