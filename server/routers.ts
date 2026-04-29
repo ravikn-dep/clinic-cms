@@ -1,17 +1,39 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router, protectedProcedure } from "./_core/trpc";
+import { publicProcedure, router, protectedProcedure, adminProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
 import * as utils from "./utils";
-import { storagePut } from "./storage";
+import { storageGet, storagePut } from "./storage";
 import { invokeLLM } from "./_core/llm";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { nanoid } from "nanoid";
 import * as barcodeGen from "./barcode";
 import * as invoiceGen from "./invoice";
 import { csvResponse, makeCsvFilename, toCsv } from "./csvExport";
+import { notifyOwner } from "./_core/notification";
+import { resolveArtifactStorageKey } from "./artifactAccess";
+
+/**
+ * Security and RBAC boundary for the clinic CMS.
+ *
+ * All clinical, billing, inventory, export, notification, and artifact-link
+ * procedures below are authenticated with protectedProcedure unless explicitly
+ * documented otherwise. ctx.user is hydrated from the signed Manus OAuth session.
+ * The project owner is promoted to the admin role during user upsert when the
+ * authenticated openId matches ENV.ownerOpenId; adminProcedure is reserved for
+ * endpoints that should be owner/admin-only, such as audit-log review and bulk
+ * CSV exports. Clinical artifacts remain in cloud storage; application records
+ * keep only storage URLs/keys and file bytes are never stored in SQL tables.
+ */
+const safeNotifyOwner = async (title: string, content: string) => {
+  try {
+    await notifyOwner({ title, content });
+  } catch (error) {
+    console.warn(`[Notification] Owner alert failed for ${title}:`, error);
+  }
+};
 
 export const appRouter = router({
   system: systemRouter,
@@ -48,8 +70,13 @@ export const appRouter = router({
           throw new Error("Patient already registered");
         }
 
-        // Generate barcode data
+        // Generate OPD tracking barcode and QR code, then persist images in cloud storage.
         const barcodeData = utils.generateBarcodeData(patientId);
+        const barcodeAssets = await barcodeGen.generatePatientBarcodes(patientId);
+        const [qrUpload, barcodeUpload] = await Promise.all([
+          storagePut(`barcodes/${patientId}-qr.png`, barcodeAssets.qrCodePngBuffer, "image/png"),
+          storagePut(`barcodes/${patientId}-barcode.png`, barcodeAssets.barcodePngBuffer, "image/png"),
+        ]);
 
         // Create patient record
         const patient = await db.createPatient({
@@ -62,6 +89,10 @@ export const appRouter = router({
           email: input.email,
           address: input.address,
           barcodeData,
+          barcodeImageUrl: barcodeUpload.url,
+          barcodeImageKey: barcodeUpload.key,
+          qrcodeImageUrl: qrUpload.url,
+          qrcodeImageKey: qrUpload.key,
         });
 
         // Log audit trail
@@ -75,19 +106,27 @@ export const appRouter = router({
           timestamp: new Date(),
         });
 
-        // Trigger notification for clinic owner
-        const ownerNotification = await db.createNotification({
+        // Trigger in-app and owner-channel notifications for the clinic owner.
+        await db.createNotification({
           notificationId: utils.generateNotificationId(),
-          userId: ctx.user.id, // In production, use clinic owner's ID
+          userId: ctx.user.id,
           title: "New Patient Registration",
           content: `${input.firstName} ${input.lastName} has been registered.`,
           notificationType: "patient_registration",
         });
+        await safeNotifyOwner(
+          "New Patient Registration",
+          `${input.firstName} ${input.lastName} has been registered with Patient ID ${patientId}.`,
+        );
 
         return {
           success: true,
           patientId,
           barcodeData,
+          barcodeImageUrl: barcodeUpload.url,
+          qrcodeImageUrl: qrUpload.url,
+          barcodeImageKey: barcodeUpload.key,
+          qrcodeImageKey: qrUpload.key,
         };
       }),
 
@@ -95,7 +134,7 @@ export const appRouter = router({
       return db.getAllPatients();
     }),
 
-    exportCsv: protectedProcedure.mutation(async ({ ctx }) => {
+    exportCsv: adminProcedure.mutation(async ({ ctx }) => {
       const rows = await db.getAllPatients();
       const csv = toCsv(rows, [
         { header: "Patient ID", value: (row) => row.patientId },
@@ -126,19 +165,70 @@ export const appRouter = router({
 
     getById: protectedProcedure
       .input(z.object({ patientId: z.string() }))
-      .query(async ({ input }) => {
-        return db.getPatientById(input.patientId);
+      .query(async ({ input, ctx }) => {
+        const patient = await db.getPatientById(input.patientId);
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "PHI_ACCESS",
+          tableName: "patients",
+          recordId: input.patientId,
+          newValue: JSON.stringify({ accessType: "patient_profile_view" }),
+          timestamp: new Date(),
+        });
+        return patient;
       }),
 
     search: protectedProcedure
       .input(z.object({ query: z.string() }))
-      .query(async ({ input }) => {
-        return db.searchPatients(input.query);
+      .query(async ({ input, ctx }) => {
+        const results = await db.searchPatients(input.query);
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "PHI_ACCESS",
+          tableName: "patients",
+          recordId: "patient-search",
+          newValue: JSON.stringify({ query: input.query, resultCount: results.length }),
+          timestamp: new Date(),
+        });
+        return results;
       }),
   }),
 
   // ============ CONSULTATIONS - AMBIENT SCRIBE ============
   consultations: router({
+    uploadAudio: protectedProcedure
+      .input(z.object({
+        patientId: z.string().min(1),
+        fileName: z.string().min(1),
+        mimeType: z.enum(["audio/mpeg", "audio/wav", "audio/mp4", "audio/webm", "audio/ogg", "audio/x-m4a", "audio/m4a"]),
+        base64Content: z.string().min(1),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const fileExtension = input.fileName.split(".").pop()?.replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "audio";
+        const fileKey = `audio/${input.patientId}/${Date.now()}-${nanoid(8)}.${fileExtension}`;
+        const audioBuffer = Buffer.from(input.base64Content, "base64");
+
+        if (audioBuffer.length > 16 * 1024 * 1024) {
+          throw new Error("Audio upload exceeds the 16MB transcription limit");
+        }
+
+        const upload = await storagePut(fileKey, audioBuffer, input.mimeType);
+
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "UPLOAD",
+          tableName: "consultations",
+          recordId: input.patientId,
+          newValue: JSON.stringify({ fileKey: upload.key, mimeType: input.mimeType, sizeBytes: audioBuffer.length }),
+          timestamp: new Date(),
+        });
+
+        return { url: upload.url, key: upload.key };
+      }),
+
     create: protectedProcedure
       .input(z.object({
         patientId: z.string(),
@@ -327,6 +417,20 @@ export const appRouter = router({
           timestamp: new Date(),
         });
 
+        if (input.quantityAvailable <= input.reorderLevel) {
+          await db.createNotification({
+            notificationId: utils.generateNotificationId(),
+            userId: ctx.user.id,
+            title: "Low Stock Alert",
+            content: `${input.itemName} (Batch: ${input.batchNumber}) is running low. Current quantity: ${input.quantityAvailable}`,
+            notificationType: "low_stock",
+          });
+          await safeNotifyOwner(
+            "Low Stock Alert",
+            `${input.itemName} (Batch: ${input.batchNumber}) is at ${input.quantityAvailable}, below or equal to reorder level ${input.reorderLevel}.`,
+          );
+        }
+
         return item;
       }),
 
@@ -335,20 +439,9 @@ export const appRouter = router({
     }),
 
     getLowStock: protectedProcedure.query(async () => {
-      const lowStockItems = await db.getLowStockItems();
-      
-      // Trigger notifications for low stock
-      for (const item of lowStockItems) {
-        await db.createNotification({
-          notificationId: utils.generateNotificationId(),
-          userId: 1, // Clinic owner
-          title: "Low Stock Alert",
-          content: `${item.itemName} (Batch: ${item.batchNumber}) is running low. Current quantity: ${item.quantityAvailable}`,
-          notificationType: "low_stock",
-        });
-      }
-
-      return lowStockItems;
+      // This read path is intentionally side-effect-free so dashboard polling
+      // does not create duplicate low-stock notifications every 30 seconds.
+      return db.getLowStockItems();
     }),
 
     update: protectedProcedure
@@ -364,6 +457,22 @@ export const appRouter = router({
           quantityAvailable: input.quantityAvailable,
           reorderLevel: input.reorderLevel,
         });
+
+        const nextQuantity = input.quantityAvailable ?? oldItem?.quantityAvailable;
+        const nextReorderLevel = input.reorderLevel ?? oldItem?.reorderLevel;
+        if (oldItem && typeof nextQuantity === "number" && typeof nextReorderLevel === "number" && nextQuantity <= nextReorderLevel) {
+          await db.createNotification({
+            notificationId: utils.generateNotificationId(),
+            userId: ctx.user.id,
+            title: "Low Stock Alert",
+            content: `${oldItem.itemName} (Batch: ${oldItem.batchNumber}) is running low. Current quantity: ${nextQuantity}`,
+            notificationType: "low_stock",
+          });
+          await safeNotifyOwner(
+            "Low Stock Alert",
+            `${oldItem.itemName} (Batch: ${oldItem.batchNumber}) is at ${nextQuantity}, below or equal to reorder level ${nextReorderLevel}.`,
+          );
+        }
 
         // Log audit trail
         await db.createAuditLog({
@@ -409,7 +518,7 @@ export const appRouter = router({
         const taxAmount = parseFloat(input.taxAmount || "0");
         const finalAmount = totalAmount - discountAmount + taxAmount;
 
-        // Create bill
+        // Create bill and its itemized lines.
         const bill = await db.createBill({
           billId,
           patientId: input.patientId,
@@ -421,10 +530,18 @@ export const appRouter = router({
           paymentStatus: "Pending",
         });
 
-        // Create bill items
+        const invoiceItems = [] as Array<{ description: string; quantity: number; unitPrice: number; subtotal: number }>;
         for (const item of input.items) {
           const billItemId = utils.generateBillItemId();
-          const subtotal = parseFloat(item.unitPrice) * item.quantity;
+          const unitPrice = parseFloat(item.unitPrice);
+          const subtotal = unitPrice * item.quantity;
+
+          invoiceItems.push({
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice,
+            subtotal,
+          });
 
           await db.createBillItem({
             billItemId,
@@ -437,6 +554,32 @@ export const appRouter = router({
           });
         }
 
+        const patient = await db.getPatientById(input.patientId);
+        const invoicePdf = await invoiceGen.generateAndStoreInvoicePDF({
+          billId,
+          patientId: input.patientId,
+          patientName: patient ? `${patient.firstName} ${patient.lastName}` : input.patientId,
+          patientContact: patient?.contactNumber || "N/A",
+          consultationDate: new Date(),
+          items: invoiceItems,
+          totalAmount,
+          discountAmount,
+          taxAmount,
+          finalAmount,
+          paymentStatus: "Pending",
+        });
+
+        await db.updateBill(billId, {
+          invoicePdfUrl: invoicePdf.url,
+          invoicePdfKey: invoicePdf.key,
+        });
+
+        const billWithInvoice = {
+          ...bill,
+          invoicePdfUrl: invoicePdf.url,
+          invoicePdfKey: invoicePdf.key,
+        };
+
         // Log audit trail
         await db.createAuditLog({
           logId: utils.generateAuditLogId(),
@@ -444,21 +587,39 @@ export const appRouter = router({
           actionType: "CREATE",
           tableName: "bills",
           recordId: billId,
-          newValue: JSON.stringify(bill),
+          newValue: JSON.stringify(billWithInvoice),
           timestamp: new Date(),
         });
 
-        // Trigger notification
+        // Trigger in-app and owner-channel notification.
         await db.createNotification({
           notificationId: utils.generateNotificationId(),
-          userId: 1,
+          userId: ctx.user.id,
           title: "Invoice Generated",
           content: `Invoice ${billId} has been generated for patient ${input.patientId}. Amount: ${finalAmount}`,
           notificationType: "invoice_generated",
         });
+        await safeNotifyOwner(
+          "Invoice Generated",
+          `Invoice ${billId} has been generated for patient ${input.patientId}. Amount: ${finalAmount.toFixed(2)}.`,
+        );
 
-        return bill;
+        return billWithInvoice;
       }),
+
+    getAll: protectedProcedure.query(async () => {
+      const bills = await db.getAllBills();
+      return Promise.all(
+        bills.map(async (bill) => {
+          const patient = await db.getPatientById(bill.patientId);
+          return {
+            ...bill,
+            patientName: patient ? `${patient.firstName} ${patient.lastName}` : "Unknown Patient",
+            patientContact: patient?.contactNumber || "",
+          };
+        })
+      );
+    }),
 
     getById: protectedProcedure
       .input(z.object({ billId: z.string() }))
@@ -474,7 +635,7 @@ export const appRouter = router({
         return db.getBillsByPatientId(input.patientId);
       }),
 
-    exportCsv: protectedProcedure.mutation(async ({ ctx }) => {
+    exportCsv: adminProcedure.mutation(async ({ ctx }) => {
       const bills = await db.getAllBills();
       const rows = await Promise.all(
         bills.map(async (bill) => {
@@ -552,9 +713,38 @@ export const appRouter = router({
       }),
   }),
 
+  // ============ PROTECTED FILE LINKS ============
+  files: router({
+    getArtifactLink: protectedProcedure
+      .input(z.object({
+        key: z.string().optional(),
+        url: z.string().optional(),
+        patientId: z.string().optional(),
+        recordId: z.string().optional(),
+        artifactType: z.enum(["barcode", "qr_code", "audio", "invoice_pdf"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const storageKey = resolveArtifactStorageKey(input);
+        if (!storageKey) throw new Error("Storage key is required for protected artifact retrieval");
+
+        const artifact = await storageGet(storageKey);
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "PHI_FILE_ACCESS",
+          tableName: "storage_artifacts",
+          recordId: input.recordId || input.patientId || storageKey,
+          newValue: JSON.stringify({ artifactType: input.artifactType, patientId: input.patientId, key: artifact.key }),
+          timestamp: new Date(),
+        });
+
+        return artifact;
+      }),
+  }),
+
   // ============ AUDIT LOGS ============
   auditLogs: router({
-    getAll: protectedProcedure.query(async () => {
+    getAll: adminProcedure.query(async () => {
       return db.getAuditLogs(500);
     }),
   }),

@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Bell, Trash2, Check, Search } from "lucide-react";
+import { AlertCircle, Bell, Check, Loader2, Search, Trash2 } from "lucide-react";
 
 export default function Notifications() {
   const [filterType, setFilterType] = useState("ALL");
@@ -120,7 +120,9 @@ export default function Notifications() {
             variant="outline"
             size="sm"
             onClick={() => notificationsQuery.refetch()}
+            disabled={notificationsQuery.isFetching}
           >
+            {notificationsQuery.isFetching ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Refresh
           </Button>
         </div>
@@ -175,7 +177,24 @@ export default function Notifications() {
 
       {/* Notifications List */}
       <div className="space-y-3">
-        {filteredNotifications.length === 0 ? (
+        {notificationsQuery.isLoading ? (
+          <Card>
+            <CardContent className="flex items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading notifications...
+            </CardContent>
+          </Card>
+        ) : notificationsQuery.isError ? (
+          <Card className="border-destructive/30 bg-destructive/5">
+            <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+              <AlertCircle className="h-10 w-10 text-destructive" />
+              <div>
+                <p className="font-medium text-destructive">Unable to load notifications.</p>
+                <p className="text-sm text-muted-foreground">{notificationsQuery.error.message}</p>
+              </div>
+              <Button variant="outline" onClick={() => notificationsQuery.refetch()}>Try again</Button>
+            </CardContent>
+          </Card>
+        ) : filteredNotifications.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Bell className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />

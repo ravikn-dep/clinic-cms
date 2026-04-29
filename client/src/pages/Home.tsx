@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Users, Clock, AlertTriangle } from "lucide-react";
+import { AlertCircle, Users, Clock, AlertTriangle, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 
@@ -10,20 +10,22 @@ export default function Home() {
   const { user, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
 
-  const patientsQuery = trpc.patients.getAll.useQuery(undefined, {
+  const pollingOptions = {
     enabled: isAuthenticated,
-  });
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  };
 
-  const inventoryQuery = trpc.inventory.getAll.useQuery(undefined, {
-    enabled: isAuthenticated,
-  });
+  const patientsQuery = trpc.patients.getAll.useQuery(undefined, pollingOptions);
 
-  const lowStockQuery = trpc.inventory.getLowStock.useQuery(undefined, {
-    enabled: isAuthenticated,
-  });
+  const inventoryQuery = trpc.inventory.getAll.useQuery(undefined, pollingOptions);
+
+  const lowStockQuery = trpc.inventory.getLowStock.useQuery(undefined, pollingOptions);
 
   const patients = patientsQuery.data || [];
+  const inventoryItems = inventoryQuery.data || [];
   const lowStockItems = lowStockQuery.data || [];
+  const hasDashboardError = patientsQuery.isError || inventoryQuery.isError || lowStockQuery.isError;
 
   // Today's consultations (mock - would need consultation date filtering)
   const todayConsultations = patients.slice(0, 5);
@@ -50,6 +52,14 @@ export default function Home() {
         </Button>
       </div>
 
+      {hasDashboardError && (
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardContent className="flex items-center gap-3 py-4 text-sm text-destructive">
+            <AlertCircle className="h-4 w-4" /> Dashboard data could not be refreshed. The latest cached values remain visible where available.
+          </CardContent>
+        </Card>
+      )}
+
       {/* Key Statistics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="border-l-4 border-l-blue-500">
@@ -60,7 +70,7 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-3xl font-bold">{patients.length}</div>
+              <div className="text-3xl font-bold">{patientsQuery.isLoading ? <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /> : patients.length}</div>
               <Users className="h-8 w-8 text-blue-500 opacity-50" />
             </div>
           </CardContent>
@@ -74,7 +84,7 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-3xl font-bold">{todayConsultations.length}</div>
+              <div className="text-3xl font-bold">{patientsQuery.isLoading ? <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /> : todayConsultations.length}</div>
               <Clock className="h-8 w-8 text-green-500 opacity-50" />
             </div>
           </CardContent>
@@ -88,7 +98,7 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-3xl font-bold">{lowStockItems.length}</div>
+              <div className="text-3xl font-bold">{lowStockQuery.isLoading ? <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /> : lowStockItems.length}</div>
               <AlertTriangle className="h-8 w-8 text-amber-500 opacity-50" />
             </div>
           </CardContent>
@@ -97,12 +107,12 @@ export default function Home() {
         <Card className="border-l-4 border-l-purple-500">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Pending Bills
+              Inventory Items
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-3xl font-bold">0</div>
+              <div className="text-3xl font-bold">{inventoryQuery.isLoading ? <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" /> : inventoryItems.length}</div>
               <AlertCircle className="h-8 w-8 text-purple-500 opacity-50" />
             </div>
           </CardContent>
@@ -113,10 +123,14 @@ export default function Home() {
       <Card>
         <CardHeader>
           <CardTitle>Today's Patient Queue</CardTitle>
-          <CardDescription>Patients scheduled for consultation today</CardDescription>
+            <CardDescription>Patients scheduled for consultation today. This queue refreshes every 30 seconds while the dashboard is open.</CardDescription>
         </CardHeader>
         <CardContent>
-          {todayConsultations.length === 0 ? (
+          {patientsQuery.isLoading ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Refreshing queue...
+            </div>
+          ) : todayConsultations.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No patients scheduled for today</p>
             </div>

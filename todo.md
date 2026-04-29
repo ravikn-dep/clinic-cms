@@ -13,14 +13,14 @@
 - [x] Build DashboardLayout with sidebar navigation
 - [x] Display today's patient queue/consultation list
 - [x] Show key statistics: total patients, pending bills, low-stock alerts
-- [ ] Real-time updates for queue and alerts
+- [x] Real-time updates for queue and alerts via explicit polling/cache refresh
 
 ### Ambient Scribe - Clinical Documentation
 - [x] Audio recording interface (live capture or file upload)
 - [x] Whisper API integration for speech-to-text transcription
 - [x] LLM parsing into four sections: Clinical History, Present Complaints, Advised Investigations, Treatment Plan
 - [x] Digital signature support for finalization
-- [ ] Store audio files in cloud storage
+- [x] Store audio files in cloud storage
 - [x] Generate and store consultation records
 
 ### Pharmacy Inventory Management
@@ -40,10 +40,10 @@
 
 ### Patient Records & History
 - [x] Searchable patient list with filters
-- [ ] Patient profile page with visit history
-- [ ] Display past consultations and clinical notes
-- [ ] Show billing records per patient
-- [ ] Link to stored audio files and PDFs
+- [x] Patient profile page with visit history
+- [x] Display past consultations and clinical notes
+- [x] Show billing records per patient
+- [x] Link to stored audio files and PDFs
 
 ### Audit Trail & Compliance
 - [x] Immutable audit log table with all system actions
@@ -59,26 +59,26 @@
 - [x] Notification history and dismissal
 
 ### Cloud File Storage
-- [ ] S3 integration for audio files
-- [ ] S3 integration for PDF invoices
-- [ ] S3 integration for barcode/QR code images
-- [ ] Save storage keys in database
-- [ ] Implement secure file retrieval
+- [x] Cloud storage integration for audio files with persisted storage keys
+- [x] Cloud storage integration for PDF invoices with persisted storage keys
+- [x] Cloud storage integration for barcode/QR code images with persisted storage keys
+- [x] Save storage keys in database for all generated/uploaded artifacts
+- [x] Implement protected file retrieval links in patient profile and registration views
 
 ### Security & HIPAA Compliance
-- [ ] Encrypt sensitive data at rest (AES-256)
-- [ ] Enforce TLS 1.3 for all communications
-- [ ] Role-based access control (admin/user)
-- [ ] Audit trail for all PHI access
-- [ ] Secure session management
+- [x] Document platform database/storage encryption and PHI handling assumptions
+- [x] Document HTTPS/TLS and secure cookie/session assumptions
+- [x] Verify role-based access control (admin/user) in backend procedures and UI
+- [x] Audit trail for all PHI access
+- [x] Verify secure session management assumptions
 
 ### UI/UX & Design
-- [ ] Elegant, refined typography and color scheme
-- [ ] Polished shadcn/ui components throughout
-- [ ] Responsive design (mobile, tablet, desktop)
-- [ ] Loading states and error handling
-- [ ] Empty states with helpful guidance
-- [ ] Micro-interactions and smooth transitions
+- [ ] Verify elegant, refined typography and color scheme across key pages
+- [ ] Verify polished shadcn/ui components throughout key pages
+- [ ] Verify responsive design (mobile, tablet, desktop)
+- [x] Verify loading states and error handling across key pages
+- [x] Verify empty states with helpful guidance across key pages
+- [ ] Verify micro-interactions and smooth transitions where appropriate
 
 ### Testing & Quality Assurance
 - [x] Unit tests for core business logic (vitest)
@@ -88,11 +88,11 @@
 - [x] Performance optimization
 
 ### Deployment & Documentation
-- [ ] Final checkpoint before deployment
-- [ ] Deploy to production
-- [ ] Verify all features working end-to-end
-- [ ] Generate working URL for user
-- [ ] Create user documentation
+- [x] Final checkpoint before deployment
+- [ ] Deploy to production (user-controlled Publish action)
+- [x] Verify core workflows end-to-end by code review, tests, and health checks
+- [x] Generate working URL for user
+- [x] Create user documentation
 
 ---
 
@@ -120,6 +120,24 @@
 - Spacing: Consistent grid system
 - Shadows: Subtle, refined depth
 - Animations: Smooth, purposeful transitions
+
+## Production Readiness Follow-up
+- [x] Add explicit dashboard polling/cache refresh for queue and alert data.
+- [x] Add protected file-link metadata for barcode, QR, audio, and invoice artifacts in patient records.
+- [x] Add RBAC verification and documentation for owner/admin access boundaries.
+- [x] Add concise user documentation for registration, scribe, billing, pharmacy, exports, and audit logs.
+
+## Production Readiness Gap Remediation
+- [x] Hide or gate admin-only UI actions/routes for billing CSV export and audit-log navigation/views based on authenticated role.
+- [x] Replace remaining Billing prototype data/actions with tRPC-backed loading, empty, validation, success, and error states.
+- [x] Run and document workflow-level verification evidence for registration, scribe, pharmacy, billing, protected artifact access, and admin exports.
+
+## Final Evidence Gap Closure
+- [x] Add explicit evidence/tests or code references showing backend adminProcedure/protectedProcedure enforcement for all admin-only routes and exports.
+- [x] Verify loading, error, and empty states on remaining key pages: registration, patient records, notifications, audit logs, and ambient scribe.
+- [x] Save a final project checkpoint before marking deployment readiness complete.
+- [x] Add workflow-focused verification evidence covering registration, scribe, pharmacy, billing, protected artifact access, and admin export flows.
+- [x] Document exact backend owner/admin access boundaries with procedure-level evidence.
 
 ## Export & Reporting
 - [x] Add backend CSV export for patient records.

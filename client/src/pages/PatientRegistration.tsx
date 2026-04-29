@@ -8,9 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { Loader2 } from "lucide-react";
+import { Download, Loader2, Printer, QrCode } from "lucide-react";
 
 const registrationSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -24,15 +25,30 @@ const registrationSchema = z.object({
 
 type RegistrationFormData = z.infer<typeof registrationSchema>;
 
+type RegisteredPatient = {
+  success: boolean;
+  patientId: string;
+  barcodeData: string;
+  barcodeImageUrl?: string;
+  qrcodeImageUrl?: string;
+  barcodeImageKey?: string;
+  qrcodeImageKey?: string;
+};
+
 export default function PatientRegistration() {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [registeredPatient, setRegisteredPatient] = useState<any>(null);
+  const [registeredPatient, setRegisteredPatient] = useState<RegisteredPatient | null>(null);
 
-  const { register, handleSubmit, formState: { errors }, watch, reset } = useForm<RegistrationFormData>({
+  const { register, handleSubmit, formState: { errors }, setValue, reset } = useForm<RegistrationFormData>({
     resolver: zodResolver(registrationSchema),
   });
 
   const registerMutation = trpc.patients.register.useMutation();
+  const artifactLink = trpc.files.getArtifactLink.useMutation({
+    onError: (error) => {
+      toast.error(error.message || "Unable to open the protected tracking asset.");
+    },
+  });
 
   const onSubmit = async (data: RegistrationFormData) => {
     try {
@@ -48,7 +64,7 @@ export default function PatientRegistration() {
       });
 
       setRegisteredPatient(result);
-      toast.success(`Patient ${data.firstName} ${data.lastName} registered successfully!`);
+      toast.success(`Patient ${data.firstName} ${data.lastName} registered successfully with stored QR and barcode assets.`);
       reset();
     } catch (error: any) {
       toast.error(error.message || "Failed to register patient");
@@ -57,16 +73,56 @@ export default function PatientRegistration() {
     }
   };
 
+  const openTrackingAsset = async (artifactType: "barcode" | "qr_code") => {
+    if (!registeredPatient) return;
+    const isBarcode = artifactType === "barcode";
+    const asset = await artifactLink.mutateAsync({
+      key: isBarcode ? registeredPatient.barcodeImageKey : registeredPatient.qrcodeImageKey,
+      url: isBarcode ? registeredPatient.barcodeImageUrl : registeredPatient.qrcodeImageUrl,
+      artifactType,
+      patientId: registeredPatient.patientId,
+      recordId: registeredPatient.patientId,
+    });
+    window.open(asset.url, "_blank", "noopener,noreferrer");
+    toast.success(`${isBarcode ? "Barcode" : "QR code"} opened through a protected, audited link.`);
+  };
+
+  const printTrackingSlip = () => {
+    if (!registeredPatient) return;
+    const printWindow = window.open("", "_blank", "width=720,height=900");
+    if (!printWindow) {
+      toast.error("Please allow pop-ups to print the OPD tracking slip.");
+      return;
+    }
+    printWindow.document.write(`
+      <html>
+        <head><title>OPD Tracking Slip - ${registeredPatient.patientId}</title></head>
+        <body style="font-family: Arial, sans-serif; padding: 32px; color: #111827;">
+          <div style="border: 1px solid #d1d5db; border-radius: 16px; padding: 24px; max-width: 520px; margin: 0 auto;">
+            <h1 style="font-size: 22px; margin: 0 0 8px;">Clinic OPD Tracking Slip</h1>
+            <p style="margin: 0 0 24px; color: #4b5563;">Use this QR code or barcode for patient queue tracking.</p>
+            <div style="font-size: 18px; font-weight: 700; margin-bottom: 20px;">Patient ID: ${registeredPatient.patientId}</div>
+            ${registeredPatient.qrcodeImageUrl ? `<img src="${registeredPatient.qrcodeImageUrl}" style="width: 180px; height: 180px; display: block; margin-bottom: 20px;" />` : ""}
+            ${registeredPatient.barcodeImageUrl ? `<img src="${registeredPatient.barcodeImageUrl}" style="width: 360px; max-width: 100%; display: block; margin-bottom: 12px;" />` : ""}
+            <div style="font-family: monospace; font-size: 13px;">${registeredPatient.barcodeData}</div>
+          </div>
+          <script>window.onload = () => { window.print(); window.close(); };</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Patient Registration</h1>
-        <p className="text-muted-foreground mt-2">Register a new patient and generate OPD tracking barcode</p>
+      <div className="rounded-3xl bg-gradient-to-r from-slate-950 via-teal-950 to-emerald-900 p-8 text-white shadow-xl">
+        <Badge className="border-white/20 bg-white/10 text-white">Patient intake</Badge>
+        <h1 className="mt-4 text-3xl font-bold tracking-tight">Patient Registration</h1>
+        <p className="mt-2 max-w-3xl text-teal-50">Register a new patient, auto-generate a unique Patient ID, and securely store QR/barcode assets for OPD tracking.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Registration Form */}
-        <Card>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        <Card className="shadow-lg">
           <CardHeader>
             <CardTitle>Patient Information</CardTitle>
             <CardDescription>Enter patient details to complete registration</CardDescription>
@@ -76,51 +132,28 @@ export default function PatientRegistration() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="firstName">First Name *</Label>
-                  <Input
-                    id="firstName"
-                    placeholder="John"
-                    {...register("firstName")}
-                    className={errors.firstName ? "border-red-500" : ""}
-                  />
-                  {errors.firstName && (
-                    <p className="text-sm text-red-500">{errors.firstName.message}</p>
-                  )}
+                  <Input id="firstName" placeholder="John" {...register("firstName")} className={errors.firstName ? "border-red-500" : ""} />
+                  {errors.firstName && <p className="text-sm text-red-500">{errors.firstName.message}</p>}
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="lastName">Last Name *</Label>
-                  <Input
-                    id="lastName"
-                    placeholder="Doe"
-                    {...register("lastName")}
-                    className={errors.lastName ? "border-red-500" : ""}
-                  />
-                  {errors.lastName && (
-                    <p className="text-sm text-red-500">{errors.lastName.message}</p>
-                  )}
+                  <Input id="lastName" placeholder="Doe" {...register("lastName")} className={errors.lastName ? "border-red-500" : ""} />
+                  {errors.lastName && <p className="text-sm text-red-500">{errors.lastName.message}</p>}
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="dob">Date of Birth *</Label>
-                <Input
-                  id="dob"
-                  type="date"
-                  {...register("dateOfBirth")}
-                  className={errors.dateOfBirth ? "border-red-500" : ""}
-                />
-                {errors.dateOfBirth && (
-                  <p className="text-sm text-red-500">{errors.dateOfBirth.message}</p>
-                )}
+                <Input id="dob" type="date" {...register("dateOfBirth")} className={errors.dateOfBirth ? "border-red-500" : ""} />
+                {errors.dateOfBirth && <p className="text-sm text-red-500">{errors.dateOfBirth.message}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="gender">Gender</Label>
-                  <Select defaultValue="">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select gender" />
-                    </SelectTrigger>
+                  <Select onValueChange={(value: "Male" | "Female" | "Other") => setValue("gender", value)}>
+                    <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Male">Male</SelectItem>
                       <SelectItem value="Female">Female</SelectItem>
@@ -131,101 +164,72 @@ export default function PatientRegistration() {
 
                 <div className="space-y-2">
                   <Label htmlFor="contact">Contact Number *</Label>
-                  <Input
-                    id="contact"
-                    placeholder="+1 (555) 000-0000"
-                    {...register("contactNumber")}
-                    className={errors.contactNumber ? "border-red-500" : ""}
-                  />
-                  {errors.contactNumber && (
-                    <p className="text-sm text-red-500">{errors.contactNumber.message}</p>
-                  )}
+                  <Input id="contact" placeholder="+1 (555) 000-0000" {...register("contactNumber")} className={errors.contactNumber ? "border-red-500" : ""} />
+                  {errors.contactNumber && <p className="text-sm text-red-500">{errors.contactNumber.message}</p>}
                 </div>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="john@example.com"
-                  {...register("email")}
-                  className={errors.email ? "border-red-500" : ""}
-                />
-                {errors.email && (
-                  <p className="text-sm text-red-500">{errors.email.message}</p>
-                )}
+                <Input id="email" type="email" placeholder="john@example.com" {...register("email")} className={errors.email ? "border-red-500" : ""} />
+                {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
-                <Textarea
-                  id="address"
-                  placeholder="Enter patient's address"
-                  {...register("address")}
-                  rows={3}
-                />
+                <Textarea id="address" placeholder="Enter patient's address" {...register("address")} rows={3} />
               </div>
 
               <Button type="submit" disabled={isSubmitting} className="w-full">
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Register Patient
+                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Register Patient
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        {/* Success & Barcode Display */}
-        {registeredPatient && (
-          <Card className="border-green-200 bg-green-50">
+        {registeredPatient ? (
+          <Card className="border-green-200 bg-green-50 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-green-900">✓ Registration Successful</CardTitle>
-              <CardDescription className="text-green-800">Patient ID and barcode generated</CardDescription>
+              <CardTitle className="text-green-950">Registration Successful</CardTitle>
+              <CardDescription className="text-green-800">Patient ID, QR code, and barcode were generated and stored.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-2">
-                <Label className="text-green-900">Patient ID</Label>
-                <div className="p-4 bg-white border-2 border-green-300 rounded-lg font-mono text-lg font-bold text-center">
-                  {registeredPatient.patientId}
+                <Label className="text-green-950">Patient ID</Label>
+                <div className="rounded-xl border-2 border-green-300 bg-white p-4 text-center font-mono text-lg font-bold">{registeredPatient.patientId}</div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border bg-white p-4 text-center">
+                  <Label className="mb-3 block text-green-950">QR Code</Label>
+                  {registeredPatient.qrcodeImageUrl ? <img src={registeredPatient.qrcodeImageUrl} alt={`QR code for ${registeredPatient.patientId}`} className="mx-auto h-40 w-40 rounded-lg border object-contain p-2" /> : <QrCode className="mx-auto h-20 w-20 text-slate-300" />}
+                </div>
+                <div className="rounded-xl border bg-white p-4 text-center">
+                  <Label className="mb-3 block text-green-950">Barcode</Label>
+                  {registeredPatient.barcodeImageUrl ? <img src={registeredPatient.barcodeImageUrl} alt={`Barcode for ${registeredPatient.patientId}`} className="mx-auto h-32 w-full rounded-lg border object-contain p-2" /> : <p className="text-sm text-muted-foreground">Barcode unavailable</p>}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-green-900">Barcode Data</Label>
-                <div className="p-4 bg-white border rounded-lg text-center">
-                  <p className="font-mono text-sm">{registeredPatient.barcodeData}</p>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-green-900">QR Code / Barcode</Label>
-                <div className="p-4 bg-white border rounded-lg flex items-center justify-center min-h-[200px]">
-                  <div className="text-center">
-                    <p className="text-muted-foreground mb-2">Barcode will be displayed here</p>
-                    <p className="text-sm font-mono">{registeredPatient.barcodeData}</p>
-                  </div>
-                </div>
+              <div className="rounded-xl border bg-white p-4 text-center">
+                <Label className="text-green-950">Barcode Data</Label>
+                <p className="mt-2 break-all font-mono text-sm">{registeredPatient.barcodeData}</p>
               </div>
 
               <div className="flex gap-2">
-                <Button className="flex-1" variant="default">
-                  Print Barcode
-                </Button>
-                <Button className="flex-1" variant="outline">
-                  Download PDF
-                </Button>
+                <Button className="flex-1" variant="default" onClick={printTrackingSlip}><Printer className="mr-2 h-4 w-4" />Print Slip</Button>
+                {registeredPatient.qrcodeImageUrl && <Button className="flex-1" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("qr_code")}><Download className="mr-2 h-4 w-4" />QR Code</Button>}
+                {registeredPatient.barcodeImageUrl && <Button className="flex-1" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("barcode")}><Download className="mr-2 h-4 w-4" />Barcode</Button>}
               </div>
 
-              <Button
-                className="w-full"
-                variant="outline"
-                onClick={() => {
-                  setRegisteredPatient(null);
-                  reset();
-                }}
-              >
-                Register Another Patient
-              </Button>
+              <Button className="w-full" variant="outline" onClick={() => { setRegisteredPatient(null); reset(); }}>Register Another Patient</Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="flex min-h-[420px] items-center justify-center border-dashed bg-slate-50/70">
+            <CardContent className="text-center">
+              <QrCode className="mx-auto mb-4 h-12 w-12 text-slate-400" />
+              <h2 className="text-xl font-semibold text-slate-900">OPD tracking assets appear here</h2>
+              <p className="mt-2 max-w-sm text-sm text-muted-foreground">After successful registration, QR and barcode images will be shown for printing and external OPD tracking.</p>
             </CardContent>
           </Card>
         )}

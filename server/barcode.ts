@@ -1,17 +1,25 @@
 import QRCode from "qrcode";
+import bwipjs from "bwip-js";
+
+function dataUrlToBuffer(dataUrl: string): Buffer {
+  const [, base64Payload] = dataUrl.split(",");
+  if (!base64Payload) {
+    throw new Error("Invalid data URL payload");
+  }
+  return Buffer.from(base64Payload, "base64");
+}
 
 /**
- * Generate QR code as data URL
+ * Generate QR code as a PNG data URL.
  */
 export async function generateQRCode(data: string): Promise<string> {
   try {
-    const qrCodeDataUrl = await QRCode.toDataURL(data, {
+    return await QRCode.toDataURL(data, {
       errorCorrectionLevel: "H",
       type: "image/png",
       margin: 1,
       width: 300,
     });
-    return qrCodeDataUrl;
   } catch (error) {
     console.error("Failed to generate QR code:", error);
     throw new Error("QR code generation failed");
@@ -19,46 +27,61 @@ export async function generateQRCode(data: string): Promise<string> {
 }
 
 /**
- * Generate barcode as SVG string (using text representation)
- * In production, use a proper barcode library like jsbarcode
+ * Generate a machine-scannable Code 128 barcode as a PNG buffer.
  */
-export function generateBarcodeImage(data: string): string {
-  // Create a simple barcode representation as SVG
-  // For production, integrate jsbarcode library
-  const svgBarcode = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="300" height="100">
-      <rect width="300" height="100" fill="white"/>
-      <text x="150" y="50" font-size="24" font-weight="bold" text-anchor="middle" font-family="monospace">
-        ${data}
-      </text>
-      <text x="150" y="85" font-size="12" text-anchor="middle" font-family="monospace">
-        OPD Tracking Barcode
-      </text>
-    </svg>
-  `;
-  return svgBarcode;
+export async function generateBarcodePngBuffer(data: string): Promise<Buffer> {
+  try {
+    return await bwipjs.toBuffer({
+      bcid: "code128",
+      text: data,
+      scale: 3,
+      height: 18,
+      includetext: true,
+      textxalign: "center",
+      paddingwidth: 8,
+      paddingheight: 8,
+      backgroundcolor: "FFFFFF",
+    });
+  } catch (error) {
+    console.error("Failed to generate barcode:", error);
+    throw new Error("Barcode generation failed");
+  }
 }
 
 /**
- * Convert SVG to PNG buffer (requires additional library in production)
+ * Backward-compatible helper that returns a PNG data URL for UI previews/tests.
  */
-export async function svgToPngBuffer(svgString: string): Promise<Buffer> {
-  // In production, use a library like sharp or svg2png
-  // For now, return a placeholder
-  return Buffer.from(svgString);
+export async function generateBarcodeImage(data: string): Promise<string> {
+  const barcodeBuffer = await generateBarcodePngBuffer(data);
+  return `data:image/png;base64,${barcodeBuffer.toString("base64")}`;
 }
 
 /**
- * Generate both QR code and barcode for patient
+ * Backward-compatible conversion helper. If the input is already a data URL,
+ * decode it; otherwise preserve the original bytes.
+ */
+export async function svgToPngBuffer(imageString: string): Promise<Buffer> {
+  if (imageString.startsWith("data:image/")) {
+    return dataUrlToBuffer(imageString);
+  }
+  return Buffer.from(imageString);
+}
+
+/**
+ * Generate QR and barcode artifacts for patient OPD tracking.
  */
 export async function generatePatientBarcodes(patientId: string) {
   try {
     const qrCodeDataUrl = await generateQRCode(patientId);
-    const barcodeImage = generateBarcodeImage(patientId);
+    const qrCodePngBuffer = dataUrlToBuffer(qrCodeDataUrl);
+    const barcodePngBuffer = await generateBarcodePngBuffer(patientId);
+    const barcodeImage = `data:image/png;base64,${barcodePngBuffer.toString("base64")}`;
 
     return {
       qrCodeDataUrl,
+      qrCodePngBuffer,
       barcodeImage,
+      barcodePngBuffer,
       patientId,
     };
   } catch (error) {
@@ -66,3 +89,7 @@ export async function generatePatientBarcodes(patientId: string) {
     throw error;
   }
 }
+
+export const __private__ = {
+  dataUrlToBuffer,
+};

@@ -37,7 +37,9 @@ export const patients = mysqlTable("patients", {
   address: text("address"),
   barcodeData: varchar("barcodeData", { length: 255 }).unique(),
   barcodeImageUrl: text("barcodeImageUrl"),
+  barcodeImageKey: text("barcodeImageKey"),
   qrcodeImageUrl: text("qrcodeImageUrl"),
+  qrcodeImageKey: text("qrcodeImageKey"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

@@ -15,6 +15,13 @@
       "when": 1777430797773,
       "tag": "0001_worried_rick_jones",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1777463412329,
+      "tag": "0002_nebulous_ego",
+      "breakpoints": true
     }
   ]
 }

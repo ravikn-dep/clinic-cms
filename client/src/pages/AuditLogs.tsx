@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { Search, Download } from "lucide-react";
+import { AlertCircle, Download, Loader2, Search } from "lucide-react";
 
 export default function AuditLogs() {
   const [filterAction, setFilterAction] = useState("ALL");
@@ -102,9 +102,9 @@ export default function AuditLogs() {
 
             <div className="space-y-2">
               <Label>&nbsp;</Label>
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" disabled>
                 <Download className="mr-2 h-4 w-4" />
-                Export
+                Export unavailable
               </Button>
             </div>
           </div>
@@ -118,7 +118,20 @@ export default function AuditLogs() {
           <CardDescription>{filteredLogs.length} log entries</CardDescription>
         </CardHeader>
         <CardContent>
-          {filteredLogs.length === 0 ? (
+          {auditLogsQuery.isLoading ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading audit logs...
+            </div>
+          ) : auditLogsQuery.isError ? (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-destructive/30 bg-destructive/5 py-12 text-center">
+              <AlertCircle className="h-10 w-10 text-destructive" />
+              <div>
+                <p className="font-medium text-destructive">Unable to load audit logs.</p>
+                <p className="text-sm text-muted-foreground">{auditLogsQuery.error.message}</p>
+              </div>
+              <Button variant="outline" onClick={() => auditLogsQuery.refetch()}>Try again</Button>
+            </div>
+          ) : filteredLogs.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-muted-foreground">No audit logs found</p>
             </div>
