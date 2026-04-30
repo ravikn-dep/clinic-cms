@@ -177,11 +177,11 @@
 - [x] Preview the administration dashboard and summarize the completed CMS actions for the user.
 
 ## Preview Fixes and Patient ID Format Request
-- [ ] Change newly generated patient IDs to `DOCM-dd/mm/yyOP001`, `DOCM-dd/mm/yyOP002`, and continuing daily sequence format.
-- [ ] Fix billing generation failure in preview so invoices can be created successfully.
-- [ ] Fix pharmacy inventory editing in preview so stock and medicine details can be updated successfully.
-- [ ] Add or update regression tests covering patient ID generation, billing generation, and pharmacy inventory editing.
-- [ ] Validate fixes with tests, production build, and preview health check.
-- [ ] Save checkpoint after completing the preview fixes.
-- [ ] Add printable A4 patient registration form with patient details, barcode, and QR code in the header, leaving the remaining page space empty for handwritten consultation details, treatment plan, and investigations.
-- [ ] Add consultant name and consultation date/time fields to the printable A4 OP registration form header with patient details, barcode, and QR code.
+- [x] Change newly generated patient IDs to `DOCM-dd/mm/yyOP001`, `DOCM-dd/mm/yyOP002`, and continuing daily sequence format.
+- [x] Fix billing generation failure in preview so invoices can be created successfully.
+- [x] Fix pharmacy inventory editing in preview so stock and medicine details can be updated successfully.
+- [x] Add or update regression tests covering patient ID generation, billing generation, and pharmacy inventory editing.
+- [x] Validate fixes with tests, production build, and preview health check.
+- [x] Save checkpoint after completing the preview fixes.
+- [x] Add printable A4 patient registration form with patient details, barcode, and QR code in the header, leaving the remaining page space empty for handwritten consultation details, treatment plan, and investigations.
+- [x] Add consultant name and consultation date/time fields to the printable A4 OP registration form header with patient details, barcode, and QR code.
