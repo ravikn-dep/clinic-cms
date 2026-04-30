@@ -38,6 +38,7 @@ type RegisteredPatient = {
 export default function PatientRegistration() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registeredPatient, setRegisteredPatient] = useState<RegisteredPatient | null>(null);
+  const [registeredPatientDetails, setRegisteredPatientDetails] = useState<RegistrationFormData | null>(null);
 
   const { register, handleSubmit, formState: { errors }, setValue, reset } = useForm<RegistrationFormData>({
     resolver: zodResolver(registrationSchema),
@@ -64,6 +65,7 @@ export default function PatientRegistration() {
       });
 
       setRegisteredPatient(result);
+      setRegisteredPatientDetails(data);
       toast.success(`Patient ${data.firstName} ${data.lastName} registered successfully with stored QR and barcode assets.`);
       reset();
     } catch (error: any) {
@@ -89,24 +91,83 @@ export default function PatientRegistration() {
 
   const printTrackingSlip = () => {
     if (!registeredPatient) return;
-    const printWindow = window.open("", "_blank", "width=720,height=900");
+    const printWindow = window.open("", "_blank", "width=900,height=1200");
     if (!printWindow) {
-      toast.error("Please allow pop-ups to print the OPD tracking slip.");
+      toast.error("Please allow pop-ups to print the OP registration form.");
       return;
     }
+
+    const patient = registeredPatientDetails;
+    const escapeHtml = (value?: string | null) => String(value || "—")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+    const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "—";
+    const generatedAt = new Date().toLocaleString();
+
     printWindow.document.write(`
       <html>
-        <head><title>OPD Tracking Slip - ${registeredPatient.patientId}</title></head>
-        <body style="font-family: Arial, sans-serif; padding: 32px; color: #111827;">
-          <div style="border: 1px solid #d1d5db; border-radius: 16px; padding: 24px; max-width: 520px; margin: 0 auto;">
-            <h1 style="font-size: 22px; margin: 0 0 8px;">Clinic OPD Tracking Slip</h1>
-            <p style="margin: 0 0 24px; color: #4b5563;">Use this QR code or barcode for patient queue tracking.</p>
-            <div style="font-size: 18px; font-weight: 700; margin-bottom: 20px;">Patient ID: ${registeredPatient.patientId}</div>
-            ${registeredPatient.qrcodeImageUrl ? `<img src="${registeredPatient.qrcodeImageUrl}" style="width: 180px; height: 180px; display: block; margin-bottom: 20px;" />` : ""}
-            ${registeredPatient.barcodeImageUrl ? `<img src="${registeredPatient.barcodeImageUrl}" style="width: 360px; max-width: 100%; display: block; margin-bottom: 12px;" />` : ""}
-            <div style="font-family: monospace; font-size: 13px;">${registeredPatient.barcodeData}</div>
-          </div>
-          <script>window.onload = () => { window.print(); window.close(); };</script>
+        <head>
+          <title>A4 OP Registration Form - ${escapeHtml(registeredPatient.patientId)}</title>
+          <style>
+            @page { size: A4 portrait; margin: 12mm; }
+            * { box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; margin: 0; color: #111827; background: #ffffff; }
+            .page { width: 186mm; min-height: 273mm; margin: 0 auto; border: 1px solid #111827; padding: 10mm; }
+            .header { display: grid; grid-template-columns: 1fr 34mm 58mm; gap: 8mm; align-items: start; border-bottom: 2px solid #111827; padding-bottom: 7mm; }
+            .clinic-title { font-size: 20px; font-weight: 800; letter-spacing: 0.02em; margin: 0 0 2mm; }
+            .subtitle { margin: 0 0 6mm; font-size: 11px; color: #4b5563; }
+            .patient-id { display: inline-block; border: 1px solid #111827; padding: 2mm 4mm; font-family: monospace; font-size: 15px; font-weight: 800; }
+            .qr { width: 31mm; height: 31mm; object-fit: contain; border: 1px solid #d1d5db; padding: 1.5mm; }
+            .barcode { width: 55mm; height: 24mm; object-fit: contain; border: 1px solid #d1d5db; padding: 1.5mm; }
+            table { width: 100%; border-collapse: collapse; margin-top: 7mm; font-size: 11px; }
+            th, td { border: 1px solid #111827; padding: 3mm; text-align: left; vertical-align: top; }
+            th { width: 22%; background: #f3f4f6; font-weight: 700; }
+            .section { margin-top: 9mm; border: 1px solid #111827; min-height: 40mm; }
+            .section-title { border-bottom: 1px solid #111827; background: #f9fafb; padding: 3mm; font-weight: 800; font-size: 12px; }
+            .blank-space { min-height: 41mm; }
+            .footer { margin-top: 8mm; display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; font-size: 11px; }
+            .line { border-bottom: 1px solid #111827; height: 10mm; }
+            @media print { body { background: #ffffff; } .page { border: 1px solid #111827; } }
+          </style>
+        </head>
+        <body>
+          <main class="page">
+            <section class="header">
+              <div>
+                <h1 class="clinic-title">Clinic OP Registration Form</h1>
+                <p class="subtitle">Printable A4 form for OPD registration, consultation notes, treatment plan, and investigations.</p>
+                <div class="patient-id">Patient ID: ${escapeHtml(registeredPatient.patientId)}</div>
+              </div>
+              <div>${registeredPatient.qrcodeImageUrl ? `<img class="qr" src="${escapeHtml(registeredPatient.qrcodeImageUrl)}" alt="QR code" />` : ""}</div>
+              <div>
+                ${registeredPatient.barcodeImageUrl ? `<img class="barcode" src="${escapeHtml(registeredPatient.barcodeImageUrl)}" alt="Barcode" />` : ""}
+                <div style="font-family: monospace; font-size: 10px; margin-top: 2mm; word-break: break-all;">${escapeHtml(registeredPatient.barcodeData)}</div>
+              </div>
+            </section>
+
+            <table aria-label="OP registration details">
+              <tbody>
+                <tr><th>Patient Name</th><td>${escapeHtml(patientName)}</td><th>Patient ID</th><td>${escapeHtml(registeredPatient.patientId)}</td></tr>
+                <tr><th>Date of Birth</th><td>${escapeHtml(patient?.dateOfBirth)}</td><th>Gender</th><td>${escapeHtml(patient?.gender)}</td></tr>
+                <tr><th>Contact Number</th><td>${escapeHtml(patient?.contactNumber)}</td><th>Generated On</th><td>${escapeHtml(generatedAt)}</td></tr>
+                <tr><th>Consultant Name</th><td>&nbsp;</td><th>Consultation Date/Time</th><td>&nbsp;</td></tr>
+                <tr><th>Address</th><td colspan="3">${escapeHtml(patient?.address)}</td></tr>
+              </tbody>
+            </table>
+
+            <section class="section"><div class="section-title">Clinical History / Present Complaints</div><div class="blank-space"></div></section>
+            <section class="section"><div class="section-title">Advised Investigations</div><div class="blank-space"></div></section>
+            <section class="section"><div class="section-title">Treatment Plan / Prescription</div><div class="blank-space"></div></section>
+
+            <div class="footer">
+              <div><div class="line"></div><p>Patient / Attendant Signature</p></div>
+              <div><div class="line"></div><p>Consultant Signature</p></div>
+            </div>
+          </main>
+          <script>window.onload = () => setTimeout(() => { window.print(); window.close(); }, 350);</script>
         </body>
       </html>
     `);
@@ -216,7 +277,7 @@ export default function PatientRegistration() {
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
-                <Button className="friendly-action flex-1" variant="default" onClick={printTrackingSlip}><Printer className="mr-2 h-4 w-4" />Print Slip</Button>
+                <Button className="friendly-action flex-1" variant="default" onClick={printTrackingSlip}><Printer className="mr-2 h-4 w-4" />Print A4 OP Form</Button>
                 {registeredPatient.qrcodeImageUrl && <Button className="friendly-action flex-1 border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("qr_code")}><Download className="mr-2 h-4 w-4" />QR Code</Button>}
                 {registeredPatient.barcodeImageUrl && <Button className="friendly-action flex-1 border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("barcode")}><Download className="mr-2 h-4 w-4" />Barcode</Button>}
               </div>
@@ -229,7 +290,7 @@ export default function PatientRegistration() {
             <CardContent className="text-center">
               <QrCode className="mx-auto mb-4 h-12 w-12 text-teal-500" />
               <h2 className="text-xl font-semibold text-teal-950">OPD tracking assets appear here</h2>
-              <p className="mt-2 max-w-sm text-sm text-muted-foreground">After successful registration, QR and barcode images will be shown for printing and external OPD tracking.</p>
+              <p className="mt-2 max-w-sm text-sm text-muted-foreground">After successful registration, QR and barcode images will be shown for printing the A4 OP registration form and external OPD tracking.</p>
             </CardContent>
           </Card>
         )}

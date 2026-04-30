@@ -1,4 +1,4 @@
-import { eq, and, desc, lte } from "drizzle-orm";
+import { count, desc, eq, like, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, patients, consultations, inventory, bills, billItems, auditLogs, notifications } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -112,6 +112,18 @@ export async function getAllPatients() {
   if (!db) throw new Error("Database not available");
   
   return db.select().from(patients).orderBy(desc(patients.createdAt));
+}
+
+export async function countPatientsByPatientIdPrefix(patientIdPrefix: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db
+    .select({ value: count() })
+    .from(patients)
+    .where(like(patients.patientId, `${patientIdPrefix}%`));
+
+  return Number(result[0]?.value ?? 0);
 }
 
 export async function searchPatients(query: string) {

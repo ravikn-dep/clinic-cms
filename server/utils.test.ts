@@ -10,26 +10,27 @@ import {
 
 describe("Utility Functions", () => {
   describe("generatePatientId", () => {
-    it("should generate a consistent patient ID for the same input", () => {
-      const id1 = generatePatientId("John", "Doe", "1990-01-15");
-      const id2 = generatePatientId("John", "Doe", "1990-01-15");
-      expect(id1).toBe(id2);
+    it("should generate a daily sequence patient ID with correct format", () => {
+      const id = generatePatientId(1, new Date("2026-04-29"));
+      expect(id).toMatch(/^DOCM-\d{2}\/\d{2}\/\d{2}OP\d{3}$/);
     });
 
-    it("should generate different IDs for different inputs", () => {
-      const id1 = generatePatientId("John", "Doe", "1990-01-15");
-      const id2 = generatePatientId("Jane", "Smith", "1985-05-20");
+    it("should generate different IDs for different daily sequences", () => {
+      const date = new Date("2026-04-29");
+      const id1 = generatePatientId(1, date);
+      const id2 = generatePatientId(2, date);
       expect(id1).not.toBe(id2);
     });
 
-    it("should start with PAT- prefix", () => {
-      const id = generatePatientId("John", "Doe", "1990-01-15");
-      expect(id).toMatch(/^PAT-/);
+    it("should start with DOCM- prefix", () => {
+      const id = generatePatientId(1, new Date("2026-04-29"));
+      expect(id).toMatch(/^DOCM-/);
     });
 
-    it("should have correct format", () => {
-      const id = generatePatientId("John", "Doe", "1990-01-15");
-      expect(id).toMatch(/^PAT-[A-F0-9]{8}$/);
+    it("should have correct format with DOCM date and sequence", () => {
+      const id = generatePatientId(5, new Date("2026-04-29"));
+      expect(id).toMatch(/^DOCM-\d{2}\/\d{2}\/\d{2}OP\d{3}$/);
+      expect(id).toBe("DOCM-29/04/26OP005");
     });
   });
 

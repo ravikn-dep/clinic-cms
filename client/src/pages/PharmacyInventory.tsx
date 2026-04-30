@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { AlertTriangle, Plus } from "lucide-react";
+import { AlertTriangle, Edit2, Plus } from "lucide-react";
 
 const inventorySchema = z.object({
   itemName: z.string().min(1, "Item name is required"),
@@ -24,34 +24,76 @@ type InventoryFormData = z.infer<typeof inventorySchema>;
 
 export default function PharmacyInventory() {
   const [showForm, setShowForm] = useState(false);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm({
     resolver: zodResolver(inventorySchema),
+    defaultValues: {
+      itemName: "",
+      batchNumber: "",
+      expiryDate: "",
+      quantityAvailable: 0,
+      reorderLevel: 10,
+      unitPrice: "",
+    },
   });
 
   const inventoryQuery = trpc.inventory.getAll.useQuery();
   const lowStockQuery = trpc.inventory.getLowStock.useQuery();
   const addMutation = trpc.inventory.add.useMutation();
+  const updateMutation = trpc.inventory.update.useMutation();
 
   const items = inventoryQuery.data || [];
   const lowStockItems = lowStockQuery.data || [];
 
+  const startAddItem = () => {
+    setEditingItemId(null);
+    reset({ itemName: "", batchNumber: "", expiryDate: "", quantityAvailable: 0, reorderLevel: 10, unitPrice: "" });
+    setShowForm(true);
+  };
+
+  const startEditItem = (item: (typeof items)[number]) => {
+    setEditingItemId(item.itemId);
+    reset({
+      itemName: item.itemName,
+      batchNumber: item.batchNumber,
+      expiryDate: item.expiryDate,
+      quantityAvailable: item.quantityAvailable ?? 0,
+      reorderLevel: item.reorderLevel ?? 10,
+      unitPrice: String(item.unitPrice ?? "0.00"),
+    });
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingItemId(null);
+    reset();
+  };
+
   const onSubmit = async (data: any) => {
     try {
-      await addMutation.mutateAsync({
+      const payload = {
         itemName: data.itemName,
         batchNumber: data.batchNumber,
         expiryDate: data.expiryDate,
         quantityAvailable: data.quantityAvailable,
         reorderLevel: data.reorderLevel,
         unitPrice: data.unitPrice,
-      });
-      toast.success("Item added to inventory");
-      reset();
-      setShowForm(false);
-      inventoryQuery.refetch();
+      };
+
+      if (editingItemId) {
+        await updateMutation.mutateAsync({ itemId: editingItemId, ...payload });
+        toast.success("Inventory item updated");
+      } else {
+        await addMutation.mutateAsync(payload);
+        toast.success("Item added to inventory");
+      }
+
+      closeForm();
+      await Promise.all([inventoryQuery.refetch(), lowStockQuery.refetch()]);
     } catch (error: any) {
-      toast.error(error.message || "Failed to add item");
+      toast.error(error.message || (editingItemId ? "Failed to update item" : "Failed to add item"));
     }
   };
 
@@ -63,17 +105,17 @@ export default function PharmacyInventory() {
           <h1 className="text-3xl font-bold tracking-tight text-teal-950">Pharmacy Inventory</h1>
           <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">Manage medicines, batches, reorder levels, and pharmacy readiness with a calmer stock overview.</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} className="friendly-action bg-teal-600 text-white hover:bg-teal-700">
+        <Button onClick={showForm ? closeForm : startAddItem} className="friendly-action bg-teal-600 text-white hover:bg-teal-700">
           <Plus className="mr-2 h-4 w-4" />
-          Add Item
+          {showForm ? "Close Form" : "Add Item"}
         </Button>
       </div>
 
-      {/* Add Item Form */}
+      {/* Add/Edit Item Form */}
       {showForm && (
         <Card className="friendly-card">
           <CardHeader>
-            <CardTitle>Add New Item</CardTitle>
+            <CardTitle>{editingItemId ? "Edit Inventory Item" : "Add New Item"}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -150,8 +192,8 @@ export default function PharmacyInventory() {
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
-                <Button type="submit" className="friendly-action flex-1 bg-teal-600 text-white hover:bg-teal-700">Add Item</Button>
-                <Button type="button" variant="outline" className="friendly-action flex-1 border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" onClick={() => setShowForm(false)}>
+                <Button type="submit" disabled={addMutation.isPending || updateMutation.isPending} className="friendly-action flex-1 bg-teal-600 text-white hover:bg-teal-700">{editingItemId ? "Save Changes" : "Add Item"}</Button>
+                <Button type="button" variant="outline" className="friendly-action flex-1 border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" onClick={closeForm}>
                   Cancel
                 </Button>
               </div>
@@ -206,6 +248,7 @@ export default function PharmacyInventory() {
                     <th className="text-left py-3 px-4 font-semibold">Quantity</th>
                     <th className="text-left py-3 px-4 font-semibold">Unit Price</th>
                     <th className="text-left py-3 px-4 font-semibold">Status</th>
+                    <th className="text-left py-3 px-4 font-semibold">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -233,6 +276,12 @@ export default function PharmacyInventory() {
                               In Stock
                             </Badge>
                           )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <Button type="button" variant="outline" size="sm" className="friendly-action border-teal-200 bg-white text-teal-800 hover:bg-teal-50" onClick={() => startEditItem(item)}>
+                            <Edit2 className="mr-2 h-3.5 w-3.5" />
+                            Edit
+                          </Button>
                         </td>
                       </tr>
                     );

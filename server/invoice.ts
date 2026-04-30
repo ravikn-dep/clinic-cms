@@ -1,4 +1,4 @@
-import { jsPDF } from "jspdf";
+import * as jsPDFModule from "jspdf";
 import { storagePut } from "./storage";
 
 interface InvoiceItem {
@@ -25,12 +25,29 @@ interface InvoiceData {
 /**
  * Generate PDF invoice
  */
-export async function generateInvoicePDF(invoiceData: InvoiceData): Promise<Buffer> {
-  const doc = new jsPDF({
+function createJsPDFDocument() {
+  const moduleShape = jsPDFModule as unknown as {
+    jsPDF?: unknown;
+    default?: unknown;
+  };
+  const defaultShape = moduleShape.default as { jsPDF?: unknown } | undefined;
+  const JsPDFConstructor = moduleShape.jsPDF ?? defaultShape?.jsPDF ?? moduleShape.default;
+
+  if (typeof JsPDFConstructor !== "function") {
+    throw new Error("jsPDF constructor is unavailable in the server runtime");
+  }
+
+  const JsPDFCtor = JsPDFConstructor as new (options: { orientation: string; unit: string; format: string }) => any;
+
+  return new JsPDFCtor({
     orientation: "portrait",
     unit: "mm",
     format: "a4",
   });
+}
+
+export async function generateInvoicePDF(invoiceData: InvoiceData): Promise<Buffer> {
+  const doc = createJsPDFDocument();
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();

@@ -21,13 +21,21 @@ export const patientRegistrationRouter = router({
       address: z.string().optional(),
     }))
     .mutation(async ({ input, ctx }) => {
-      // Generate patient ID
-      const patientId = utils.generatePatientId(input.firstName, input.lastName, input.dateOfBirth);
+      // Generate a daily sequential OP patient ID in the requested clinic format.
+      const registrationDate = new Date();
+      const patientIdPrefix = utils.generatePatientIdPrefix(registrationDate);
+      let dailySequence = (await db.countPatientsByPatientIdPrefix(patientIdPrefix)) + 1;
+      let patientId = utils.generatePatientId(dailySequence, registrationDate);
 
-      // Check if patient already exists
-      const existingPatient = await db.getPatientById(patientId);
-      if (existingPatient) {
-        throw new Error("Patient already registered");
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        const existingPatient = await db.getPatientById(patientId);
+        if (!existingPatient) break;
+        dailySequence += 1;
+        patientId = utils.generatePatientId(dailySequence, registrationDate);
+
+        if (attempt === 99) {
+          throw new Error("Unable to allocate a unique daily Patient ID. Please retry registration.");
+        }
       }
 
       // Generate barcodes

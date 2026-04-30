@@ -1,14 +1,49 @@
 import crypto from "crypto";
 import { nanoid } from "nanoid";
 
+const PATIENT_ID_TIME_ZONE = "Asia/Kolkata";
+
+function formatTwoDigitNumber(value: number): string {
+  return value.toString().padStart(2, "0");
+}
+
 /**
- * Generate a unique Patient ID based on deterministic hashing
- * Format: PAT-{8-char-hash}
+ * Format a date segment for the clinic OP patient ID.
+ * Format: dd/mm/yy in the clinic's local India time zone.
  */
-export function generatePatientId(firstName: string, lastName: string, dateOfBirth: string): string {
-  const input = `${firstName.toLowerCase()}-${lastName.toLowerCase()}-${dateOfBirth}`;
-  const hash = crypto.createHash("sha256").update(input).digest("hex").substring(0, 8).toUpperCase();
-  return `PAT-${hash}`;
+export function formatPatientIdDateSegment(registrationDate: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: PATIENT_ID_TIME_ZONE,
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+  }).formatToParts(registrationDate);
+
+  const day = parts.find((part) => part.type === "day")?.value ?? formatTwoDigitNumber(registrationDate.getDate());
+  const month = parts.find((part) => part.type === "month")?.value ?? formatTwoDigitNumber(registrationDate.getMonth() + 1);
+  const year = parts.find((part) => part.type === "year")?.value ?? formatTwoDigitNumber(registrationDate.getFullYear() % 100);
+
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Generate the prefix used to count today's OP registrations.
+ * Format: DOCM-dd/mm/yyOP
+ */
+export function generatePatientIdPrefix(registrationDate: Date = new Date()): string {
+  return `DOCM-${formatPatientIdDateSegment(registrationDate)}OP`;
+}
+
+/**
+ * Generate a clinic OP patient ID from a date and daily sequence number.
+ * Format: DOCM-dd/mm/yyOP001, DOCM-dd/mm/yyOP002, ...
+ */
+export function generatePatientId(dailySequence: number, registrationDate: Date = new Date()): string {
+  if (!Number.isInteger(dailySequence) || dailySequence < 1) {
+    throw new Error("Patient daily sequence must be a positive integer");
+  }
+
+  return `${generatePatientIdPrefix(registrationDate)}${dailySequence.toString().padStart(3, "0")}`;
 }
 
 /**

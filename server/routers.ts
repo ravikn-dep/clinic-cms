@@ -61,13 +61,22 @@ export const appRouter = router({
         address: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        // Generate unique patient ID
-        const patientId = utils.generatePatientId(input.firstName, input.lastName, input.dateOfBirth);
-        
-        // Check if patient already exists
-        const existingPatient = await db.getPatientById(patientId);
-        if (existingPatient) {
-          throw new Error("Patient already registered");
+        // Generate a daily sequential OP patient ID in the requested clinic format.
+        const registrationDate = new Date();
+        const patientIdPrefix = utils.generatePatientIdPrefix(registrationDate);
+        let dailySequence = (await db.countPatientsByPatientIdPrefix(patientIdPrefix)) + 1;
+        let patientId = utils.generatePatientId(dailySequence, registrationDate);
+
+        // Guard against rare concurrent-registration collisions by advancing the sequence.
+        for (let attempt = 0; attempt < 100; attempt += 1) {
+          const existingPatient = await db.getPatientById(patientId);
+          if (!existingPatient) break;
+          dailySequence += 1;
+          patientId = utils.generatePatientId(dailySequence, registrationDate);
+
+          if (attempt === 99) {
+            throw new Error("Unable to allocate a unique daily Patient ID. Please retry registration.");
+          }
         }
 
         // Generate OPD tracking barcode and QR code, then persist images in cloud storage.
@@ -447,16 +456,30 @@ export const appRouter = router({
     update: protectedProcedure
       .input(z.object({
         itemId: z.string(),
+        itemName: z.string().min(1).optional(),
+        batchNumber: z.string().min(1).optional(),
+        expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
         quantityAvailable: z.number().optional(),
         reorderLevel: z.number().optional(),
+        unitPrice: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         const oldItem = await db.getInventoryItemById(input.itemId);
 
-        await db.updateInventoryItem(input.itemId, {
+        const inventoryUpdates = {
+          itemName: input.itemName,
+          batchNumber: input.batchNumber,
+          expiryDate: input.expiryDate,
           quantityAvailable: input.quantityAvailable,
           reorderLevel: input.reorderLevel,
-        });
+          unitPrice: input.unitPrice as any,
+        };
+
+        const sanitizedUpdates = Object.fromEntries(
+          Object.entries(inventoryUpdates).filter(([, value]) => value !== undefined)
+        );
+
+        await db.updateInventoryItem(input.itemId, sanitizedUpdates);
 
         const nextQuantity = input.quantityAvailable ?? oldItem?.quantityAvailable;
         const nextReorderLevel = input.reorderLevel ?? oldItem?.reorderLevel;
@@ -482,7 +505,7 @@ export const appRouter = router({
           tableName: "inventory",
           recordId: input.itemId,
           oldValue: JSON.stringify(oldItem),
-          newValue: JSON.stringify({ quantityAvailable: input.quantityAvailable, reorderLevel: input.reorderLevel }),
+          newValue: JSON.stringify(sanitizedUpdates),
           timestamp: new Date(),
         });
 
@@ -522,7 +545,7 @@ export const appRouter = router({
         const bill = await db.createBill({
           billId,
           patientId: input.patientId,
-          consultationId: input.consultationId,
+          consultationId: input.consultationId ?? null,
           totalAmount: totalAmount.toString() as any,
           discountAmount: discountAmount.toString() as any,
           taxAmount: taxAmount.toString() as any,
