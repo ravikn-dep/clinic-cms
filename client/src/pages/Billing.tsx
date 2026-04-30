@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,12 +37,38 @@ const initialBillForm: BillFormState = {
 
 const parseCurrency = (value: unknown) => Number.parseFloat(String(value ?? "0")) || 0;
 
+type PatientDetails = {
+  patientId: string;
+  firstName: string;
+  lastName: string;
+  contactNumber: string;
+  email?: string;
+  address?: string;
+  dateOfBirth: string;
+  lastConsultationDate: Date | null;
+};
+
 export default function Billing() {
   const [showNewBill, setShowNewBill] = useState(false);
   const [form, setForm] = useState<BillFormState>(initialBillForm);
+  const [patientDetails, setPatientDetails] = useState<PatientDetails | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const utils = trpc.useUtils();
+
+  // Auto-fetch patient details when patient ID changes
+  const patientDetailsQuery = trpc.patients.getDetailsForBilling.useQuery(
+    { patientId: form.patientId },
+    { enabled: form.patientId.trim().length > 0 }
+  );
+
+  useEffect(() => {
+    if (patientDetailsQuery.data) {
+      setPatientDetails(patientDetailsQuery.data);
+    } else if (patientDetailsQuery.isError) {
+      setPatientDetails(null);
+    }
+  }, [patientDetailsQuery.data, patientDetailsQuery.isError]);
 
   const billsQuery = trpc.bills.getAll.useQuery(undefined, {
     refetchOnWindowFocus: false,
@@ -141,6 +167,23 @@ export default function Billing() {
 
   const setField = (field: keyof BillFormState, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
+    // Clear patient details when patient ID changes
+    if (field === "patientId") {
+      setPatientDetails(null);
+    }
+  };
+
+  const formatDate = (date: Date | string | null | undefined) => {
+    if (!date) return "N/A";
+    try {
+      return new Date(date).toLocaleDateString("en-IN", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return "N/A";
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -223,6 +266,50 @@ export default function Billing() {
                   <Input id="consultationId" value={form.consultationId} onChange={(event) => setField("consultationId", event.target.value)} placeholder="CON-1704067200000-ABC123" className="transition-colors focus-visible:ring-teal-200" />
                 </div>
               </div>
+
+              {form.patientId.trim().length > 0 && (
+                <div className="rounded-lg border bg-teal-50/50 p-4">
+                  {patientDetailsQuery.isLoading ? (
+                    <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading patient details...
+                    </div>
+                  ) : patientDetailsQuery.isError || !patientDetails ? (
+                    <div className="flex items-center justify-center gap-2 py-4 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      Patient not found
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <p className="font-semibold text-teal-950">{patientDetails.firstName} {patientDetails.lastName}</p>
+                          <p className="text-xs text-muted-foreground">DOB: {formatDate(patientDetails.dateOfBirth)}</p>
+                        </div>
+                        <Badge variant="outline" className="bg-white text-teal-700 border-teal-200">
+                          {patientDetails.patientId}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Contact</p>
+                          <p className="text-teal-900">{patientDetails.contactNumber}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Last Consultation</p>
+                          <p className="text-teal-900">{formatDate(patientDetails.lastConsultationDate)}</p>
+                        </div>
+                      </div>
+                      {patientDetails.address && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Address</p>
+                          <p className="text-sm text-teal-900 line-clamp-2">{patientDetails.address}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-4">
                 <Label className="font-semibold">Bill Item</Label>

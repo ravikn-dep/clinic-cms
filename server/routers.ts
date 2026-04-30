@@ -203,6 +203,41 @@ export const appRouter = router({
         });
         return results;
       }),
+
+    getDetailsForBilling: protectedProcedure
+      .input(z.object({ patientId: z.string() }))
+      .query(async ({ input, ctx }) => {
+        const patient = await db.getPatientById(input.patientId);
+        if (!patient) {
+          return null;
+        }
+
+        // Fetch last consultation date
+        const consultations = await db.getConsultationsByPatientId(input.patientId);
+        const lastConsultation = consultations.length > 0 ? consultations[0] : null;
+
+        // Log PHI access for billing form lookup
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "PHI_ACCESS",
+          tableName: "patients",
+          recordId: input.patientId,
+          newValue: JSON.stringify({ accessType: "billing_form_lookup" }),
+          timestamp: new Date(),
+        });
+
+        return {
+          patientId: patient.patientId,
+          firstName: patient.firstName,
+          lastName: patient.lastName,
+          contactNumber: patient.contactNumber,
+          email: patient.email || undefined,
+          address: patient.address || undefined,
+          dateOfBirth: patient.dateOfBirth,
+          lastConsultationDate: lastConsultation?.consultationDate || null,
+        };
+      }),
   }),
 
   // ============ CONSULTATIONS - AMBIENT SCRIBE ============

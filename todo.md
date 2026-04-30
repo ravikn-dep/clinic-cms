@@ -188,3 +188,11 @@
 
 ## Billing UI Visibility Fix
 - [x] Make "Raise New Bill" button more prominent and visible on the Billing page with better styling and positioning.
+
+## Auto-populate Patient Details in Billing
+- [x] Add backend procedure to fetch patient details by ID (name, contact, last consultation)
+- [x] Add frontend hook to auto-fetch patient details when patient ID is entered
+- [x] Display fetched patient details in the bill form for verification
+- [x] Add loading and error states for patient lookup
+- [x] Write tests for patient details lookup procedure (10 new test cases covering lookup validation and billing integration)
+- [x] Validate feature end-to-end in billing workflow (55/55 tests passing)
