@@ -179,6 +179,14 @@ export default function Billing() {
           <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">Generate invoices, track payments, and export billing history.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
+          <Button 
+            onClick={() => setShowNewBill((value) => !value)} 
+            className="friendly-action bg-teal-600 hover:bg-teal-700 text-white font-semibold shadow-md"
+            size="lg"
+          >
+            <Plus className="mr-2 h-5 w-5" />
+            Raise New Bill
+          </Button>
           <Button variant="outline" onClick={() => billsQuery.refetch()} disabled={billsQuery.isFetching} className="friendly-action">
             <RefreshCcw className={`mr-2 h-4 w-4 ${billsQuery.isFetching ? "animate-spin" : ""}`} />
             Refresh
@@ -194,10 +202,6 @@ export default function Billing() {
               Export Billing CSV
             </Button>
           ) : null}
-          <Button onClick={() => setShowNewBill((value) => !value)} className="friendly-action">
-            <Plus className="mr-2 h-4 w-4" />
-            New Bill
-          </Button>
         </div>
       </div>
 

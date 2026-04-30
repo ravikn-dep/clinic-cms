@@ -185,3 +185,6 @@
 - [x] Save checkpoint after completing the preview fixes.
 - [x] Add printable A4 patient registration form with patient details, barcode, and QR code in the header, leaving the remaining page space empty for handwritten consultation details, treatment plan, and investigations.
 - [x] Add consultant name and consultation date/time fields to the printable A4 OP registration form header with patient details, barcode, and QR code.
+
+## Billing UI Visibility Fix
+- [x] Make "Raise New Bill" button more prominent and visible on the Billing page with better styling and positioning.
