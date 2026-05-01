@@ -769,6 +769,189 @@ export const appRouter = router({
 
         return { success: true };
       }),
+
+    getConsultationNotes: protectedProcedure
+      .input(z.object({ consultationId: z.string() }))
+      .query(async ({ input, ctx }) => {
+        const consultation = await db.getConsultationById(input.consultationId);
+        if (!consultation) {
+          return null;
+        }
+
+        // Log PHI access
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "PHI_ACCESS",
+          tableName: "consultations",
+          recordId: input.consultationId,
+          newValue: JSON.stringify({ accessType: "billing_form_lookup" }),
+          timestamp: new Date(),
+        });
+
+        return {
+          consultationId: consultation.consultationId,
+          patientId: consultation.patientId,
+          consultationDate: consultation.consultationDate,
+          clinicalHistory: consultation.clinicalHistory,
+          presentComplaints: consultation.presentComplaints,
+          advisedInvestigations: consultation.advisedInvestigations,
+          treatmentPlan: consultation.treatmentPlan,
+        };
+      }),
+
+    generateReceipt: protectedProcedure
+      .input(z.object({ billId: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const bill = await db.getBillById(input.billId);
+        if (!bill) throw new Error("Bill not found");
+
+        const patient = await db.getPatientById(bill.patientId);
+        const items = await db.getBillItemsByBillId(input.billId);
+
+        const receiptPdf = await invoiceGen.generateAndStoreInvoicePDF({
+          billId: input.billId,
+          patientId: bill.patientId,
+          patientName: patient ? `${patient.firstName} ${patient.lastName}` : bill.patientId,
+          patientContact: patient?.contactNumber || "N/A",
+          consultationDate: new Date(),
+          items: items.map((item) => ({
+            description: item.description || "Item",
+            quantity: item.quantity || 1,
+            unitPrice: parseFloat(String(item.unitPrice || 0)),
+            subtotal: parseFloat(String(item.subtotal || 0)),
+          })),
+          totalAmount: parseFloat(String(bill.totalAmount)),
+          discountAmount: parseFloat(String(bill.discountAmount || 0)),
+          taxAmount: parseFloat(String(bill.taxAmount || 0)),
+          finalAmount: parseFloat(String(bill.finalAmount)),
+          paymentStatus: (bill.paymentStatus || "Pending") as "Pending" | "Paid" | "Partial",
+        });
+
+        await db.updateBillReceipt(input.billId, receiptPdf.url, receiptPdf.key);
+
+        // Log audit trail
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "CREATE",
+          tableName: "bills",
+          recordId: input.billId,
+          newValue: JSON.stringify({ receiptGenerated: true, receiptUrl: receiptPdf.url }),
+          timestamp: new Date(),
+        });
+
+        return { success: true, receiptUrl: receiptPdf.url };
+      }),
+  }),
+
+  // ============ PHARMACY PURCHASE ORDERS ============
+  purchaseOrders: router({
+    create: protectedProcedure
+      .input(z.object({
+        vendorName: z.string().min(1),
+        vendorContactNumber: z.string().min(10),
+        vendorEmail: z.string().email().optional(),
+        vendorGSTNumber: z.string().optional(),
+        vendorBankDetails: z.string().optional(),
+        vendorAddress: z.string().optional(),
+        totalAmount: z.string(),
+        expectedDeliveryDate: z.string().optional(),
+        notes: z.string().optional(),
+        items: z.array(z.object({
+          itemName: z.string(),
+          quantity: z.number(),
+          unitPrice: z.string(),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const purchaseOrderId = utils.generateAuditLogId();
+        const totalAmount = parseFloat(input.totalAmount);
+
+        const po = await db.createPurchaseOrder({
+          purchaseOrderId,
+          vendorName: input.vendorName,
+          vendorContactNumber: input.vendorContactNumber,
+          vendorEmail: input.vendorEmail,
+          vendorGSTNumber: input.vendorGSTNumber,
+          vendorBankDetails: input.vendorBankDetails,
+          vendorAddress: input.vendorAddress,
+          totalAmount: totalAmount.toString() as any,
+          paymentStatus: "Pending",
+          expectedDeliveryDate: input.expectedDeliveryDate,
+          notes: input.notes,
+        });
+
+        for (const item of input.items) {
+          const poItemId = utils.generateAuditLogId();
+          const unitPrice = parseFloat(item.unitPrice);
+          const subtotal = unitPrice * item.quantity;
+
+          await db.createPurchaseOrderItem({
+            poItemId,
+            purchaseOrderId,
+            itemName: item.itemName,
+            quantity: item.quantity,
+            unitPrice: unitPrice.toString() as any,
+            subtotal: subtotal.toString() as any,
+          });
+        }
+
+        // Log audit trail
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "CREATE",
+          tableName: "purchaseOrders",
+          recordId: purchaseOrderId,
+          newValue: JSON.stringify({ vendorName: input.vendorName, totalAmount }),
+          timestamp: new Date(),
+        });
+
+        await safeNotifyOwner(
+          "New Purchase Order Created",
+          `Purchase order for ${input.vendorName} (${purchaseOrderId}) has been created with total amount ${totalAmount}.`,
+        );
+
+        return { success: true, purchaseOrderId };
+      }),
+
+    getAll: protectedProcedure.query(async () => {
+      return db.getAllPurchaseOrders();
+    }),
+
+    getById: protectedProcedure
+      .input(z.object({ purchaseOrderId: z.string() }))
+      .query(async ({ input }) => {
+        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
+        if (!po) return null;
+        const items = await db.getPurchaseOrderItems(input.purchaseOrderId);
+        return { ...po, items };
+      }),
+
+    updatePaymentStatus: protectedProcedure
+      .input(z.object({
+        purchaseOrderId: z.string(),
+        paymentStatus: z.enum(["Pending", "Paid", "Partial"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.updatePurchaseOrder(input.purchaseOrderId, {
+          paymentStatus: input.paymentStatus,
+        });
+
+        // Log audit trail
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "UPDATE",
+          tableName: "purchaseOrders",
+          recordId: input.purchaseOrderId,
+          newValue: JSON.stringify({ paymentStatus: input.paymentStatus }),
+          timestamp: new Date(),
+        });
+
+        return { success: true };
+      }),
   }),
 
   // ============ PROTECTED FILE LINKS ============

@@ -1,6 +1,6 @@
 import { count, desc, eq, like, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, patients, consultations, inventory, bills, billItems, auditLogs, notifications } from "../drizzle/schema";
+import { InsertUser, users, patients, consultations, inventory, bills, billItems, auditLogs, notifications, purchaseOrders, purchaseOrderItems } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -165,6 +165,67 @@ export async function updateConsultation(consultationId: string, updates: Partia
   if (!db) throw new Error("Database not available");
   
   await db.update(consultations).set(updates).where(eq(consultations.consultationId, consultationId));
+}
+
+// ============ PURCHASE ORDERS QUERIES ============
+
+export async function createPurchaseOrder(poData: typeof purchaseOrders.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(purchaseOrders).values(poData);
+  return poData;
+}
+
+export async function getPurchaseOrderById(purchaseOrderId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(purchaseOrders).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getAllPurchaseOrders() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt));
+}
+
+export async function updatePurchaseOrder(purchaseOrderId: string, updates: Partial<typeof purchaseOrders.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(purchaseOrders).set(updates).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId));
+}
+
+export async function createPurchaseOrderItem(poItemData: typeof purchaseOrderItems.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(purchaseOrderItems).values(poItemData);
+  return poItemData;
+}
+
+export async function getPurchaseOrderItems(purchaseOrderId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, purchaseOrderId));
+}
+
+export async function updateBillConsultationNotes(billId: string, consultationNotes: string | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(bills).set({ consultationNotes }).where(eq(bills.billId, billId));
+}
+
+export async function updateBillReceipt(billId: string, receiptPdfUrl: string | null, receiptPdfKey: string | null) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(bills).set({ receiptPdfUrl, receiptPdfKey }).where(eq(bills.billId, billId));
 }
 
 // ============ INVENTORY QUERIES ============

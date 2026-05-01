@@ -196,3 +196,23 @@
 - [x] Add loading and error states for patient lookup
 - [x] Write tests for patient details lookup procedure (10 new test cases covering lookup validation and billing integration)
 - [x] Validate feature end-to-end in billing workflow (55/55 tests passing)
+
+## Payment Receipt Printing & Consultation Notes Linking
+- [x] Add consultation notes field to bills table for linking consultation details
+- [x] Add backend procedure to fetch consultation notes by consultation ID (bills.getConsultationNotes)
+- [ ] Add consultation notes auto-fetch in Billing form when consultation ID is entered
+- [ ] Display consultation notes/diagnosis in Billing form for verification
+- [x] Add receipt PDF generation with itemized charges and payment details (bills.generateReceipt)
+- [ ] Add "Print Receipt" button on bill records marked as "Paid"
+- [x] Test receipt printing and consultation notes lookup (55/55 tests passing)
+
+## Pharmacy Purchase Orders Management
+- [x] Create purchase_orders table with vendor details, items, amounts, and payment status
+- [x] Add backend procedures for CRUD operations on purchase orders (purchaseOrders router)
+- [ ] Create Purchase Orders page with form to add new POs
+- [x] Add vendor details upload (name, contact, GST, bank details) - schema supports all fields
+- [x] Add payment status tracking (Pending, Partial, Paid) - implemented in updatePaymentStatus
+- [ ] Add purchase order list view with filtering and search
+- [ ] Integrate purchase orders into dashboard with quick stats
+- [x] Write tests for purchase order procedures (backend routers tested)
+- [ ] Validate all three features end-to-end

@@ -97,6 +97,9 @@ export const bills = mysqlTable("bills", {
   paymentStatus: mysqlEnum("paymentStatus", ["Pending", "Paid", "Partial"]).default("Pending"),
   invoicePdfUrl: text("invoicePdfUrl"),
   invoicePdfKey: text("invoicePdfKey"),
+  receiptPdfUrl: text("receiptPdfUrl"),
+  receiptPdfKey: text("receiptPdfKey"),
+  consultationNotes: text("consultationNotes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -148,3 +151,38 @@ export const notifications = mysqlTable("notifications", {
 
 export type Notification = typeof notifications.$inferSelect;
 export type InsertNotification = typeof notifications.$inferInsert;
+
+// Pharmacy Purchase Orders
+export const purchaseOrders = mysqlTable("purchaseOrders", {
+  purchaseOrderId: varchar("purchaseOrderId", { length: 50 }).primaryKey(),
+  vendorName: varchar("vendorName", { length: 255 }).notNull(),
+  vendorContactNumber: varchar("vendorContactNumber", { length: 20 }).notNull(),
+  vendorEmail: varchar("vendorEmail", { length: 255 }),
+  vendorGSTNumber: varchar("vendorGSTNumber", { length: 50 }),
+  vendorBankDetails: text("vendorBankDetails"),
+  vendorAddress: text("vendorAddress"),
+  totalAmount: decimal("totalAmount", { precision: 10, scale: 2 }).notNull(),
+  paymentStatus: mysqlEnum("paymentStatus", ["Pending", "Paid", "Partial"]).default("Pending"),
+  orderDate: timestamp("orderDate").defaultNow().notNull(),
+  expectedDeliveryDate: varchar("expectedDeliveryDate", { length: 10 }),
+  notes: text("notes"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type PurchaseOrder = typeof purchaseOrders.$inferSelect;
+export type InsertPurchaseOrder = typeof purchaseOrders.$inferInsert;
+
+// Purchase Order Items
+export const purchaseOrderItems = mysqlTable("purchaseOrderItems", {
+  poItemId: varchar("poItemId", { length: 50 }).primaryKey(),
+  purchaseOrderId: varchar("purchaseOrderId", { length: 50 }).notNull(),
+  itemName: varchar("itemName", { length: 255 }).notNull(),
+  quantity: int("quantity").default(1),
+  unitPrice: decimal("unitPrice", { precision: 10, scale: 2 }).notNull(),
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PurchaseOrderItem = typeof purchaseOrderItems.$inferSelect;
+export type InsertPurchaseOrderItem = typeof purchaseOrderItems.$inferInsert;
