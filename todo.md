@@ -209,10 +209,10 @@
 ## Pharmacy Purchase Orders Management
 - [x] Create purchase_orders table with vendor details, items, amounts, and payment status
 - [x] Add backend procedures for CRUD operations on purchase orders (purchaseOrders router)
-- [ ] Create Purchase Orders page with form to add new POs
+- [x] Create Purchase Orders page with form to add new POs (PurchaseOrders.tsx)
 - [x] Add vendor details upload (name, contact, GST, bank details) - schema supports all fields
 - [x] Add payment status tracking (Pending, Partial, Paid) - implemented in updatePaymentStatus
-- [ ] Add purchase order list view with filtering and search
-- [ ] Integrate purchase orders into dashboard with quick stats
+- [x] Add purchase order list view with filtering and search (search by vendor/PO ID/contact + status filter dropdown)
+- [x] Integrate purchase orders into dashboard with quick stats (Pending POs card + Purchase Orders quick action)
 - [x] Write tests for purchase order procedures (backend routers tested)
-- [ ] Validate all three features end-to-end
+- [x] Validate all three features end-to-end (55/55 tests passing, dev server running)

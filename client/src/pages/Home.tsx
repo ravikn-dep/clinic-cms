@@ -1,4 +1,3 @@
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,10 +13,12 @@ import {
   Loader2,
   PackageCheck,
   Receipt,
+  ShoppingCart,
   Sparkles,
   Users,
 } from "lucide-react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 export default function Home() {
   const { user, isAuthenticated } = useAuth();
@@ -32,11 +33,14 @@ export default function Home() {
   const patientsQuery = trpc.patients.getAll.useQuery(undefined, pollingOptions);
   const inventoryQuery = trpc.inventory.getAll.useQuery(undefined, pollingOptions);
   const lowStockQuery = trpc.inventory.getLowStock.useQuery(undefined, pollingOptions);
+  const purchaseOrdersQuery = trpc.purchaseOrders.getAll.useQuery(undefined, pollingOptions);
 
   const patients = patientsQuery.data || [];
   const inventoryItems = inventoryQuery.data || [];
   const lowStockItems = lowStockQuery.data || [];
-  const hasDashboardError = patientsQuery.isError || inventoryQuery.isError || lowStockQuery.isError;
+  const purchaseOrders = purchaseOrdersQuery.data || [];
+  const pendingPOs = purchaseOrders.filter((po: any) => po.paymentStatus === "Pending").length;
+  const hasDashboardError = patientsQuery.isError || inventoryQuery.isError || lowStockQuery.isError || purchaseOrdersQuery.isError;
   const todayConsultations = patients.slice(0, 5);
   const todayLabel = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -74,6 +78,13 @@ export default function Home() {
       helper: "Active pharmacy catalogue",
       tone: "from-violet-50 to-fuchsia-50 text-violet-700 border-violet-100",
     },
+    {
+      label: "Pending POs",
+      value: purchaseOrdersQuery.isLoading ? null : pendingPOs,
+      icon: ShoppingCart,
+      helper: "Awaiting vendor payment",
+      tone: "from-rose-50 to-pink-50 text-rose-700 border-rose-100",
+    },
   ];
 
   const quickActions = [
@@ -100,6 +111,12 @@ export default function Home() {
       description: "Prepare invoices clearly",
       icon: Receipt,
       path: "/billing",
+    },
+    {
+      title: "Purchase Orders",
+      description: "Manage vendor orders",
+      icon: ShoppingCart,
+      path: "/purchase-orders",
     },
   ];
 

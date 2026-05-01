@@ -30,6 +30,17 @@ export default function PurchaseOrders() {
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
   const updatePaymentStatus = trpc.purchaseOrders.updatePaymentStatus.useMutation();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+
+  const filteredPOs = (purchaseOrders || []).filter((po: any) => {
+    const matchesSearch =
+      po.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      po.purchaseOrderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      po.vendorContactNumber.includes(searchTerm);
+    const matchesStatus = !filterStatus || po.paymentStatus === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   const handleAddItem = () => {
     setFormData({
@@ -285,12 +296,34 @@ export default function PurchaseOrders() {
         <CardHeader>
           <CardTitle>Purchase Orders List</CardTitle>
           <CardDescription>All vendor purchase orders and their payment status</CardDescription>
+          <div className="mt-4 flex gap-4">
+            <div className="flex-1">
+              <Input
+                placeholder="Search by vendor name, PO ID, or contact..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <Select value={filterStatus || "all"} onValueChange={(value) => setFilterStatus(value === "all" ? null : value)}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="Pending">Pending</SelectItem>
+                <SelectItem value="Partial">Partial</SelectItem>
+                <SelectItem value="Paid">Paid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="text-center py-8">Loading...</div>
           ) : !purchaseOrders || purchaseOrders.length === 0 ? (
             <div className="text-center py-8 text-gray-500">No purchase orders found</div>
+          ) : filteredPOs.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">No purchase orders match your search or filter</div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -306,7 +339,7 @@ export default function PurchaseOrders() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {purchaseOrders.map((po: any) => (
+                  {filteredPOs.map((po: any) => (
                     <TableRow key={po.purchaseOrderId}>
                       <TableCell className="font-mono text-sm">{po.purchaseOrderId.substring(0, 8)}</TableCell>
                       <TableCell>{po.vendorName}</TableCell>

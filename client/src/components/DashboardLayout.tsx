@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { Activity, Bell, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, UserPlus, Users } from "lucide-react";
+import { Activity, Bell, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -34,6 +34,7 @@ const menuItems = [
   { icon: ClipboardPenLine, label: "Ambient Scribe", path: "/scribe" },
   { icon: PackageSearch, label: "Pharmacy", path: "/pharmacy" },
   { icon: Receipt, label: "Billing", path: "/billing" },
+  { icon: ShoppingCart, label: "Purchase Orders", path: "/purchase-orders" },
   { icon: Bell, label: "Notifications", path: "/notifications" },
   { icon: Activity, label: "Audit Trail", path: "/audit-logs", adminOnly: true },
 ];
