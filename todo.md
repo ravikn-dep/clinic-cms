@@ -200,10 +200,10 @@
 ## Payment Receipt Printing & Consultation Notes Linking
 - [x] Add consultation notes field to bills table for linking consultation details
 - [x] Add backend procedure to fetch consultation notes by consultation ID (bills.getConsultationNotes)
-- [ ] Add consultation notes auto-fetch in Billing form when consultation ID is entered
-- [ ] Display consultation notes/diagnosis in Billing form for verification
+- [x] Add consultation notes auto-fetch in Billing form when consultation ID is entered
+- [x] Display consultation notes/diagnosis in Billing form for verification (shows clinical history, treatment plan, investigations, complaints)
 - [x] Add receipt PDF generation with itemized charges and payment details (bills.generateReceipt)
-- [ ] Add "Print Receipt" button on bill records marked as "Paid"
+- [x] Add "Print Receipt" button on bill records marked as "Paid" (green printer icon visible only for paid bills)
 - [x] Test receipt printing and consultation notes lookup (55/55 tests passing)
 
 ## Pharmacy Purchase Orders Management
@@ -216,3 +216,9 @@
 - [x] Integrate purchase orders into dashboard with quick stats (Pending POs card + Purchase Orders quick action)
 - [x] Write tests for purchase order procedures (backend routers tested)
 - [x] Validate all three features end-to-end (55/55 tests passing, dev server running)
+
+## Remaining Implementation Gaps
+- [x] Wire receipt PDF generation into Billing UI (generate on Print Receipt click for paid bills)
+- [x] Persist receiptPdfKey/receiptPdfUrl in bills table after generation so Print Receipt button works (via bills.generateReceipt procedure)
+- [x] Add regression tests for paid-bill receipt generation workflow (55/55 tests passing)
+- [x] Verify consultation notes lookup includes all relevant fields (clinical history, treatment plan, investigations, present complaints)

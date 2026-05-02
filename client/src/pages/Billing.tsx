@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { AlertCircle, Download, FileText, Loader2, Plus, RefreshCcw } from "lucide-react";
+import { AlertCircle, Download, FileText, Loader2, Plus, RefreshCcw, Printer } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -48,10 +48,21 @@ type PatientDetails = {
   lastConsultationDate: Date | null;
 };
 
+type ConsultationNotes = {
+  consultationId: string;
+  patientId: string;
+  consultationDate: Date;
+  clinicalHistory: string | null;
+  presentComplaints: string | null;
+  advisedInvestigations: string | null;
+  treatmentPlan: string | null;
+};
+
 export default function Billing() {
   const [showNewBill, setShowNewBill] = useState(false);
   const [form, setForm] = useState<BillFormState>(initialBillForm);
   const [patientDetails, setPatientDetails] = useState<PatientDetails | null>(null);
+  const [consultationNotes, setConsultationNotes] = useState<ConsultationNotes | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const utils = trpc.useUtils();
@@ -62,6 +73,12 @@ export default function Billing() {
     { enabled: form.patientId.trim().length > 0 }
   );
 
+  // Auto-fetch consultation notes when consultation ID changes
+  const consultationNotesQuery = trpc.bills.getConsultationNotes.useQuery(
+    { consultationId: form.consultationId },
+    { enabled: form.consultationId.trim().length > 0 }
+  );
+
   useEffect(() => {
     if (patientDetailsQuery.data) {
       setPatientDetails(patientDetailsQuery.data);
@@ -69,6 +86,14 @@ export default function Billing() {
       setPatientDetails(null);
     }
   }, [patientDetailsQuery.data, patientDetailsQuery.isError]);
+
+  useEffect(() => {
+    if (consultationNotesQuery.data) {
+      setConsultationNotes(consultationNotesQuery.data);
+    } else if (consultationNotesQuery.isError) {
+      setConsultationNotes(null);
+    }
+  }, [consultationNotesQuery.data, consultationNotesQuery.isError]);
 
   const billsQuery = trpc.bills.getAll.useQuery(undefined, {
     refetchOnWindowFocus: false,
@@ -83,6 +108,16 @@ export default function Billing() {
     },
     onError: (error) => {
       toast.error(error.message || "Unable to create invoice.");
+    },
+  });
+
+  const generateReceipt = trpc.bills.generateReceipt.useMutation({
+    onSuccess: () => {
+      toast.success("Receipt generated successfully.");
+      utils.bills.getAll.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Unable to generate receipt.");
     },
   });
 
@@ -171,6 +206,10 @@ export default function Billing() {
     if (field === "patientId") {
       setPatientDetails(null);
     }
+    // Clear consultation notes when consultation ID changes
+    if (field === "consultationId") {
+      setConsultationNotes(null);
+    }
   };
 
   const formatDate = (date: Date | string | null | undefined) => {
@@ -208,6 +247,33 @@ export default function Billing() {
     getInvoiceLink.mutate({
       key: bill.invoicePdfKey ?? undefined,
       url: bill.invoicePdfUrl ?? undefined,
+      patientId: bill.patientId,
+      recordId: bill.billId,
+      artifactType: "invoice_pdf",
+    });
+  };
+
+  const printReceipt = async (bill: (typeof bills)[number]) => {
+    if (bill.paymentStatus !== "Paid") {
+      toast.error("Receipt can only be printed for paid bills.");
+      return;
+    }
+    if (!bill.receiptPdfKey && !bill.receiptPdfUrl) {
+      // Generate receipt on first print attempt if not already generated
+      try {
+        await generateReceipt.mutateAsync({ billId: bill.billId });
+        // After generation, the bill data will be refreshed via invalidate
+        // User can click Print again to view the generated receipt
+        toast.info("Receipt generated. Click Print again to view.");
+      } catch (error) {
+        // Error is already handled by the mutation's onError
+      }
+      return;
+    }
+
+    getInvoiceLink.mutate({
+      key: bill.receiptPdfKey ?? undefined,
+      url: bill.receiptPdfUrl ?? undefined,
       patientId: bill.patientId,
       recordId: bill.billId,
       artifactType: "invoice_pdf",
@@ -304,6 +370,50 @@ export default function Billing() {
                         <div>
                           <p className="text-xs font-medium text-muted-foreground">Address</p>
                           <p className="text-sm text-teal-900 line-clamp-2">{patientDetails.address}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {form.consultationId.trim().length > 0 && (
+                <div className="rounded-lg border bg-emerald-50/50 p-4">
+                  {consultationNotesQuery.isLoading ? (
+                    <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading consultation notes...
+                    </div>
+                  ) : consultationNotesQuery.isError || !consultationNotes ? (
+                    <div className="flex items-center justify-center gap-2 py-4 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      Consultation not found
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="font-semibold text-emerald-950">Consultation Details</p>
+                      {consultationNotes.presentComplaints && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Present Complaints</p>
+                          <p className="text-sm text-emerald-900">{consultationNotes.presentComplaints}</p>
+                        </div>
+                      )}
+                      {consultationNotes.clinicalHistory && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Clinical History</p>
+                          <p className="text-sm text-emerald-900 line-clamp-2">{consultationNotes.clinicalHistory}</p>
+                        </div>
+                      )}
+                      {consultationNotes.treatmentPlan && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Treatment Plan</p>
+                          <p className="text-sm text-emerald-900 line-clamp-2">{consultationNotes.treatmentPlan}</p>
+                        </div>
+                      )}
+                      {consultationNotes.advisedInvestigations && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground">Advised Investigations</p>
+                          <p className="text-sm text-emerald-900 line-clamp-2">{consultationNotes.advisedInvestigations}</p>
                         </div>
                       )}
                     </div>
@@ -457,6 +567,11 @@ export default function Billing() {
                           <Button variant="outline" size="sm" onClick={() => openInvoicePdf(bill)} disabled={getInvoiceLink.isPending} className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50">
                             View PDF
                           </Button>
+                          {bill.paymentStatus === "Paid" && (
+                            <Button variant="outline" size="sm" onClick={() => printReceipt(bill)} disabled={getInvoiceLink.isPending || generateReceipt.isPending} className="friendly-action border-green-200 bg-white/85 text-green-800 hover:bg-green-50 transition-all hover:-translate-y-0.5" title="Print payment receipt">
+                              {generateReceipt.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>
