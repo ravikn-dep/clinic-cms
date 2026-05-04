@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, CheckCircle, XCircle, Loader2 } from "lucide-react";
 
 export default function PurchaseOrders() {
+  const { user } = useAuth();
   const showAlert = (title: string, message: string) => {
     console.log(`${title}: ${message}`);
   };
@@ -30,8 +32,27 @@ export default function PurchaseOrders() {
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
   const updatePaymentStatus = trpc.purchaseOrders.updatePaymentStatus.useMutation();
+  const approvePO = trpc.purchaseOrders.approve.useMutation({
+    onSuccess: () => {
+      showAlert("Success", "Purchase Order approved");
+      refetch();
+    },
+    onError: (error) => {
+      showAlert("Error", error.message || "Failed to approve PO");
+    },
+  });
+  const rejectPO = trpc.purchaseOrders.reject.useMutation({
+    onSuccess: () => {
+      showAlert("Success", "Purchase Order rejected");
+      refetch();
+    },
+    onError: (error) => {
+      showAlert("Error", error.message || "Failed to reject PO");
+    },
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [rejectionReason, setRejectionReason] = useState<{[key: string]: string}>({});
 
   const filteredPOs = (purchaseOrders || []).filter((po: any) => {
     const matchesSearch =
@@ -41,6 +62,19 @@ export default function PurchaseOrders() {
     const matchesStatus = !filterStatus || po.paymentStatus === filterStatus;
     return matchesSearch && matchesStatus;
   });
+
+  const getApprovalBadge = (status: string) => {
+    switch (status) {
+      case "Pending Approval":
+        return <Badge className="bg-yellow-100 text-yellow-800">Pending Approval</Badge>;
+      case "Approved":
+        return <Badge className="bg-green-100 text-green-800">Approved</Badge>;
+      case "Rejected":
+        return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
+      default:
+        return null;
+    }
+  };
 
   const handleAddItem = () => {
     setFormData({
@@ -364,10 +398,50 @@ export default function PurchaseOrders() {
                         </Select>
                       </TableCell>
                       <TableCell>{new Date(po.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>{getApprovalBadge(po.approvalStatus)}</TableCell>
                       <TableCell>
-                        <Button variant="outline" size="sm">
-                          View Details
-                        </Button>
+                        <div className="flex gap-2">
+                          {po.approvalStatus === "Pending Approval" && user?.role !== "admin" && (
+                            <Badge className="bg-yellow-100 text-yellow-800">Awaiting Approval</Badge>
+                          )}
+                          {po.approvalStatus === "Pending Approval" && user?.role === "admin" && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => approvePO.mutate({ purchaseOrderId: po.purchaseOrderId })}
+                                disabled={approvePO.isPending}
+                                className="border-green-200 text-green-800 hover:bg-green-50"
+                                title="Approve this purchase order"
+                              >
+                                {approvePO.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const reason = prompt("Enter rejection reason (minimum 5 characters):");
+                                  if (reason && reason.length >= 5) {
+                                    rejectPO.mutate({ purchaseOrderId: po.purchaseOrderId, rejectionReason: reason });
+                                  } else if (reason) {
+                                    showAlert("Error", "Rejection reason must be at least 5 characters");
+                                  }
+                                }}
+                                disabled={rejectPO.isPending}
+                                className="border-red-200 text-red-800 hover:bg-red-50"
+                                title="Reject this purchase order"
+                              >
+                                {rejectPO.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <XCircle className="w-4 h-4" />}
+                              </Button>
+                            </>
+                          )}
+                          {po.approvalStatus === "Approved" && (
+                            <Badge className="bg-green-100 text-green-800">Approved</Badge>
+                          )}
+                          {po.approvalStatus === "Rejected" && (
+                            <Badge className="bg-red-100 text-red-800">Rejected</Badge>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

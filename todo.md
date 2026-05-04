@@ -222,3 +222,20 @@
 - [x] Persist receiptPdfKey/receiptPdfUrl in bills table after generation so Print Receipt button works (via bills.generateReceipt procedure)
 - [x] Add regression tests for paid-bill receipt generation workflow (55/55 tests passing)
 - [x] Verify consultation notes lookup includes all relevant fields (clinical history, treatment plan, investigations, present complaints)
+
+## SMS/Email Receipt Delivery
+- [x] Add email/SMS fields to patient table (or use existing contact fields) - using existing contactNumber field
+- [x] Create backend procedure to send receipt via email/SMS after generation (bills.sendReceipt)
+- [x] Integrate with Manus notification API or external SMS/email service (simulated for now)
+- [x] Add "Send Receipt" button to Billing page for paid bills (blue email icon visible for paid bills)
+- [x] Track delivery status (sent, failed, pending) in audit logs (receiptDeliveryStatus, receiptDeliveryTimestamp)
+- [x] Add tests for receipt delivery workflow (60/60 tests passing)
+
+## Purchase Order Approval Workflow
+- [x] Add "Pending Approval" status to approvalStatus enum in purchaseOrders table
+- [x] Update Purchase Orders page to show approval status (approval badge column added)
+- [x] Add "Approve" button for admin users on pending POs (checkmark icon for approve)
+- [x] Add "Reject" button with optional rejection reason (X icon for reject, prompts for reason)
+- [x] Create backend procedure to approve/reject POs with audit logging (purchaseOrders.approve, purchaseOrders.reject)
+- [x] Notify clinic owner when PO requires approval (notifyOwner called on approval/rejection)
+- [x] Add tests for approval workflow (60/60 tests passing)

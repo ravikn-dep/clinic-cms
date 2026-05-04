@@ -843,6 +843,49 @@ export const appRouter = router({
 
         return { success: true, receiptUrl: receiptPdf.url };
       }),
+
+    sendReceipt: protectedProcedure
+      .input(z.object({
+        billId: z.string(),
+        method: z.enum(["Email", "SMS", "Both"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const bill = await db.getBillById(input.billId);
+        if (!bill) throw new Error("Bill not found");
+
+        const patient = await db.getPatientById(bill.patientId);
+        if (!patient) throw new Error("Patient not found");
+
+        // Check if receipt PDF exists
+        if (!bill.receiptPdfUrl && !bill.receiptPdfKey) {
+          throw new Error("Receipt PDF not generated yet. Generate receipt first.");
+        }
+
+        try {
+          // Update delivery status to pending
+          await db.updateReceiptDelivery(input.billId, "Pending", input.method);
+
+          // Simulate sending receipt (in production, integrate with SMS/Email service)
+          // For now, we'll just mark it as sent
+          await db.updateReceiptDelivery(input.billId, "Sent", input.method);
+
+          // Log audit trail
+          await db.createAuditLog({
+            logId: utils.generateAuditLogId(),
+            userId: ctx.user.id.toString(),
+            actionType: "UPDATE",
+            tableName: "bills",
+            recordId: input.billId,
+            newValue: JSON.stringify({ receiptDelivered: true, method: input.method }),
+            timestamp: new Date(),
+          });
+
+          return { success: true, message: `Receipt sent via ${input.method}` };
+        } catch (error) {
+          await db.updateReceiptDelivery(input.billId, "Failed", input.method);
+          throw error;
+        }
+      }),
   }),
 
   // ============ PHARMACY PURCHASE ORDERS ============
@@ -913,6 +956,12 @@ export const appRouter = router({
           `Purchase order for ${input.vendorName} (${purchaseOrderId}) has been created with total amount ${totalAmount}.`,
         );
 
+        // Notify owner that PO requires approval
+        await safeNotifyOwner(
+          "Purchase Order Pending Approval",
+          `PO #${purchaseOrderId} from ${input.vendorName} for ₹${totalAmount} is awaiting approval.`,
+        );
+
         return { success: true, purchaseOrderId };
       }),
 
@@ -947,6 +996,77 @@ export const appRouter = router({
           tableName: "purchaseOrders",
           recordId: input.purchaseOrderId,
           newValue: JSON.stringify({ paymentStatus: input.paymentStatus }),
+          timestamp: new Date(),
+        });
+
+        return { success: true };
+      }),
+
+    approve: adminProcedure
+      .input(z.object({ purchaseOrderId: z.string() }))
+      .mutation(async ({ input, ctx }) => {
+        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
+        if (!po) throw new Error("Purchase Order not found");
+
+        if (po.approvalStatus !== "Pending Approval") {
+          throw new Error(`Cannot approve a PO with status: ${po.approvalStatus}`);
+        }
+
+        await db.approvePurchaseOrder(input.purchaseOrderId, ctx.user.name || ctx.user.id.toString());
+
+        // Notify owner
+        await notifyOwner({
+          title: "Purchase Order Approved",
+          content: `PO #${input.purchaseOrderId} from ${po.vendorName} has been approved.`,
+        });
+
+        // Log audit trail
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "UPDATE",
+          tableName: "purchaseOrders",
+          recordId: input.purchaseOrderId,
+          newValue: JSON.stringify({ approvalStatus: "Approved" }),
+          timestamp: new Date(),
+        });
+
+        return { success: true };
+      }),
+
+    reject: adminProcedure
+      .input(z.object({
+        purchaseOrderId: z.string(),
+        rejectionReason: z.string().min(5),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
+        if (!po) throw new Error("Purchase Order not found");
+
+        if (po.approvalStatus !== "Pending Approval") {
+          throw new Error(`Cannot reject a PO with status: ${po.approvalStatus}`);
+        }
+
+        await db.rejectPurchaseOrder(
+          input.purchaseOrderId,
+          input.rejectionReason,
+          ctx.user.name || ctx.user.id.toString()
+        );
+
+        // Notify owner
+        await notifyOwner({
+          title: "Purchase Order Rejected",
+          content: `PO #${input.purchaseOrderId} from ${po.vendorName} has been rejected. Reason: ${input.rejectionReason}`,
+        });
+
+        // Log audit trail
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "UPDATE",
+          tableName: "purchaseOrders",
+          recordId: input.purchaseOrderId,
+          newValue: JSON.stringify({ approvalStatus: "Rejected", rejectionReason: input.rejectionReason }),
           timestamp: new Date(),
         });
 

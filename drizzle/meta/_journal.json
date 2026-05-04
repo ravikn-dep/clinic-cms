@@ -29,6 +29,13 @@
       "when": 1777651795221,
       "tag": "0003_dizzy_terror",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1777688090936,
+      "tag": "0004_quick_yellowjacket",
+      "breakpoints": true
     }
   ]
 }

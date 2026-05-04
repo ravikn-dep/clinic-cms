@@ -228,6 +228,40 @@ export async function updateBillReceipt(billId: string, receiptPdfUrl: string | 
   await db.update(bills).set({ receiptPdfUrl, receiptPdfKey }).where(eq(bills.billId, billId));
 }
 
+export async function updateReceiptDelivery(billId: string, status: "Not Sent" | "Sent" | "Failed" | "Pending", method?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(bills).set({
+    receiptDeliveryStatus: status,
+    receiptDeliveryMethod: method,
+    receiptDeliveryTimestamp: status === "Sent" ? new Date() : undefined,
+  }).where(eq(bills.billId, billId));
+}
+
+export async function approvePurchaseOrder(poId: string, approvedBy: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(purchaseOrders).set({
+    approvalStatus: "Approved",
+    approvedBy,
+    approvalTimestamp: new Date(),
+  }).where(eq(purchaseOrders.purchaseOrderId, poId));
+}
+
+export async function rejectPurchaseOrder(poId: string, rejectionReason: string, approvedBy: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(purchaseOrders).set({
+    approvalStatus: "Rejected",
+    rejectionReason,
+    approvedBy,
+    approvalTimestamp: new Date(),
+  }).where(eq(purchaseOrders.purchaseOrderId, poId));
+}
+
 // ============ INVENTORY QUERIES ============
 
 export async function createInventoryItem(itemData: typeof inventory.$inferInsert) {

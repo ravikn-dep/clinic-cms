@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { AlertCircle, Download, FileText, Loader2, Plus, RefreshCcw, Printer } from "lucide-react";
+import { AlertCircle, Download, FileText, Loader2, Mail, Plus, RefreshCcw, Printer } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
 import { useAuth } from "@/_core/hooks/useAuth";
@@ -118,6 +118,16 @@ export default function Billing() {
     },
     onError: (error) => {
       toast.error(error.message || "Unable to generate receipt.");
+    },
+  });
+
+  const sendReceipt = trpc.bills.sendReceipt.useMutation({
+    onSuccess: (result) => {
+      toast.success(result.message || "Receipt sent successfully.");
+      utils.bills.getAll.invalidate();
+    },
+    onError: (error) => {
+      toast.error(error.message || "Unable to send receipt.");
     },
   });
 
@@ -251,6 +261,18 @@ export default function Billing() {
       recordId: bill.billId,
       artifactType: "invoice_pdf",
     });
+  };
+
+  const handleSendReceipt = (bill: (typeof bills)[number]) => {
+    if (bill.paymentStatus !== "Paid") {
+      toast.error("Receipt can only be sent for paid bills.");
+      return;
+    }
+    if (!bill.receiptPdfUrl && !bill.receiptPdfKey) {
+      toast.error("Receipt PDF not available. Generate receipt first.");
+      return;
+    }
+    sendReceipt.mutate({ billId: bill.billId, method: "Email" });
   };
 
   const printReceipt = async (bill: (typeof bills)[number]) => {
@@ -568,9 +590,14 @@ export default function Billing() {
                             View PDF
                           </Button>
                           {bill.paymentStatus === "Paid" && (
-                            <Button variant="outline" size="sm" onClick={() => printReceipt(bill)} disabled={getInvoiceLink.isPending || generateReceipt.isPending} className="friendly-action border-green-200 bg-white/85 text-green-800 hover:bg-green-50 transition-all hover:-translate-y-0.5" title="Print payment receipt">
-                              {generateReceipt.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-                            </Button>
+                            <>
+                              <Button variant="outline" size="sm" onClick={() => printReceipt(bill)} disabled={getInvoiceLink.isPending || generateReceipt.isPending} className="friendly-action border-green-200 bg-white/85 text-green-800 hover:bg-green-50 transition-all hover:-translate-y-0.5" title="Print payment receipt">
+                                {generateReceipt.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+                              </Button>
+                              <Button variant="outline" size="sm" onClick={() => handleSendReceipt(bill)} disabled={sendReceipt.isPending} className="friendly-action border-blue-200 bg-white/85 text-blue-800 hover:bg-blue-50 transition-all hover:-translate-y-0.5" title="Send receipt via email">
+                                {sendReceipt.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                              </Button>
+                            </>
                           )}
                         </div>
                       </td>
