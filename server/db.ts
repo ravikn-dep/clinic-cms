@@ -294,6 +294,14 @@ export async function getLowStockItems() {
   return db.select().from(inventory).where(lte(inventory.quantityAvailable, inventory.reorderLevel));
 }
 
+export async function getInventoryByName(itemName: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(inventory).where(eq(inventory.itemName, itemName)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
 export async function updateInventoryItem(itemId: string, updates: Partial<typeof inventory.$inferInsert>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

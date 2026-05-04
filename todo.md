@@ -239,3 +239,12 @@
 - [x] Create backend procedure to approve/reject POs with audit logging (purchaseOrders.approve, purchaseOrders.reject)
 - [x] Notify clinic owner when PO requires approval (notifyOwner called on approval/rejection)
 - [x] Add tests for approval workflow (60/60 tests passing)
+
+## Auto-Update Pharmacy Inventory on PO Creation
+- [x] Update purchaseOrders.create procedure to auto-add items to pharmacy inventory when PO is created
+- [x] Support Pending status for inventory auto-update (auto-adds when PO created with Pending status)
+- [x] Create audit log entries for each inventory item added from PO (audit log created for each item)
+- [x] Handle duplicate items (merge quantities if item already exists in inventory - getInventoryByName + updateInventoryItem)
+- [x] Add error handling if inventory update fails (try-catch block logs error, continues with PO creation)
+- [x] Write tests for inventory auto-update workflow (9 test cases in poInventoryAuto.test.ts)
+- [x] Validate end-to-end: create PO → verify inventory updated with correct quantities (86/86 tests passing)

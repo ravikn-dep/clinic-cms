@@ -938,6 +938,45 @@ export const appRouter = router({
             unitPrice: unitPrice.toString() as any,
             subtotal: subtotal.toString() as any,
           });
+
+          // Auto-add to pharmacy inventory when PO is created (Pending status)
+          try {
+            const existingItem = await db.getInventoryByName(item.itemName);
+            
+            if (existingItem) {
+              // Update existing item quantity (even if current quantity is 0)
+              const currentQuantity = existingItem.quantityAvailable || 0;
+              const newQuantity = currentQuantity + item.quantity;
+              await db.updateInventoryItem(existingItem.itemId, { quantityAvailable: newQuantity });
+            } else {
+              // Create new inventory item
+              const itemId = utils.generateAuditLogId();
+              const futureDate = new Date();
+              futureDate.setFullYear(futureDate.getFullYear() + 1);
+              await db.createInventoryItem({
+                itemId,
+                itemName: item.itemName,
+                quantityAvailable: item.quantity,
+                unitPrice: unitPrice.toString() as any,
+                reorderLevel: Math.ceil(item.quantity * 0.2),
+                batchNumber: `PO-${purchaseOrderId}`,
+                expiryDate: futureDate.toISOString().split('T')[0],
+              });
+            }
+
+            // Log inventory addition
+            await db.createAuditLog({
+              logId: utils.generateAuditLogId(),
+              userId: ctx.user.id.toString(),
+              actionType: "CREATE",
+              tableName: "inventory",
+              recordId: item.itemName,
+              newValue: JSON.stringify({ itemName: item.itemName, quantity: item.quantity, source: `PO-${purchaseOrderId}` }),
+              timestamp: new Date(),
+            });
+          } catch (error) {
+            console.error(`Failed to add inventory for ${item.itemName}:`, error);
+          }
         }
 
         // Log audit trail
