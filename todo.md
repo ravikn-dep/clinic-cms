@@ -258,7 +258,7 @@
 - [x] Generate unique user IDs for each consultant/staff member (CONS-001, STAFF-001 format)
 - [x] Implement QR code generation for user login credentials (generateQRCodeForLogin utility)
 - [x] Create role-based middleware for procedure access control (adminProcedure wrapper)
-- [ ] Add role-specific dashboard views (admin, consultant, staff) - deferred to next phase for enhanced personalization
+- [x] Add role-specific dashboard views (admin, consultant, staff) - ConsultantDashboard and StaffDashboard created, auto-routed on login
 - [x] Implement user management UI for admin role (UserManagement.tsx with create/edit/delete/list)
 - [x] Add QR code login page with credential scanning (QRLogin.tsx with manual fallback)
 - [x] Write tests for RBAC and user management (11 test cases, all passing)

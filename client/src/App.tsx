@@ -13,6 +13,8 @@ import Billing from "./pages/Billing";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import UserManagement from "./pages/UserManagement";
 import QRLogin from "./pages/QRLogin";
+import ConsultantDashboard from "./pages/ConsultantDashboard";
+import StaffDashboard from "./pages/StaffDashboard";
 import AuditLogs from "./pages/AuditLogs";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
@@ -49,7 +51,12 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
 function Router() {
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
+      <Route path={"/"} component={() => {
+        const { user } = useAuth();
+        if (user?.role === "consultant") return <ConsultantDashboard />;
+        if (user?.role === "staff") return <StaffDashboard />;
+        return <Home />;
+      }} />
       <Route path={"/register-patient"} component={PatientRegistration} />
       <Route path={"/patients"} component={PatientRecords} />
       <Route path={"/scribe"} component={AmbientScribe} />
