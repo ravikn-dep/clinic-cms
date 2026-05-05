@@ -263,3 +263,10 @@
 - [x] Add QR code login page with credential scanning (QRLogin.tsx with manual fallback)
 - [x] Write tests for RBAC and user management (11 test cases, all passing)
 - [x] Validate role-based access across all modules (97/97 tests passing)
+
+## OP Registration Form Redesign
+- [x] Redesign printable OP form to compact header with patient details only
+- [x] Remove clinical history, treatment plan, and investigations columns
+- [x] Make rest of page blank for handwritten notes (210mm+ blank area)
+- [x] Optimize for A4 paper printing (190mm x 277mm with 8mm margins)
+- [x] Test print layout and spacing (all 97 tests passing)

@@ -52,48 +52,26 @@ export default function PatientRegistration() {
   });
 
   const onSubmit = async (data: RegistrationFormData) => {
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
-      const result = await registerMutation.mutateAsync({
-        firstName: data.firstName,
-        lastName: data.lastName,
-        dateOfBirth: data.dateOfBirth,
-        gender: data.gender,
-        contactNumber: data.contactNumber,
-        email: data.email || undefined,
-        address: data.address,
-      });
-
-      setRegisteredPatient(result);
+      const result = await registerMutation.mutateAsync(data);
+      setRegisteredPatient(result as RegisteredPatient);
       setRegisteredPatientDetails(data);
-      toast.success(`Patient ${data.firstName} ${data.lastName} registered successfully with stored QR and barcode assets.`);
+      toast.success(`Patient registered successfully! ID: ${result.patientId}`);
       reset();
-    } catch (error: any) {
-      toast.error(error.message || "Failed to register patient");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Registration failed");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const openTrackingAsset = async (artifactType: "barcode" | "qr_code") => {
-    if (!registeredPatient) return;
-    const isBarcode = artifactType === "barcode";
-    const asset = await artifactLink.mutateAsync({
-      key: isBarcode ? registeredPatient.barcodeImageKey : registeredPatient.qrcodeImageKey,
-      url: isBarcode ? registeredPatient.barcodeImageUrl : registeredPatient.qrcodeImageUrl,
-      artifactType,
-      patientId: registeredPatient.patientId,
-      recordId: registeredPatient.patientId,
-    });
-    window.open(asset.url, "_blank", "noopener,noreferrer");
-    toast.success(`${isBarcode ? "Barcode" : "QR code"} opened through a protected, audited link.`);
-  };
-
   const printTrackingSlip = () => {
-    if (!registeredPatient) return;
-    const printWindow = window.open("", "_blank", "width=900,height=1200");
+    if (!registeredPatient || !registeredPatientDetails) return;
+
+    const printWindow = window.open("", "", "width=800,height=600");
     if (!printWindow) {
-      toast.error("Please allow pop-ups to print the OP registration form.");
+      toast.error("Unable to open print window. Please check your browser settings.");
       return;
     }
 
@@ -102,69 +80,68 @@ export default function PatientRegistration() {
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
+      .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
     const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "—";
-    const generatedAt = new Date().toLocaleString();
 
     printWindow.document.write(`
       <html>
         <head>
           <title>A4 OP Registration Form - ${escapeHtml(registeredPatient.patientId)}</title>
           <style>
-            @page { size: A4 portrait; margin: 12mm; }
+            @page { size: A4 portrait; margin: 8mm; }
             * { box-sizing: border-box; }
             body { font-family: Arial, sans-serif; margin: 0; color: #111827; background: #ffffff; }
-            .page { width: 186mm; min-height: 273mm; margin: 0 auto; border: 1px solid #111827; padding: 10mm; }
-            .header { display: grid; grid-template-columns: 1fr 34mm 58mm; gap: 8mm; align-items: start; border-bottom: 2px solid #111827; padding-bottom: 7mm; }
-            .clinic-title { font-size: 20px; font-weight: 800; letter-spacing: 0.02em; margin: 0 0 2mm; }
-            .subtitle { margin: 0 0 6mm; font-size: 11px; color: #4b5563; }
-            .patient-id { display: inline-block; border: 1px solid #111827; padding: 2mm 4mm; font-family: monospace; font-size: 15px; font-weight: 800; }
-            .qr { width: 31mm; height: 31mm; object-fit: contain; border: 1px solid #d1d5db; padding: 1.5mm; }
-            .barcode { width: 55mm; height: 24mm; object-fit: contain; border: 1px solid #d1d5db; padding: 1.5mm; }
-            table { width: 100%; border-collapse: collapse; margin-top: 7mm; font-size: 11px; }
-            th, td { border: 1px solid #111827; padding: 3mm; text-align: left; vertical-align: top; }
-            th { width: 22%; background: #f3f4f6; font-weight: 700; }
-            .section { margin-top: 9mm; border: 1px solid #111827; min-height: 40mm; }
-            .section-title { border-bottom: 1px solid #111827; background: #f9fafb; padding: 3mm; font-weight: 800; font-size: 12px; }
-            .blank-space { min-height: 41mm; }
-            .footer { margin-top: 8mm; display: grid; grid-template-columns: 1fr 1fr; gap: 10mm; font-size: 11px; }
-            .line { border-bottom: 1px solid #111827; height: 10mm; }
-            @media print { body { background: #ffffff; } .page { border: 1px solid #111827; } }
+            .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 8mm; display: flex; flex-direction: column; }
+            .header { display: grid; grid-template-columns: 1fr 32mm 56mm; gap: 6mm; align-items: start; border-bottom: 2px solid #111827; padding-bottom: 6mm; margin-bottom: 8mm; }
+            .clinic-title { font-size: 16px; font-weight: 800; letter-spacing: 0.02em; margin: 0 0 1mm; }
+            .patient-info { font-size: 9px; line-height: 1.4; }
+            .info-row { display: flex; gap: 10mm; margin-bottom: 1.5mm; }
+            .info-item { flex: 1; }
+            .info-label { font-weight: 700; }
+            .patient-id { display: inline-block; border: 1px solid #111827; padding: 1.5mm 3mm; font-family: monospace; font-size: 12px; font-weight: 800; margin-top: 2mm; }
+            .qr { width: 30mm; height: 30mm; object-fit: contain; border: 1px solid #d1d5db; padding: 1mm; }
+            .barcode { width: 54mm; height: 22mm; object-fit: contain; border: 1px solid #d1d5db; padding: 1mm; }
+            .barcode-text { font-family: monospace; font-size: 8px; margin-top: 1mm; word-break: break-all; line-height: 1; }
+            .blank-area { flex: 1; border: 1px solid #d1d5db; background: #fafafa; min-height: 200mm; }
+            .footer { margin-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 10px; }
+            .signature-line { border-bottom: 1px solid #111827; height: 8mm; margin-bottom: 2mm; }
+            @media print { body { background: #ffffff; margin: 0; padding: 0; } .page { border: none; } }
           </style>
         </head>
         <body>
           <main class="page">
             <section class="header">
-              <div>
-                <h1 class="clinic-title">Clinic OP Registration Form</h1>
-                <p class="subtitle">Printable A4 form for OPD registration, consultation notes, treatment plan, and investigations.</p>
-                <div class="patient-id">Patient ID: ${escapeHtml(registeredPatient.patientId)}</div>
+              <div class="patient-info">
+                <h1 class="clinic-title">Clinic OP Form</h1>
+                <div class="info-row">
+                  <div class="info-item"><span class="info-label">Name:</span> ${escapeHtml(patientName)}</div>
+                  <div class="info-item"><span class="info-label">Age/DOB:</span> ${escapeHtml(patient?.dateOfBirth)}</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-item"><span class="info-label">Contact:</span> ${escapeHtml(patient?.contactNumber)}</div>
+                  <div class="info-item"><span class="info-label">Gender:</span> ${escapeHtml(patient?.gender)}</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-item"><span class="info-label">Consultant:</span> _______________</div>
+                </div>
+                <div class="info-row">
+                  <div class="info-item"><span class="info-label">Date/Time:</span> _______________</div>
+                </div>
+                <div class="patient-id">ID: ${escapeHtml(registeredPatient.patientId)}</div>
               </div>
               <div>${registeredPatient.qrcodeImageUrl ? `<img class="qr" src="${escapeHtml(registeredPatient.qrcodeImageUrl)}" alt="QR code" />` : ""}</div>
               <div>
                 ${registeredPatient.barcodeImageUrl ? `<img class="barcode" src="${escapeHtml(registeredPatient.barcodeImageUrl)}" alt="Barcode" />` : ""}
-                <div style="font-family: monospace; font-size: 10px; margin-top: 2mm; word-break: break-all;">${escapeHtml(registeredPatient.barcodeData)}</div>
+                <div class="barcode-text">${escapeHtml(registeredPatient.barcodeData)}</div>
               </div>
             </section>
 
-            <table aria-label="OP registration details">
-              <tbody>
-                <tr><th>Patient Name</th><td>${escapeHtml(patientName)}</td><th>Patient ID</th><td>${escapeHtml(registeredPatient.patientId)}</td></tr>
-                <tr><th>Date of Birth</th><td>${escapeHtml(patient?.dateOfBirth)}</td><th>Gender</th><td>${escapeHtml(patient?.gender)}</td></tr>
-                <tr><th>Contact Number</th><td>${escapeHtml(patient?.contactNumber)}</td><th>Generated On</th><td>${escapeHtml(generatedAt)}</td></tr>
-                <tr><th>Consultant Name</th><td>&nbsp;</td><th>Consultation Date/Time</th><td>&nbsp;</td></tr>
-                <tr><th>Address</th><td colspan="3">${escapeHtml(patient?.address)}</td></tr>
-              </tbody>
-            </table>
-
-            <section class="section"><div class="section-title">Clinical History / Present Complaints</div><div class="blank-space"></div></section>
-            <section class="section"><div class="section-title">Advised Investigations</div><div class="blank-space"></div></section>
-            <section class="section"><div class="section-title">Treatment Plan / Prescription</div><div class="blank-space"></div></section>
+            <div class="blank-area"></div>
 
             <div class="footer">
-              <div><div class="line"></div><p>Patient / Attendant Signature</p></div>
-              <div><div class="line"></div><p>Consultant Signature</p></div>
+              <div><div class="signature-line"></div><p>Patient / Attendant Signature</p></div>
+              <div><div class="signature-line"></div><p>Consultant Signature</p></div>
             </div>
           </main>
           <script>window.onload = () => setTimeout(() => { window.print(); window.close(); }, 350);</script>
@@ -205,16 +182,18 @@ export default function PatientRegistration() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dob">Date of Birth *</Label>
-                <Input id="dob" type="date" {...register("dateOfBirth")} className={`transition-colors ${errors.dateOfBirth ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
+                <Label htmlFor="dateOfBirth">Date of Birth (YYYY-MM-DD) *</Label>
+                <Input id="dateOfBirth" type="date" {...register("dateOfBirth")} className={`transition-colors ${errors.dateOfBirth ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
                 {errors.dateOfBirth && <p className="text-sm text-red-500">{errors.dateOfBirth.message}</p>}
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="gender">Gender</Label>
-                  <Select onValueChange={(value: "Male" | "Female" | "Other") => setValue("gender", value)}>
-                    <SelectTrigger><SelectValue placeholder="Select gender" /></SelectTrigger>
+                  <Select onValueChange={(value) => setValue("gender", value as "Male" | "Female" | "Other")}>
+                    <SelectTrigger id="gender" className="focus-visible:ring-teal-200">
+                      <SelectValue placeholder="Select gender" />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Male">Male</SelectItem>
                       <SelectItem value="Female">Female</SelectItem>
@@ -224,76 +203,78 @@ export default function PatientRegistration() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="contact">Contact Number *</Label>
-                  <Input id="contact" placeholder="+1 (555) 000-0000" {...register("contactNumber")} className={`transition-colors ${errors.contactNumber ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
+                  <Label htmlFor="contactNumber">Contact Number *</Label>
+                  <Input id="contactNumber" placeholder="+91 9876543210" {...register("contactNumber")} className={`transition-colors ${errors.contactNumber ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
                   {errors.contactNumber && <p className="text-sm text-red-500">{errors.contactNumber.message}</p>}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="john@example.com" {...register("email")} className={`transition-colors ${errors.email ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
+                <Label htmlFor="email">Email (Optional)</Label>
+                <Input id="email" type="email" placeholder="john@example.com" {...register("email")} className="focus-visible:ring-teal-200" />
                 {errors.email && <p className="text-sm text-red-500">{errors.email.message}</p>}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="address">Address</Label>
-                <Textarea id="address" placeholder="Enter patient's address" {...register("address")} rows={3} className="transition-colors focus-visible:ring-teal-200" />
+                <Label htmlFor="address">Address (Optional)</Label>
+                <Textarea id="address" placeholder="Enter patient address" {...register("address")} className="focus-visible:ring-teal-200" />
               </div>
 
-              <Button type="submit" disabled={isSubmitting} className="friendly-action w-full bg-teal-600 text-white hover:bg-teal-700">
-                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Register Patient
+              <Button type="submit" disabled={isSubmitting} className="w-full bg-teal-600 hover:bg-teal-700">
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {isSubmitting ? "Registering..." : "Register Patient"}
               </Button>
             </form>
           </CardContent>
         </Card>
 
-        {registeredPatient ? (
-          <Card className="friendly-card border-green-200 bg-green-50/80">
-            <CardHeader>
-              <CardTitle className="text-green-950">Registration Successful</CardTitle>
-              <CardDescription className="text-green-800">Patient ID, QR code, and barcode were generated and stored.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label className="text-green-950">Patient ID</Label>
-                <div className="rounded-xl border-2 border-green-300 bg-white p-4 text-center font-mono text-lg font-bold">{registeredPatient.patientId}</div>
-              </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-3xl border border-white/80 bg-white/85 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-                  <Label className="mb-3 block text-green-950">QR Code</Label>
-                  {registeredPatient.qrcodeImageUrl ? <img src={registeredPatient.qrcodeImageUrl} alt={`QR code for ${registeredPatient.patientId}`} className="mx-auto h-40 w-40 rounded-lg border object-contain p-2" /> : <QrCode className="mx-auto h-20 w-20 text-slate-300" />}
+        <div className="space-y-6">
+          {registeredPatient ? (
+            <Card className="friendly-card border-green-200 bg-green-50">
+              <CardHeader>
+                <CardTitle className="text-green-900">Registration Successful!</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg border border-green-300 bg-white p-4">
+                  <p className="text-sm text-slate-600">Patient ID</p>
+                  <p className="font-mono text-2xl font-bold text-green-700">{registeredPatient.patientId}</p>
                 </div>
-                <div className="rounded-3xl border border-white/80 bg-white/85 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-                  <Label className="mb-3 block text-green-950">Barcode</Label>
-                  {registeredPatient.barcodeImageUrl ? <img src={registeredPatient.barcodeImageUrl} alt={`Barcode for ${registeredPatient.patientId}`} className="mx-auto h-32 w-full rounded-lg border object-contain p-2" /> : <p className="text-sm text-muted-foreground">Barcode unavailable</p>}
-                </div>
-              </div>
 
-              <div className="rounded-3xl border border-white/80 bg-white/85 p-4 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
-                <Label className="text-green-950">Barcode Data</Label>
-                <p className="mt-2 break-all font-mono text-sm">{registeredPatient.barcodeData}</p>
-              </div>
+                {registeredPatient.qrcodeImageUrl && (
+                  <div className="rounded-lg border border-green-300 bg-white p-4">
+                    <p className="mb-2 text-sm font-medium text-slate-600">QR Code</p>
+                    <img src={registeredPatient.qrcodeImageUrl} alt="QR Code" className="h-32 w-32 rounded" />
+                  </div>
+                )}
 
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button className="friendly-action flex-1" variant="default" onClick={printTrackingSlip}><Printer className="mr-2 h-4 w-4" />Print A4 OP Form</Button>
-                {registeredPatient.qrcodeImageUrl && <Button className="friendly-action flex-1 border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("qr_code")}><Download className="mr-2 h-4 w-4" />QR Code</Button>}
-                {registeredPatient.barcodeImageUrl && <Button className="friendly-action flex-1 border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" variant="outline" disabled={artifactLink.isPending} onClick={() => openTrackingAsset("barcode")}><Download className="mr-2 h-4 w-4" />Barcode</Button>}
-              </div>
+                {registeredPatient.barcodeImageUrl && (
+                  <div className="rounded-lg border border-green-300 bg-white p-4">
+                    <p className="mb-2 text-sm font-medium text-slate-600">Barcode</p>
+                    <img src={registeredPatient.barcodeImageUrl} alt="Barcode" className="h-16 w-full rounded" />
+                  </div>
+                )}
 
-              <Button className="friendly-action w-full border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50" variant="outline" onClick={() => { setRegisteredPatient(null); reset(); }}>Register Another Patient</Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <Card className="friendly-card flex min-h-[420px] items-center justify-center border-dashed border-teal-200 bg-teal-50/45">
-            <CardContent className="text-center">
-              <QrCode className="mx-auto mb-4 h-12 w-12 text-teal-500" />
-              <h2 className="text-xl font-semibold text-teal-950">OPD tracking assets appear here</h2>
-              <p className="mt-2 max-w-sm text-sm text-muted-foreground">After successful registration, QR and barcode images will be shown for printing the A4 OP registration form and external OPD tracking.</p>
-            </CardContent>
-          </Card>
-        )}
+                <Button onClick={printTrackingSlip} className="w-full gap-2 bg-teal-600 hover:bg-teal-700">
+                  <Printer className="h-4 w-4" />
+                  Print A4 OP Form
+                </Button>
+
+                <Button onClick={() => { setRegisteredPatient(null); setRegisteredPatientDetails(null); }} variant="outline" className="w-full">
+                  Register Another Patient
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="friendly-card">
+              <CardHeader>
+                <CardTitle>Registration Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">Fill in the patient details and click "Register Patient" to generate a unique ID and QR code.</p>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );
