@@ -116,3 +116,69 @@ export function verifyDigitalSignature(content: string, signature: string, secre
   const expectedSignature = createDigitalSignature(content, secretKey);
   return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
 }
+
+
+// ============ RBAC UTILITIES ============
+
+import bcrypt from "bcrypt";
+import QRCode from "qrcode";
+
+/**
+ * Generate a unique User ID for consultant/staff
+ * Format: CONS-001, CONS-002, ... or STAFF-001, STAFF-002, ...
+ */
+export function generateUserId(role: "consultant" | "staff", sequence: number): string {
+  const prefix = role === "consultant" ? "CONS" : "STAFF";
+  return `${prefix}-${sequence.toString().padStart(3, "0")}`;
+}
+
+/**
+ * Hash a password using bcrypt
+ */
+export async function hashPassword(password: string): Promise<string> {
+  const saltRounds = 10;
+  return bcrypt.hash(password, saltRounds);
+}
+
+/**
+ * Verify a password against its hash
+ */
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
+
+/**
+ * Generate a temporary password (8 characters)
+ */
+export function generateTemporaryPassword(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%";
+  let password = "";
+  for (let i = 0; i < 8; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+}
+
+/**
+ * Generate QR code for user login
+ * QR code contains: userId:password (base64 encoded)
+ */
+export async function generateQRCodeForLogin(userId: string, password: string): Promise<string> {
+  const loginData = `${userId}:${password}`;
+  const encoded = Buffer.from(loginData).toString("base64");
+  const qrCodeDataUrl = await QRCode.toDataURL(encoded, {
+    errorCorrectionLevel: "H",
+    margin: 1,
+    width: 300,
+  });
+  return qrCodeDataUrl;
+}
+
+/**
+ * Decode QR code login data
+ */
+export function decodeQRCodeLogin(encodedData: string): { userId: string; password: string } {
+  const decoded = Buffer.from(encodedData, "base64").toString("utf8");
+  const [userId, password] = decoded.split(":");
+  return { userId, password };
+}

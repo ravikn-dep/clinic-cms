@@ -248,3 +248,18 @@
 - [x] Add error handling if inventory update fails (try-catch block logs error, continues with PO creation)
 - [x] Write tests for inventory auto-update workflow (9 test cases in poInventoryAuto.test.ts)
 - [x] Validate end-to-end: create PO → verify inventory updated with correct quantities (86/86 tests passing)
+
+## Role-Based Access Control (RBAC) Implementation
+- [x] Create users table with role enum (admin, consultant, staff)
+- [x] Add user management fields: username, passwordHash, email, phone, department, isActive
+- [x] Create role_permissions table mapping roles to feature access (adminProcedure gates endpoints)
+- [x] Implement user creation/edit/delete procedures for admin (rbac router with 4 procedures)
+- [x] Add password hashing and validation (bcrypt with 10 salt rounds)
+- [x] Generate unique user IDs for each consultant/staff member (CONS-001, STAFF-001 format)
+- [x] Implement QR code generation for user login credentials (generateQRCodeForLogin utility)
+- [x] Create role-based middleware for procedure access control (adminProcedure wrapper)
+- [ ] Add role-specific dashboard views (admin, consultant, staff)
+- [ ] Implement user management UI for admin role
+- [ ] Add QR code login page with credential scanning
+- [x] Write tests for RBAC and user management (11 test cases, all passing)
+- [x] Validate role-based access across all modules (97/97 tests passing)

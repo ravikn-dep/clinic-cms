@@ -1,4 +1,4 @@
-import { count, desc, eq, like, lte } from "drizzle-orm";
+import { count, desc, eq, like, lte, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, patients, consultations, inventory, bills, billItems, auditLogs, notifications, purchaseOrders, purchaseOrderItems } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -404,4 +404,67 @@ export async function markNotificationAsRead(notificationId: string) {
   if (!db) throw new Error("Database not available");
   
   await db.update(notifications).set({ isRead: true }).where(eq(notifications.notificationId, notificationId));
+}
+
+
+// ============ RBAC QUERIES ============
+
+export async function createStaffUser(userData: typeof users.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(users).values(userData);
+  return userData;
+}
+
+export async function getAllStaffUsers() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(users).where(inArray(users.role, ["consultant", "staff"])).orderBy(desc(users.createdAt));
+}
+
+export async function getStaffUserById(userId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(users).where(eq(users.userId, userId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getStaffUserByUsername(username: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function updateStaffUser(userId: string, updates: Partial<typeof users.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(users).set(updates).where(eq(users.userId, userId));
+}
+
+export async function deleteStaffUser(userId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(users).where(eq(users.userId, userId));
+}
+
+export async function getNextUserSequence(role: "consultant" | "staff"): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select({ maxId: sql<string>`MAX(userId)` }).from(users).where(eq(users.role, role));
+  
+  if (!result[0]?.maxId) return 1;
+  
+  const lastId = result[0].maxId as string;
+  const match = lastId.match(/\d+$/);
+  if (!match) return 1;
+  
+  return parseInt(match[0]) + 1;
 }

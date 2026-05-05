@@ -16,7 +16,17 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  role: mysqlEnum("role", ["user", "admin", "consultant", "staff"]).default("user").notNull(),
+  // RBAC fields for consultant/staff management
+  userId: varchar("userId", { length: 50 }).unique(), // Unique ID for consultant/staff
+  username: varchar("username", { length: 100 }).unique(), // Username for local login
+  passwordHash: text("passwordHash"), // Hashed password for local login
+  phone: varchar("phone", { length: 20 }),
+  department: varchar("department", { length: 100 }), // e.g., Orthopedics, General
+  isActive: boolean("isActive").default(true),
+  qrcodeLoginUrl: text("qrcodeLoginUrl"), // QR code data URL for easy login
+  qrcodeLoginKey: text("qrcodeLoginKey"), // Storage key for QR code image
+  createdBy: int("createdBy"), // Admin user ID who created this user
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),

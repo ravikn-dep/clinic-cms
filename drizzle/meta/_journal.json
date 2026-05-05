@@ -36,6 +36,13 @@
       "when": 1777688090936,
       "tag": "0004_quick_yellowjacket",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1777862610826,
+      "tag": "0005_condemned_boom_boom",
+      "breakpoints": true
     }
   ]
 }

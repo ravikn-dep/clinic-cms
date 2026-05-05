@@ -1113,6 +1113,165 @@ export const appRouter = router({
       }),
   }),
 
+  // ============ RBAC USER MANAGEMENT ============
+  rbac: router({
+    createStaffUser: adminProcedure
+      .input(z.object({
+        role: z.enum(["consultant", "staff"]),
+        name: z.string().min(2),
+        email: z.string().email().optional(),
+        phone: z.string().optional(),
+        department: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          // Generate user ID and temporary password
+          const sequence = await db.getNextUserSequence(input.role);
+          const userId = utils.generateUserId(input.role, sequence);
+          const tempPassword = utils.generateTemporaryPassword();
+          const passwordHash = await utils.hashPassword(tempPassword);
+          const username = userId.toLowerCase();
+
+          // Generate QR code for login
+          const qrcodeLoginUrl = await utils.generateQRCodeForLogin(username, tempPassword);
+
+          // Create user
+          const userData = {
+            openId: `local-${userId}`,
+            name: input.name,
+            email: input.email,
+            phone: input.phone,
+            department: input.department,
+            role: input.role,
+            userId,
+            username,
+            passwordHash,
+            isActive: true,
+            qrcodeLoginUrl,
+            createdBy: ctx.user.id,
+            loginMethod: "local",
+          };
+
+          await db.createStaffUser(userData);
+
+          // Notify owner
+          await safeNotifyOwner(
+            `New ${input.role} created`,
+            `${input.name} (${userId}) has been added to the system. Temporary password: ${tempPassword}`
+          );
+
+          return {
+            success: true,
+            userId,
+            username,
+            tempPassword,
+            qrcodeLoginUrl,
+          };
+        } catch (error) {
+          console.error("[RBAC] Create staff user failed:", error);
+          throw new Error("Failed to create staff user");
+        }
+      }),
+
+    listStaffUsers: adminProcedure.query(async () => {
+      try {
+        const staffUsers = await db.getAllStaffUsers();
+        return staffUsers.map(u => ({
+          id: u.id,
+          userId: u.userId,
+          name: u.name,
+          email: u.email,
+          phone: u.phone,
+          department: u.department,
+          role: u.role,
+          isActive: u.isActive,
+          createdAt: u.createdAt,
+        }));
+      } catch (error) {
+        console.error("[RBAC] List staff users failed:", error);
+        throw new Error("Failed to list staff users");
+      }
+    }),
+
+    updateStaffUser: adminProcedure
+      .input(z.object({
+        userId: z.string(),
+        name: z.string().min(2).optional(),
+        email: z.string().email().optional(),
+        phone: z.string().optional(),
+        department: z.string().optional(),
+        isActive: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const updates: Record<string, any> = {};
+          if (input.name) updates.name = input.name;
+          if (input.email) updates.email = input.email;
+          if (input.phone) updates.phone = input.phone;
+          if (input.department) updates.department = input.department;
+          if (input.isActive !== undefined) updates.isActive = input.isActive;
+
+          await db.updateStaffUser(input.userId, updates);
+          return { success: true };
+        } catch (error) {
+          console.error("[RBAC] Update staff user failed:", error);
+          throw new Error("Failed to update staff user");
+        }
+      }),
+
+    deleteStaffUser: adminProcedure
+      .input(z.object({ userId: z.string() }))
+      .mutation(async ({ input }) => {
+        try {
+          await db.deleteStaffUser(input.userId);
+          await safeNotifyOwner("Staff user deleted", `User ${input.userId} has been removed from the system`);
+          return { success: true };
+        } catch (error) {
+          console.error("[RBAC] Delete staff user failed:", error);
+          throw new Error("Failed to delete staff user");
+        }
+      }),
+
+    loginWithQRCode: publicProcedure
+      .input(z.object({ encodedData: z.string() }))
+      .mutation(async ({ input }) => {
+        try {
+          const { userId, password } = utils.decodeQRCodeLogin(input.encodedData);
+          const user = await db.getStaffUserByUsername(userId);
+
+          if (!user || !user.passwordHash) {
+            throw new Error("Invalid credentials");
+          }
+
+          const isPasswordValid = await utils.verifyPassword(password, user.passwordHash);
+          if (!isPasswordValid) {
+            throw new Error("Invalid credentials");
+          }
+
+          if (!user.isActive) {
+            throw new Error("User account is inactive");
+          }
+
+          // Update last signed in
+          await db.updateStaffUser(user.userId!, { lastSignedIn: new Date() });
+
+          return {
+            success: true,
+            user: {
+              id: user.id,
+              userId: user.userId,
+              name: user.name,
+              role: user.role,
+              department: user.department,
+            },
+          };
+        } catch (error) {
+          console.error("[RBAC] QR code login failed:", error);
+          throw new Error("QR code login failed");
+        }
+      }),
+  }),
+
   // ============ PROTECTED FILE LINKS ============
   files: router({
     getArtifactLink: protectedProcedure
