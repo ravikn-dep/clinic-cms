@@ -12,6 +12,7 @@ import PharmacyInventory from "./pages/PharmacyInventory";
 import Billing from "./pages/Billing";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import UserManagement from "./pages/UserManagement";
+import QRLogin from "./pages/QRLogin";
 import AuditLogs from "./pages/AuditLogs";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
@@ -58,6 +59,7 @@ function Router() {
       <Route path={"/users"}>{() => <AdminOnly><UserManagement /></AdminOnly>}</Route>
       <Route path={"/audit-logs"}>{() => <AdminOnly><AuditLogs /></AdminOnly>}</Route>
       <Route path={"/notifications"} component={Notifications} />
+      <Route path={"/qr-login"} component={QRLogin} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
