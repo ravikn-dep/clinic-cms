@@ -36,6 +36,7 @@ const menuItems = [
   { icon: Receipt, label: "Billing", path: "/billing" },
   { icon: ShoppingCart, label: "Purchase Orders", path: "/purchase-orders" },
   { icon: Bell, label: "Notifications", path: "/notifications" },
+  { icon: Users, label: "User Management", path: "/users", adminOnly: true },
   { icon: Activity, label: "Audit Trail", path: "/audit-logs", adminOnly: true },
 ];
 

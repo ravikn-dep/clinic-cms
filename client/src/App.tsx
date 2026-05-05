@@ -11,6 +11,7 @@ import AmbientScribe from "./pages/AmbientScribe";
 import PharmacyInventory from "./pages/PharmacyInventory";
 import Billing from "./pages/Billing";
 import PurchaseOrders from "./pages/PurchaseOrders";
+import UserManagement from "./pages/UserManagement";
 import AuditLogs from "./pages/AuditLogs";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
@@ -54,6 +55,7 @@ function Router() {
       <Route path={"/pharmacy"} component={PharmacyInventory} />
       <Route path={"/billing"} component={Billing} />
       <Route path={"/purchase-orders"} component={PurchaseOrders} />
+      <Route path={"/users"}>{() => <AdminOnly><UserManagement /></AdminOnly>}</Route>
       <Route path={"/audit-logs"}>{() => <AdminOnly><AuditLogs /></AdminOnly>}</Route>
       <Route path={"/notifications"} component={Notifications} />
       <Route path={"/404"} component={NotFound} />

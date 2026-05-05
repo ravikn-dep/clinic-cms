@@ -259,7 +259,7 @@
 - [x] Implement QR code generation for user login credentials (generateQRCodeForLogin utility)
 - [x] Create role-based middleware for procedure access control (adminProcedure wrapper)
 - [ ] Add role-specific dashboard views (admin, consultant, staff)
-- [ ] Implement user management UI for admin role
+- [x] Implement user management UI for admin role (UserManagement.tsx with create/edit/delete/list)
 - [ ] Add QR code login page with credential scanning
 - [x] Write tests for RBAC and user management (11 test cases, all passing)
 - [x] Validate role-based access across all modules (97/97 tests passing)
