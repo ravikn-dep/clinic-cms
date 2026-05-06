@@ -1315,12 +1315,39 @@ export const appRouter = router({
       .query(async ({ input }) => {
         return db.getNotificationsByUserId(input.userId);
       }),
-
     markAsRead: protectedProcedure
       .input(z.object({ notificationId: z.string() }))
       .mutation(async ({ input }) => {
         await db.markNotificationAsRead(input.notificationId);
         return { success: true };
+      }),
+  }),
+  // ============ DAILY EXPORT ============
+  dailyExport: router({
+    exportDailyReport: adminProcedure
+      .input(z.object({ date: z.string() }))
+      .mutation(async ({ input }) => {
+        try {
+          const { getDailyData, generatePDFReport, generateExcelReport, saveDailyExport } = await import('./dailyExport');
+          const data = await getDailyData(input.date);
+          const pdfBuffer = await generatePDFReport(data);
+          const excelBuffer = await generateExcelReport(data);
+          const { pdfUrl, excelUrl } = await saveDailyExport(input.date, pdfBuffer, excelBuffer);
+          return {
+            success: true,
+            date: input.date,
+            pdfUrl,
+            excelUrl,
+            summary: {
+              patientsRegistered: data.patientsRegistered,
+              consultationsCompleted: data.consultationsCompleted,
+              totalBilling: data.totalBilling,
+            },
+          };
+        } catch (error) {
+          console.error('Daily export failed:', error);
+          throw new Error('Failed to generate daily export');
+        }
       }),
   }),
 });

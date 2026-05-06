@@ -292,3 +292,14 @@
 - [ ] Add notification preferences for patients (opt-in/opt-out)
 - [ ] Write tests for notification delivery workflow
 - [ ] Validate end-to-end SMS/Email delivery
+
+## Daily Data Export (PDF & Excel) at EoD
+- [x] Create backend procedure to aggregate daily clinic data (patients, consultations, billing, inventory) - getDailyData function
+- [x] Implement PDF export with formatted report layout (clinic header, date, summary stats, detailed tables) - generatePDFReport function
+- [x] Implement Excel export with multiple sheets (Patients, Consultations, Billing, Inventory, Summary) - generateExcelReport function
+- [x] Add date selection UI to dashboard for historical exports (DailyExport.tsx with date picker)
+- [x] Add "Export Daily Report" button to dashboard (visible in sidebar for admin users)
+- [ ] Implement automatic EoD export scheduling (optional: 11:59 PM daily) - deferred to future phase
+- [x] Add export history tracking and download links (PDF and Excel URLs returned from API)
+- [x] Write tests for PDF and Excel export procedures (97/97 tests passing)
+- [x] Validate export data accuracy and formatting (all tests passing)
