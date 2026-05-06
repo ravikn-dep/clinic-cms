@@ -270,3 +270,25 @@
 - [x] Make rest of page blank for handwritten notes (210mm+ blank area)
 - [x] Optimize for A4 paper printing (190mm x 277mm with 8mm margins)
 - [x] Test print layout and spacing (all 97 tests passing)
+
+## Appointment Scheduling System
+- [ ] Create appointments table with date, time, consultant, patient, status fields
+- [ ] Create consultant_availability table for working hours and slots
+- [ ] Add backend procedures for booking, rescheduling, and canceling appointments
+- [ ] Implement appointment conflict detection and slot availability checking
+- [ ] Add appointment list view for consultants and admin
+- [ ] Build appointment booking UI with calendar and time slot selection
+- [ ] Implement no-show tracking and follow-up reminders
+- [ ] Write tests for appointment scheduling workflow
+- [ ] Validate end-to-end appointment booking and management
+
+## SMS/Email Notifications
+- [ ] Integrate Twilio for SMS notifications
+- [ ] Integrate SendGrid for Email notifications
+- [ ] Add appointment reminder notifications (24 hours before, 1 hour before)
+- [ ] Add billing receipt delivery via SMS/Email
+- [ ] Add follow-up care instruction notifications
+- [ ] Implement notification delivery status tracking
+- [ ] Add notification preferences for patients (opt-in/opt-out)
+- [ ] Write tests for notification delivery workflow
+- [ ] Validate end-to-end SMS/Email delivery

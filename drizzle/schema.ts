@@ -203,3 +203,52 @@ export const purchaseOrderItems = mysqlTable("purchaseOrderItems", {
 
 export type PurchaseOrderItem = typeof purchaseOrderItems.$inferSelect;
 export type InsertPurchaseOrderItem = typeof purchaseOrderItems.$inferInsert;
+
+// Appointment Scheduling
+export const appointments = mysqlTable("appointments", {
+  appointmentId: varchar("appointmentId", { length: 50 }).primaryKey(),
+  patientId: varchar("patientId", { length: 50 }).notNull(),
+  consultantId: int("consultantId").notNull(),
+  appointmentDate: varchar("appointmentDate", { length: 10 }).notNull(), // YYYY-MM-DD format
+  appointmentTime: varchar("appointmentTime", { length: 5 }).notNull(), // HH:MM format
+  duration: int("duration").default(30), // Duration in minutes
+  status: mysqlEnum("status", ["Scheduled", "Completed", "Cancelled", "No-show", "Rescheduled"]).default("Scheduled"),
+  notes: text("notes"),
+  reminderSent: boolean("reminderSent").default(false),
+  reminderSentAt: timestamp("reminderSentAt"),
+  notificationMethod: varchar("notificationMethod", { length: 50 }), // 'SMS', 'Email', 'Both'
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = typeof appointments.$inferInsert;
+
+// Consultant Availability/Working Hours
+export const consultantAvailability = mysqlTable("consultantAvailability", {
+  availabilityId: varchar("availabilityId", { length: 50 }).primaryKey(),
+  consultantId: int("consultantId").notNull(),
+  dayOfWeek: int("dayOfWeek").notNull(), // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime: varchar("startTime", { length: 5 }).notNull(), // HH:MM format
+  endTime: varchar("endTime", { length: 5 }).notNull(), // HH:MM format
+  slotDuration: int("slotDuration").default(30), // Duration of each appointment slot in minutes
+  maxAppointmentsPerDay: int("maxAppointmentsPerDay").default(10),
+  isActive: boolean("isActive").default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type ConsultantAvailability = typeof consultantAvailability.$inferSelect;
+export type InsertConsultantAvailability = typeof consultantAvailability.$inferInsert;
+
+// Notification Preferences
+export const notificationPreferences = mysqlTable("notificationPreferences", {
+  preferenceId: varchar("preferenceId", { length: 50 }).primaryKey(),
+  patientId: varchar("patientId", { length: 50 }).notNull(),
+  appointmentReminders: boolean("appointmentReminders").default(true),
+  reminderMethod: mysqlEnum("reminderMethod", ["SMS", "Email", "Both"]).default("SMS"),
+  billingNotifications: boolean("billingNotifications").default(true),
+  followUpNotifications: boolean("followUpNotifications").default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type NotificationPreference = typeof notificationPreferences.$inferSelect;
+export type InsertNotificationPreference = typeof notificationPreferences.$inferInsert;

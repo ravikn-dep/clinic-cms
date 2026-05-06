@@ -21,6 +21,7 @@ const registrationSchema = z.object({
   contactNumber: z.string().min(10, "Contact number must be at least 10 digits"),
   email: z.string().email().optional().or(z.literal("")),
   address: z.string().optional(),
+  consultantName: z.string().optional(),
 });
 
 type RegistrationFormData = z.infer<typeof registrationSchema>;
@@ -218,6 +219,21 @@ export default function PatientRegistration() {
               <div className="space-y-2">
                 <Label htmlFor="address">Address (Optional)</Label>
                 <Textarea id="address" placeholder="Enter patient address" {...register("address")} className="focus-visible:ring-teal-200" />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="consultantName">Consultant Name (Optional)</Label>
+                <Select onValueChange={(value) => setValue("consultantName", value)}>
+                  <SelectTrigger className="focus-visible:ring-teal-200">
+                    <SelectValue placeholder="Select consultant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Dr. Ravi N.">Dr. Ravi N.</SelectItem>
+                    <SelectItem value="Dr. Deepthi">Dr. Deepthi</SelectItem>
+                    <SelectItem value="Dr. Sharma">Dr. Sharma</SelectItem>
+                    <SelectItem value="Dr. Patel">Dr. Patel</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <Button type="submit" disabled={isSubmitting} className="w-full bg-teal-600 hover:bg-teal-700">
