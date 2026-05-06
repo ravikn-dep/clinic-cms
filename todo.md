@@ -271,7 +271,7 @@
 - [x] Optimize for A4 paper printing (190mm x 277mm with 8mm margins)
 - [x] Test print layout and spacing (all 97 tests passing)
 
-## Appointment Scheduling System
+## Appointment Scheduling System (DEFERRED TO FUTURE PHASE)
 - [ ] Create appointments table with date, time, consultant, patient, status fields
 - [ ] Create consultant_availability table for working hours and slots
 - [ ] Add backend procedures for booking, rescheduling, and canceling appointments
@@ -282,7 +282,7 @@
 - [ ] Write tests for appointment scheduling workflow
 - [ ] Validate end-to-end appointment booking and management
 
-## SMS/Email Notifications
+## SMS/Email Notifications (DEFERRED TO FUTURE PHASE)
 - [ ] Integrate Twilio for SMS notifications
 - [ ] Integrate SendGrid for Email notifications
 - [ ] Add appointment reminder notifications (24 hours before, 1 hour before)
@@ -299,7 +299,7 @@
 - [x] Implement Excel export with multiple sheets (Patients, Consultations, Billing, Inventory, Summary) - generateExcelReport function
 - [x] Add date selection UI to dashboard for historical exports (DailyExport.tsx with date picker)
 - [x] Add "Export Daily Report" button to dashboard (visible in sidebar for admin users)
-- [ ] Implement automatic EoD export scheduling (optional: 11:59 PM daily) - deferred to future phase
+- [ ] Implement automatic EoD export scheduling (optional: 11:59 PM daily) - DEFERRED TO FUTURE PHASE
 - [x] Add export history tracking and download links (PDF and Excel URLs returned from API)
 - [x] Write tests for PDF and Excel export procedures (97/97 tests passing)
 - [x] Validate export data accuracy and formatting (all tests passing)
