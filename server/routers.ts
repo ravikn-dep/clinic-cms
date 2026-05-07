@@ -1350,6 +1350,84 @@ export const appRouter = router({
         }
       }),
   }),
+
+  // ============ FEATURE ACCESS CONTROL ============
+  featureAccess: router({
+    // Get all feature permissions for a specific role
+    getPermissions: adminProcedure
+      .input(z.object({ role: z.enum(["consultant", "staff"]) }))
+      .query(async ({ input }) => {
+        // Get stored permissions or return defaults
+        const stored = await db.getFeaturePermissions(input.role);
+        return stored || getDefaultPermissions(input.role);
+      }),
+
+    // Update feature permissions for a role
+    updatePermissions: adminProcedure
+      .input(z.object({
+        role: z.enum(["consultant", "staff"]),
+        permissions: z.record(z.string(), z.boolean()),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.setFeaturePermissions(input.role, input.permissions);
+        
+        // Log audit entry
+        await db.createAuditLog({
+          logId: nanoid(),
+          userId: String(ctx.user.id),
+          actionType: "UPDATE_FEATURE_ACCESS",
+          tableName: "featureAccess",
+          recordId: input.role,
+          oldValue: JSON.stringify(await db.getFeaturePermissions(input.role)),
+          newValue: JSON.stringify(input.permissions),
+          timestamp: new Date(),
+        });
+
+        return { success: true };
+      }),
+
+    // Check if a specific feature is enabled for a role
+    checkAccess: protectedProcedure
+      .input(z.object({
+        role: z.enum(["consultant", "staff"]),
+        featureKey: z.string(),
+      }))
+      .query(async ({ input }) => {
+        const permissions = await db.getFeaturePermissions(input.role);
+        const defaultPerms = getDefaultPermissions(input.role);
+        const perms = permissions || defaultPerms;
+        return perms[input.featureKey] ?? false;
+      }),
+  }),
 });
+
+// Default feature permissions by role
+function getDefaultPermissions(role: "consultant" | "staff"): Record<string, boolean> {
+  const defaults: Record<string, Record<string, boolean>> = {
+    consultant: {
+      patient_records: true,
+      ambient_scribe: true,
+      pharmacy: true,
+      billing: true,
+      purchase_orders: false,
+      notifications: true,
+      audit_trail: false,
+      daily_export: false,
+      user_management: false,
+    },
+    staff: {
+      patient_records: true,
+      ambient_scribe: false,
+      pharmacy: true,
+      billing: false,
+      purchase_orders: true,
+      notifications: true,
+      audit_trail: false,
+      daily_export: false,
+      user_management: false,
+    },
+  };
+  return defaults[role] || {};
+}
 
 export type AppRouter = typeof appRouter;

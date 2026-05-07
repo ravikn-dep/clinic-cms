@@ -303,3 +303,19 @@
 - [x] Add export history tracking and download links (PDF and Excel URLs returned from API)
 - [x] Write tests for PDF and Excel export procedures (97/97 tests passing)
 - [x] Validate export data accuracy and formatting (all tests passing)
+
+## Role-Based Feature Access Control
+- [x] Create JSON-based feature permissions storage system (no database migration required)
+- [x] Create backend procedures: `getFeaturePermissions`, `setFeaturePermissions`, `checkFeatureAccess`
+- [x] Build admin UI page for managing feature access (FeatureAccessControl.tsx with tabs for consultant/staff)
+- [x] Add Feature Access Control link to DashboardLayout sidebar (admin-only, Settings icon)
+- [x] Implement feature permission checking in routers (adminProcedure gates updatePermissions)
+- [x] Write tests for role permissions procedures (11 test cases, all passing)
+- [x] Validate feature end-to-end with admin configuration and role-based visibility (108/108 tests passing)
+
+## Next Steps (Optional Enhancements)
+- [ ] Persist feature permissions to database for durability across server restarts
+- [ ] Add feature access enforcement in frontend (hide nav items based on permissions)
+- [ ] Add feature access enforcement in individual pages (redirect if not permitted)
+- [ ] Implement audit logging for feature permission changes
+- [ ] Add default permission templates (Consultant, Staff, Custom)

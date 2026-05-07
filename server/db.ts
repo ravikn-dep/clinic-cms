@@ -1,6 +1,6 @@
 import { count, desc, eq, like, lte, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, patients, consultations, inventory, bills, billItems, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences } from "../drizzle/schema";
+import { InsertUser, users, patients, consultations, inventory, bills, billItems, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -467,4 +467,79 @@ export async function getNextUserSequence(role: "consultant" | "staff"): Promise
   if (!match) return 1;
   
   return parseInt(match[0]) + 1;
+}
+
+// ============ ROLE PERMISSIONS QUERIES ============
+
+export async function getRolePermissions(role: "admin" | "consultant" | "staff") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(rolePermissions).where(eq(rolePermissions.role, role));
+}
+
+export async function getRolePermissionByFeature(role: "admin" | "consultant" | "staff", featureKey: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db
+    .select()
+    .from(rolePermissions)
+    .where(eq(rolePermissions.role, role) && eq(rolePermissions.featureKey, featureKey))
+    .limit(1);
+  
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function updateRolePermission(role: "admin" | "consultant" | "staff", featureKey: string, isEnabled: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Check if permission exists
+  const existing = await getRolePermissionByFeature(role, featureKey);
+  
+  if (existing) {
+    // Update existing
+    await db
+      .update(rolePermissions)
+      .set({ isEnabled, updatedAt: new Date() })
+      .where(eq(rolePermissions.permissionId, existing.permissionId));
+  } else {
+    // Create new
+    const permissionId = `${role}-${featureKey}-${Date.now()}`;
+    await db.insert(rolePermissions).values({
+      permissionId,
+      role,
+      featureKey,
+      isEnabled,
+    });
+  }
+}
+
+
+
+// ============ FEATURE ACCESS CONTROL (JSON-based) ============
+
+// Store feature permissions in memory with persistence via localStorage-like pattern
+const featurePermissionsStore: Record<string, Record<string, boolean>> = {};
+
+export async function getFeaturePermissions(role: "consultant" | "staff"): Promise<Record<string, boolean> | null> {
+  // In production, this could be persisted to a settings table or file
+  return featurePermissionsStore[role] || null;
+}
+
+export async function setFeaturePermissions(role: "consultant" | "staff", permissions: Record<string, boolean>): Promise<void> {
+  // Store in memory
+  featurePermissionsStore[role] = permissions;
+  
+  // In production, persist to database or file
+  // For now, we'll rely on the in-memory store which persists during server runtime
+}
+
+export async function checkFeatureAccess(role: "admin" | "consultant" | "staff", featureKey: string): Promise<boolean> {
+  // Admin always has access
+  if (role === "admin") return true;
+  
+  const permissions = await getFeaturePermissions(role as "consultant" | "staff");
+  return permissions?.[featureKey] ?? false;
 }

@@ -50,6 +50,13 @@
       "when": 1777949478936,
       "tag": "0006_amused_unus",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1778120869708,
+      "tag": "0007_thick_dragon_lord",
+      "breakpoints": true
     }
   ]
 }

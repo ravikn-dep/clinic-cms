@@ -252,3 +252,16 @@ export const notificationPreferences = mysqlTable("notificationPreferences", {
 });
 export type NotificationPreference = typeof notificationPreferences.$inferSelect;
 export type InsertNotificationPreference = typeof notificationPreferences.$inferInsert;
+
+// Role-Based Feature Access Control
+export const rolePermissions = mysqlTable("rolePermissions", {
+  permissionId: varchar("permissionId", { length: 50 }).primaryKey(),
+  role: mysqlEnum("role", ["admin", "consultant", "staff"]).notNull(),
+  featureKey: varchar("featureKey", { length: 100 }).notNull(), // e.g., "patient_records", "pharmacy", "billing"
+  isEnabled: boolean("isEnabled").default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type InsertRolePermission = typeof rolePermissions.$inferInsert;
