@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { Download, Loader2, Printer, QrCode } from "lucide-react";
+import { generateOPFormHTML } from "@/lib/opFormGenerator";
 
 const registrationSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -46,6 +47,7 @@ export default function PatientRegistration() {
   });
 
   const registerMutation = trpc.patients.register.useMutation();
+  const getFormTemplate = trpc.opForm.getTemplate.useQuery();
   const artifactLink = trpc.files.getArtifactLink.useMutation({
     onError: (error) => {
       toast.error(error.message || "Unable to open the protected tracking asset.");
@@ -68,7 +70,7 @@ export default function PatientRegistration() {
   };
 
   const printTrackingSlip = () => {
-    if (!registeredPatient || !registeredPatientDetails) return;
+    if (!registeredPatient || !registeredPatientDetails || !getFormTemplate.data) return;
 
     const printWindow = window.open("", "", "width=800,height=600");
     if (!printWindow) {
@@ -76,79 +78,13 @@ export default function PatientRegistration() {
       return;
     }
 
-    const patient = registeredPatientDetails;
-    const escapeHtml = (value?: string | null) => String(value || "—")
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-    const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "—";
+    const htmlContent = generateOPFormHTML(
+      getFormTemplate.data,
+      registeredPatientDetails,
+      registeredPatient
+    );
 
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>A4 OP Registration Form - ${escapeHtml(registeredPatient.patientId)}</title>
-          <style>
-            @page { size: A4 portrait; margin: 8mm; }
-            * { box-sizing: border-box; }
-            body { font-family: Arial, sans-serif; margin: 0; color: #111827; background: #ffffff; }
-            .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 8mm; display: flex; flex-direction: column; }
-            .header { display: grid; grid-template-columns: 1fr 32mm 56mm; gap: 6mm; align-items: start; border-bottom: 2px solid #111827; padding-bottom: 6mm; margin-bottom: 8mm; }
-            .clinic-title { font-size: 16px; font-weight: 800; letter-spacing: 0.02em; margin: 0 0 1mm; }
-            .patient-info { font-size: 9px; line-height: 1.4; }
-            .info-row { display: flex; gap: 10mm; margin-bottom: 1.5mm; }
-            .info-item { flex: 1; }
-            .info-label { font-weight: 700; }
-            .patient-id { display: inline-block; border: 1px solid #111827; padding: 1.5mm 3mm; font-family: monospace; font-size: 12px; font-weight: 800; margin-top: 2mm; }
-            .qr { width: 30mm; height: 30mm; object-fit: contain; border: 1px solid #d1d5db; padding: 1mm; }
-            .barcode { width: 54mm; height: 22mm; object-fit: contain; border: 1px solid #d1d5db; padding: 1mm; }
-            .barcode-text { font-family: monospace; font-size: 8px; margin-top: 1mm; word-break: break-all; line-height: 1; }
-            .blank-area { flex: 1; border: 1px solid #d1d5db; background: #fafafa; min-height: 200mm; }
-            .footer { margin-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 10px; }
-            .signature-line { border-bottom: 1px solid #111827; height: 8mm; margin-bottom: 2mm; }
-            @media print { body { background: #ffffff; margin: 0; padding: 0; } .page { border: none; } }
-          </style>
-        </head>
-        <body>
-          <main class="page">
-            <section class="header">
-              <div class="patient-info">
-                <h1 class="clinic-title">Clinic OP Form</h1>
-                <div class="info-row">
-                  <div class="info-item"><span class="info-label">Name:</span> ${escapeHtml(patientName)}</div>
-                  <div class="info-item"><span class="info-label">Age/DOB:</span> ${escapeHtml(patient?.dateOfBirth)}</div>
-                </div>
-                <div class="info-row">
-                  <div class="info-item"><span class="info-label">Contact:</span> ${escapeHtml(patient?.contactNumber)}</div>
-                  <div class="info-item"><span class="info-label">Gender:</span> ${escapeHtml(patient?.gender)}</div>
-                </div>
-                <div class="info-row">
-                  <div class="info-item"><span class="info-label">Consultant:</span> _______________</div>
-                </div>
-                <div class="info-row">
-                  <div class="info-item"><span class="info-label">Date/Time:</span> _______________</div>
-                </div>
-                <div class="patient-id">ID: ${escapeHtml(registeredPatient.patientId)}</div>
-              </div>
-              <div>${registeredPatient.qrcodeImageUrl ? `<img class="qr" src="${escapeHtml(registeredPatient.qrcodeImageUrl)}" alt="QR code" />` : ""}</div>
-              <div>
-                ${registeredPatient.barcodeImageUrl ? `<img class="barcode" src="${escapeHtml(registeredPatient.barcodeImageUrl)}" alt="Barcode" />` : ""}
-                <div class="barcode-text">${escapeHtml(registeredPatient.barcodeData)}</div>
-              </div>
-            </section>
-
-            <div class="blank-area"></div>
-
-            <div class="footer">
-              <div><div class="signature-line"></div><p>Patient / Attendant Signature</p></div>
-              <div><div class="signature-line"></div><p>Consultant Signature</p></div>
-            </div>
-          </main>
-          <script>window.onload = () => setTimeout(() => { window.print(); window.close(); }, 350);</script>
-        </body>
-      </html>
-    `);
+    printWindow.document.write(htmlContent);
     printWindow.document.close();
   };
 

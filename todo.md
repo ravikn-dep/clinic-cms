@@ -326,8 +326,8 @@
 - [x] Add form styling options (header text, clinic name, colors, spacing)
 - [x] Create backend procedures: getFormTemplate, updateFormTemplate, resetToDefault
 - [x] Persist form template configuration in in-memory store (can be extended to database)
-- [ ] Update PatientRegistration to use custom template instead of hardcoded HTML
+- [x] Update PatientRegistration to use custom template instead of hardcoded HTML
 - [x] Add form preview with sample data before saving
 - [x] Add "Print Preview" button to test custom form layout
 - [x] Write tests for form template CRUD operations (11 tests added)
-- [ ] Validate end-to-end custom form printing
+- [x] Validate end-to-end custom form printing (integration complete, all 119 tests passing)
