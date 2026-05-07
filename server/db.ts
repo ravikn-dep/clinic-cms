@@ -543,3 +543,54 @@ export async function checkFeatureAccess(role: "admin" | "consultant" | "staff",
   const permissions = await getFeaturePermissions(role as "consultant" | "staff");
   return permissions?.[featureKey] ?? false;
 }
+
+
+// ============ OP FORM TEMPLATE CUSTOMIZATION ============
+
+interface OPFormTemplate {
+  clinicName: string;
+  clinicSubtitle?: string;
+  headerFields: Array<{
+    id: string;
+    label: string;
+    fieldType: "text" | "date" | "dropdown" | "checkbox" | "textarea";
+    required: boolean;
+    placeholder?: string;
+    options?: string[];
+  }>;
+  blankAreaHeight: number;
+  footerText?: string;
+  showQRCode: boolean;
+  showBarcode: boolean;
+}
+
+const DEFAULT_OP_FORM_TEMPLATE: OPFormTemplate = {
+  clinicName: "Clinic OP Form",
+  clinicSubtitle: "",
+  headerFields: [
+    { id: "name", label: "Name", fieldType: "text", required: true },
+    { id: "dob", label: "Age/DOB", fieldType: "date", required: true },
+    { id: "contact", label: "Contact", fieldType: "text", required: true },
+    { id: "gender", label: "Gender", fieldType: "dropdown", required: true, options: ["Male", "Female", "Other"] },
+    { id: "consultant", label: "Consultant", fieldType: "text", required: false },
+    { id: "datetime", label: "Date/Time", fieldType: "text", required: false },
+  ],
+  blankAreaHeight: 200,
+  footerText: "",
+  showQRCode: true,
+  showBarcode: true,
+};
+
+let opFormTemplateStore: OPFormTemplate = { ...DEFAULT_OP_FORM_TEMPLATE };
+
+export async function getOPFormTemplate(): Promise<OPFormTemplate> {
+  return { ...opFormTemplateStore };
+}
+
+export async function setOPFormTemplate(template: OPFormTemplate): Promise<void> {
+  opFormTemplateStore = { ...template };
+}
+
+export async function resetOPFormTemplate(): Promise<void> {
+  opFormTemplateStore = { ...DEFAULT_OP_FORM_TEMPLATE };
+}

@@ -1399,6 +1399,63 @@ export const appRouter = router({
         return perms[input.featureKey] ?? false;
       }),
   }),
+  opForm: router({
+    getTemplate: protectedProcedure.query(async () => {
+      const template = await db.getOPFormTemplate();
+      return template;
+    }),
+
+    updateTemplate: adminProcedure
+      .input(z.object({
+        clinicName: z.string(),
+        clinicSubtitle: z.string().optional(),
+        headerFields: z.array(z.object({
+          id: z.string(),
+          label: z.string(),
+          fieldType: z.enum(["text", "date", "dropdown", "checkbox", "textarea"]),
+          required: z.boolean(),
+          placeholder: z.string().optional(),
+          options: z.array(z.string()).optional(),
+        })),
+        blankAreaHeight: z.number().min(50).max(300),
+        footerText: z.string().optional(),
+        showQRCode: z.boolean(),
+        showBarcode: z.boolean(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await db.setOPFormTemplate(input);
+        
+        await db.createAuditLog({
+          logId: nanoid(),
+          userId: String(ctx.user.id),
+          actionType: "UPDATE",
+          tableName: "opFormTemplate",
+          recordId: "default",
+          oldValue: "",
+          newValue: JSON.stringify(input),
+          timestamp: new Date(),
+        });
+
+        return { success: true };
+      }),
+
+    resetTemplate: adminProcedure.mutation(async ({ ctx }) => {
+      await db.resetOPFormTemplate();
+      
+      await db.createAuditLog({
+        logId: nanoid(),
+        userId: String(ctx.user.id),
+        actionType: "UPDATE",
+        tableName: "opFormTemplate",
+        recordId: "default",
+        oldValue: "",
+        newValue: "reset_to_default",
+        timestamp: new Date(),
+      });
+
+      return { success: true };
+    }),
+  }),
 });
 
 // Default feature permissions by role

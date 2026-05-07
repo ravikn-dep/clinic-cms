@@ -38,6 +38,7 @@ const menuItems = [
   { icon: Bell, label: "Notifications", path: "/notifications" },
   { icon: Users, label: "User Management", path: "/users", adminOnly: true },
   { icon: Settings, label: "Feature Access Control", path: "/feature-access", adminOnly: true },
+  { icon: Settings, label: "OP Form Customization", path: "/op-form-customization", adminOnly: true },
   { icon: Activity, label: "Audit Trail", path: "/audit-logs", adminOnly: true },
   { icon: Download, label: "Daily Export", path: "/daily-export", adminOnly: true },
 ];

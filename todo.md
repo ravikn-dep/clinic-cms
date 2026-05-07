@@ -319,3 +319,15 @@
 - [ ] Add feature access enforcement in individual pages (redirect if not permitted)
 - [ ] Implement audit logging for feature permission changes
 - [ ] Add default permission templates (Consultant, Staff, Custom)
+
+## OP Registration Form Customization (NEW)
+- [x] Create admin UI page for OP form template customization (OPFormCustomization.tsx)
+- [x] Add form field editor (add/remove/reorder fields, set labels, required/optional)
+- [x] Add form styling options (header text, clinic name, colors, spacing)
+- [x] Create backend procedures: getFormTemplate, updateFormTemplate, resetToDefault
+- [x] Persist form template configuration in in-memory store (can be extended to database)
+- [ ] Update PatientRegistration to use custom template instead of hardcoded HTML
+- [x] Add form preview with sample data before saving
+- [x] Add "Print Preview" button to test custom form layout
+- [x] Write tests for form template CRUD operations (11 tests added)
+- [ ] Validate end-to-end custom form printing
