@@ -59,6 +59,7 @@ export const appRouter = router({
         contactNumber: z.string().min(10),
         email: z.string().email().optional(),
         address: z.string().optional(),
+        consultantName: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         // Generate a daily sequential OP patient ID in the requested clinic format.

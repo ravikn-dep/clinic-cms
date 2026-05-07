@@ -7,8 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
-import { CalendarDays, Download, ExternalLink, FileAudio, FileText, Loader2, Receipt, Search, UserRound } from "lucide-react";
+import { CalendarDays, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound } from "lucide-react";
 import { toast } from "sonner";
+import { generateOPFormHTML } from "@/lib/opFormGenerator";
 
 function formatDate(value: unknown) {
   if (!value) return "—";
@@ -34,6 +35,7 @@ export default function PatientRecords() {
   const isAdmin = user?.role === "admin";
 
   const patientsQuery = trpc.patients.getAll.useQuery();
+  const getFormTemplate = trpc.opForm.getTemplate.useQuery();
   const selectedPatientQuery = trpc.patients.getById.useQuery(
     { patientId: selectedPatientId || "" },
     { enabled: Boolean(selectedPatientId) }
@@ -91,6 +93,42 @@ export default function PatientRecords() {
       { label: `Invoice PDF ${bill.billId}`, url: bill.invoicePdfUrl, key: bill.invoicePdfKey, artifactType: "invoice_pdf" as const, patientId: selectedPatient.patientId, recordId: bill.billId, icon: Receipt },
     ]),
   ].filter((file) => Boolean(file.key || file.url)) : [];
+
+  const printOPForm = (patient: any) => {
+    if (!patient || !getFormTemplate.data) {
+      toast.error("Unable to generate form. Please try again.");
+      return;
+    }
+
+    const formHtml = generateOPFormHTML(
+      getFormTemplate.data,
+      {
+        firstName: patient.firstName,
+        lastName: patient.lastName,
+        dateOfBirth: patient.dateOfBirth,
+        gender: patient.gender,
+        contactNumber: patient.contactNumber,
+      },
+      {
+        patientId: patient.patientId,
+        barcodeData: "",
+        barcodeImageUrl: patient.barcodeImageUrl,
+        qrcodeImageUrl: patient.qrcodeImageUrl,
+      }
+    );
+
+    const printWindow = window.open("", "", "width=800,height=600");
+    if (!printWindow) {
+      toast.error("Unable to open print window. Please check your browser settings.");
+      return;
+    }
+
+    printWindow.document.write(formHtml);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    toast.success("OP form printed successfully.");
+  };
 
   async function openProtectedArtifact(file: { key?: string | null; url?: string | null; artifactType: "barcode" | "qr_code" | "audio" | "invoice_pdf"; patientId?: string; recordId?: string; label: string }) {
     const artifact = await artifactLink.mutateAsync({
@@ -229,7 +267,18 @@ export default function PatientRecords() {
                       <h2 className="text-xl font-semibold">{selectedPatient.firstName} {selectedPatient.lastName}</h2>
                       <p className="font-mono text-xs text-muted-foreground">{selectedPatient.patientId}</p>
                     </div>
-                    <Badge variant="outline">Registered {formatDate(selectedPatient.createdAt)}</Badge>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => printOPForm(selectedPatient)}
+                        className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50"
+                      >
+                        <Printer className="mr-2 h-4 w-4" />
+                        Print OP Form
+                      </Button>
+                      <Badge variant="outline">Registered {formatDate(selectedPatient.createdAt)}</Badge>
+                    </div>
                   </div>
                   <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                     <div><span className="text-muted-foreground">Phone:</span> {selectedPatient.contactNumber}</div>

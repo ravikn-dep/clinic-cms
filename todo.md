@@ -331,3 +331,10 @@
 - [x] Add "Print Preview" button to test custom form layout
 - [x] Write tests for form template CRUD operations (11 tests added)
 - [x] Validate end-to-end custom form printing (integration complete, all 119 tests passing)
+
+## Print OP Form from Patient Records (NEW)
+- [x] Add "Print OP Form" button/action to Patient Records page
+- [x] Create backend procedure to fetch patient details for form generation (reused existing getById)
+- [x] Implement print functionality using custom form template
+- [x] Add print preview modal (integrated with existing opFormGenerator)
+- [x] Test end-to-end printing from patient records (all 119 tests passing)
