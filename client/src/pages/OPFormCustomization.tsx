@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { trpc } from "@/lib/trpc";
 import { AlertCircle, Plus, Trash2, Eye, Save, RotateCcw, GripVertical } from "lucide-react";
 import { toast } from "sonner";
+
 
 interface FormField {
   id: string;
@@ -51,15 +52,19 @@ export default function OPFormCustomization() {
   const [newField, setNewField] = useState<Partial<FormField>>({ fieldType: "text" });
   const [previewOpen, setPreviewOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   const getFormTemplateQuery = trpc.opForm.getTemplate.useQuery();
   const updateFormTemplateMutation = trpc.opForm.updateTemplate.useMutation();
   const resetFormTemplateMutation = trpc.opForm.resetTemplate.useMutation();
 
-  // Load template on mount
-  if (getFormTemplateQuery.data && template === DEFAULT_TEMPLATE) {
-    setTemplate(getFormTemplateQuery.data);
-  }
+  // Load template on mount using useEffect
+  useEffect(() => {
+    if (getFormTemplateQuery.data && !hasLoaded) {
+      setTemplate(getFormTemplateQuery.data);
+      setHasLoaded(true);
+    }
+  }, [getFormTemplateQuery.data, hasLoaded]);
 
   const handleAddField = () => {
     if (!newField.label) {
@@ -101,9 +106,11 @@ export default function OPFormCustomization() {
     setIsSaving(true);
     try {
       await updateFormTemplateMutation.mutateAsync(template);
+      setHasLoaded(true);
       toast.success("Form template saved successfully");
-    } catch (error) {
-      toast.error("Failed to save template");
+    } catch (error: any) {
+      console.error("Save error:", error);
+      toast.error(error?.message || "Failed to save template");
     } finally {
       setIsSaving(false);
     }
@@ -114,6 +121,7 @@ export default function OPFormCustomization() {
     try {
       await resetFormTemplateMutation.mutateAsync();
       setTemplate(DEFAULT_TEMPLATE);
+      setHasLoaded(true);
       toast.success("Template reset to default");
     } catch (error) {
       toast.error("Failed to reset template");

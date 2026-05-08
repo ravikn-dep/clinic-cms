@@ -69,9 +69,9 @@ function Router() {
       <Route path={"/users"}>{() => <AdminOnly><UserManagement /></AdminOnly>}</Route>
       <Route path={"/audit-logs"}>{() => <AdminOnly><AuditLogs /></AdminOnly>}</Route>
       <Route path={"/daily-export"}>{() => <AdminOnly><DailyExport /></AdminOnly>}</Route>
-        <Route path={"feature-access"}>{() => <AdminOnly><FeatureAccessControl /></AdminOnly>}</Route>
-      <Route path={"op-form-customization"}>{() => <AdminOnly><OPFormCustomization /></AdminOnly>}</Route>
-      <Route path={"notifications"} component={Notifications} />
+        <Route path={"/feature-access"}>{() => <AdminOnly><FeatureAccessControl /></AdminOnly>}</Route>
+      <Route path={"/op-form-customization"}>{() => <AdminOnly><OPFormCustomization /></AdminOnly>}</Route>
+      <Route path={"/notifications"} component={Notifications} />
       <Route path={"/qr-login"} component={QRLogin} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
