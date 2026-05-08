@@ -99,6 +99,7 @@ export function generateOPFormHTML(
             grid-template-columns: 1fr 32mm 56mm; 
             gap: 4mm; 
             align-items: start; 
+            margin-top: 40mm;
             margin-bottom: 8mm;
             background: #ffffff;
           }

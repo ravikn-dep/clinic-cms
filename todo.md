@@ -363,3 +363,4 @@
 - [x] Update OPFormCustomization preview to show new layout
 - [x] Test print layout and spacing on A4 paper (all 119 tests passing)
 - [x] Verify all patient details fit in compact box (18cm × 4cm confirmed)
+- [x] Add 4cm top margin/spacing before patient details box
