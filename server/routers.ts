@@ -1418,7 +1418,7 @@ export const appRouter = router({
           placeholder: z.string().optional(),
           options: z.array(z.string()).optional(),
         })),
-        blankAreaHeight: z.number().min(50).max(300),
+        blankAreaHeight: z.number().min(50).max(500),
         footerText: z.string().optional(),
         showQRCode: z.boolean(),
         showBarcode: z.boolean(),

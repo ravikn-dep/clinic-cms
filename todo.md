@@ -372,3 +372,4 @@
 ## Bug Reports
 - [x] Error in OP new registration - fixed by adding explicit timestamps to createPatient function
 - [x] Email validation too strict in patient registration - fixed by removing strict email regex, now accepts optional strings
+- [x] blankAreaHeight validation too restrictive (max 300) - fixed by increasing to 500
