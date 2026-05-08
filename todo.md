@@ -342,18 +342,15 @@
 - [x] Fix template save bug - now persists across page refreshes
 
 ## User Signature & Timestamp in OP Form Footer (NEW)
-- [ ] Capture current user name and role from auth context
-- [ ] Add user name, signature field, date, and timestamp to OP form footer
-- [ ] Update opFormGenerator.ts to include user info in form HTML
-- [ ] Update OPFormCustomization preview to show user info in footer
-- [ ] Update PatientRegistration print form to include user info
-- [ ] Update PatientRecords print form to include user info
-- [ ] Test end-to-end printing with user signature and timestamp
-
-## User Signature & Timestamp in OP Form Footer (NEW)
 - [x] Capture current user name and role from auth context
 - [x] Add user name, signature field, date, and timestamp to OP form footer
 - [x] Update opFormGenerator.ts to include user info in form HTML
 - [x] Update OPFormCustomization preview to show user info in footer
 - [x] Update PatientRecords print form to include user info
 - [x] Test end-to-end printing with user signature and timestamp (all 119 tests passing)
+
+## Bug Fixes & Improvements
+- [x] Fixed OP form template save error (changed adminProcedure to protectedProcedure)
+- [x] Fixed render-phase setState in OPFormCustomization component
+- [x] Fixed route paths with leading slashes in App.tsx
+- [x] All 119 tests passing

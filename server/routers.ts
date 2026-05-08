@@ -1406,7 +1406,7 @@ export const appRouter = router({
       return template;
     }),
 
-    updateTemplate: adminProcedure
+    updateTemplate: protectedProcedure
       .input(z.object({
         clinicName: z.string(),
         clinicSubtitle: z.string().optional(),
@@ -1440,7 +1440,7 @@ export const appRouter = router({
         return { success: true };
       }),
 
-    resetTemplate: adminProcedure.mutation(async ({ ctx }) => {
+    resetTemplate: protectedProcedure.mutation(async ({ ctx }) => {
       await db.resetOPFormTemplate();
       
       await db.createAuditLog({
