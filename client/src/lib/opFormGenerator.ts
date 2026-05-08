@@ -96,12 +96,19 @@ export function generateOPFormHTML(
             border: 2px solid #111827; 
             padding: 3mm; 
             display: grid; 
-            grid-template-columns: 1fr 32mm 56mm; 
+            grid-template-columns: 1fr 32mm; 
             gap: 4mm; 
             align-items: start; 
             margin-top: 40mm;
             margin-bottom: 8mm;
             background: #ffffff;
+            position: relative;
+          }
+          
+          .header .qr {
+            position: absolute;
+            top: 3mm;
+            right: 3mm;
           }
           
           .clinic-title { font-size: 14px; font-weight: 800; letter-spacing: 0.02em; margin: 0 0 0.5mm; }
@@ -112,8 +119,8 @@ export function generateOPFormHTML(
           .info-value { flex: 1; }
           .patient-id { display: inline-block; border: 1px solid #111827; padding: 1mm 2mm; font-family: monospace; font-size: 10px; font-weight: 800; margin-top: 1mm; }
           .qr { width: 28mm; height: 28mm; object-fit: contain; border: 1px solid #d1d5db; padding: 0.5mm; }
-          .barcode { width: 52mm; height: 20mm; object-fit: contain; border: 1px solid #d1d5db; padding: 0.5mm; }
-          .barcode-text { font-family: monospace; font-size: 7px; margin-top: 0.5mm; word-break: break-all; line-height: 1; }
+          .barcode { display: none; }
+          .barcode-text { display: none; }
           
           /* Large empty space for clinical notes */
           .blank-area { 
@@ -222,10 +229,6 @@ export function generateOPFormHTML(
               <div class="patient-id">ID: ${escapeHtml(registeredPatient.patientId)}</div>
             </div>
             <div>${qrCodeHtml}</div>
-            <div>
-              ${barcodeHtml}
-              ${barcodeHtml ? `<div class="barcode-text">${escapeHtml(registeredPatient.barcodeData)}</div>` : ""}
-            </div>
           </section>
 
           <!-- Large Empty Space for Clinical Notes -->
