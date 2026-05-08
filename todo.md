@@ -366,3 +366,4 @@
 - [x] Add 4cm top margin/spacing before patient details box
 - [x] Remove barcode from OP form (keep only QR code)
 - [x] Position QR code in top right corner of patient details box
+- [x] Make footer area compact within 1cm height

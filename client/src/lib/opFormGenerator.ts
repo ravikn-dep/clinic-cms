@@ -131,27 +131,31 @@ export function generateOPFormHTML(
             margin-bottom: 8mm;
           }
           
-          /* Footer with clinic info and user signature */
+          /* Footer with clinic info and user signature - compact within 10mm */
           .footer-section {
-            margin-top: 6mm;
-            padding-top: 4mm;
+            margin-top: 2mm;
+            padding-top: 1mm;
             border-top: 1px solid #111827;
+            max-height: 10mm;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5mm;
           }
           
           .clinic-footer-text {
-            font-size: 8px;
+            font-size: 7px;
             color: #333;
-            margin: 0 0 6mm 0;
-            line-height: 1.4;
+            margin: 0;
+            line-height: 1.2;
             font-weight: 500;
           }
           
           .signature-section {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8mm;
-            font-size: 9px;
-            margin-bottom: 4mm;
+            gap: 3mm;
+            font-size: 8px;
+            margin-bottom: 0;
           }
           
           .signature-box {
@@ -161,22 +165,23 @@ export function generateOPFormHTML(
           
           .signature-line { 
             border-bottom: 1px solid #111827; 
-            height: 10mm; 
-            margin-bottom: 2mm; 
+            height: 4mm; 
+            margin-bottom: 0.5mm; 
           }
           
           .signature-label { 
-            font-size: 8px; 
+            font-size: 6px; 
             margin: 0;
           }
           
           .user-info {
-            margin-top: 4mm;
-            padding-top: 4mm;
-            border-top: 1px solid #ccc;
-            font-size: 8px;
+            margin-top: 0;
+            padding-top: 0.5mm;
+            border-top: none;
+            font-size: 6px;
             display: flex;
             justify-content: space-between;
+            gap: 2mm;
           }
           
           .user-generated {
@@ -185,14 +190,15 @@ export function generateOPFormHTML(
           }
           
           .user-generated-label {
-            margin: 0 0 1mm 0;
+            margin: 0;
             font-weight: bold;
-            font-size: 8px;
+            font-size: 6px;
           }
           
           .user-generated-value {
             margin: 0;
-            font-size: 7px;
+            font-size: 6px;
+            line-height: 1;
           }
           
           .user-datetime {
@@ -202,14 +208,15 @@ export function generateOPFormHTML(
           }
           
           .user-datetime-label {
-            margin: 0 0 1mm 0;
+            margin: 0;
             font-weight: bold;
-            font-size: 8px;
+            font-size: 6px;
           }
           
           .user-datetime-value {
             margin: 0;
-            font-size: 7px;
+            font-size: 6px;
+            line-height: 1;
           }
           
           @media print { 
