@@ -354,3 +354,12 @@
 - [x] Fixed render-phase setState in OPFormCustomization component
 - [x] Fixed route paths with leading slashes in App.tsx
 - [x] All 119 tests passing
+
+## OP Form Layout Redesign (NEW)
+- [x] Update opFormGenerator to use compact patient details box (18cm × 4cm)
+- [x] Add large empty space for clinical notes (rest of form)
+- [x] Add clinic footer with timings: "At Max Diagnostics, Punjagutta - available timings: 5:30 pm-8:00 pm (Mon to Sat) & 10am-12 noon (Sun)"
+- [x] Add user signature field and date/time stamp in footer
+- [x] Update OPFormCustomization preview to show new layout
+- [x] Test print layout and spacing on A4 paper (all 119 tests passing)
+- [x] Verify all patient details fit in compact box (18cm × 4cm confirmed)

@@ -54,7 +54,7 @@ export function generateOPFormHTML(
 
   const patientName = `${patient.firstName} ${patient.lastName}`;
 
-  // Build field rows dynamically from template
+  // Build field rows dynamically from template - compact format
   const fieldRows = template.headerFields
     .map((field) => {
       let value = "_______________";
@@ -65,7 +65,7 @@ export function generateOPFormHTML(
       else if (field.id === "consultant") value = "_______________";
       else if (field.id === "datetime") value = "_______________";
 
-      return `<div class="info-row"><div class="info-item"><span class="info-label">${escapeHtml(field.label)}:</span> ${value}</div></div>`;
+      return `<div class="info-row"><span class="info-label">${escapeHtml(field.label)}:</span> <span class="info-value">${value}</span></div>`;
     })
     .join("");
 
@@ -88,25 +88,131 @@ export function generateOPFormHTML(
           * { box-sizing: border-box; }
           body { font-family: Arial, sans-serif; margin: 0; color: #111827; background: #ffffff; }
           .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 8mm; display: flex; flex-direction: column; }
-          .header { display: grid; grid-template-columns: 1fr 32mm 56mm; gap: 6mm; align-items: start; border-bottom: 2px solid #111827; padding-bottom: 6mm; margin-bottom: 8mm; }
-          .clinic-title { font-size: 16px; font-weight: 800; letter-spacing: 0.02em; margin: 0 0 1mm; }
-          .clinic-subtitle { font-size: 11px; color: #666; margin: 0.5mm 0 0; }
-          .patient-info { font-size: 9px; line-height: 1.4; }
-          .info-row { display: flex; gap: 10mm; margin-bottom: 1.5mm; }
-          .info-item { flex: 1; }
-          .info-label { font-weight: 700; }
-          .patient-id { display: inline-block; border: 1px solid #111827; padding: 1.5mm 3mm; font-family: monospace; font-size: 12px; font-weight: 800; margin-top: 2mm; }
-          .qr { width: 30mm; height: 30mm; object-fit: contain; border: 1px solid #d1d5db; padding: 1mm; }
-          .barcode { width: 54mm; height: 22mm; object-fit: contain; border: 1px solid #d1d5db; padding: 1mm; }
-          .barcode-text { font-family: monospace; font-size: 8px; margin-top: 1mm; word-break: break-all; line-height: 1; }
-          .blank-area { flex: 1; border: 1px solid #d1d5db; background: #fafafa; }
-          .footer { margin-top: 6mm; display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; font-size: 10px; }
-          .signature-line { border-bottom: 1px solid #111827; height: 8mm; margin-bottom: 2mm; }
-          @media print { body { background: #ffffff; margin: 0; padding: 0; } .page { border: none; } }
+          
+          /* Compact patient details box: 18cm × 4cm */
+          .header { 
+            width: 180mm; 
+            height: 40mm; 
+            border: 2px solid #111827; 
+            padding: 3mm; 
+            display: grid; 
+            grid-template-columns: 1fr 32mm 56mm; 
+            gap: 4mm; 
+            align-items: start; 
+            margin-bottom: 8mm;
+            background: #ffffff;
+          }
+          
+          .clinic-title { font-size: 14px; font-weight: 800; letter-spacing: 0.02em; margin: 0 0 0.5mm; }
+          .clinic-subtitle { font-size: 9px; color: #666; margin: 0.5mm 0 1mm; }
+          .patient-info { font-size: 8px; line-height: 1.3; }
+          .info-row { display: flex; gap: 4mm; margin-bottom: 0.8mm; align-items: center; }
+          .info-label { font-weight: 700; min-width: 20mm; }
+          .info-value { flex: 1; }
+          .patient-id { display: inline-block; border: 1px solid #111827; padding: 1mm 2mm; font-family: monospace; font-size: 10px; font-weight: 800; margin-top: 1mm; }
+          .qr { width: 28mm; height: 28mm; object-fit: contain; border: 1px solid #d1d5db; padding: 0.5mm; }
+          .barcode { width: 52mm; height: 20mm; object-fit: contain; border: 1px solid #d1d5db; padding: 0.5mm; }
+          .barcode-text { font-family: monospace; font-size: 7px; margin-top: 0.5mm; word-break: break-all; line-height: 1; }
+          
+          /* Large empty space for clinical notes */
+          .blank-area { 
+            flex: 1; 
+            border: 1px solid #d1d5db; 
+            background: #fafafa; 
+            min-height: ${blankAreaHeight}mm;
+            margin-bottom: 8mm;
+          }
+          
+          /* Footer with clinic info and user signature */
+          .footer-section {
+            margin-top: 6mm;
+            padding-top: 4mm;
+            border-top: 1px solid #111827;
+          }
+          
+          .clinic-footer-text {
+            font-size: 8px;
+            color: #333;
+            margin: 0 0 6mm 0;
+            line-height: 1.4;
+            font-weight: 500;
+          }
+          
+          .signature-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8mm;
+            font-size: 9px;
+            margin-bottom: 4mm;
+          }
+          
+          .signature-box {
+            display: flex;
+            flex-direction: column;
+          }
+          
+          .signature-line { 
+            border-bottom: 1px solid #111827; 
+            height: 10mm; 
+            margin-bottom: 2mm; 
+          }
+          
+          .signature-label { 
+            font-size: 8px; 
+            margin: 0;
+          }
+          
+          .user-info {
+            margin-top: 4mm;
+            padding-top: 4mm;
+            border-top: 1px solid #ccc;
+            font-size: 8px;
+            display: flex;
+            justify-content: space-between;
+          }
+          
+          .user-generated {
+            display: flex;
+            flex-direction: column;
+          }
+          
+          .user-generated-label {
+            margin: 0 0 1mm 0;
+            font-weight: bold;
+            font-size: 8px;
+          }
+          
+          .user-generated-value {
+            margin: 0;
+            font-size: 7px;
+          }
+          
+          .user-datetime {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+          }
+          
+          .user-datetime-label {
+            margin: 0 0 1mm 0;
+            font-weight: bold;
+            font-size: 8px;
+          }
+          
+          .user-datetime-value {
+            margin: 0;
+            font-size: 7px;
+          }
+          
+          @media print { 
+            body { background: #ffffff; margin: 0; padding: 0; } 
+            .page { border: none; } 
+          }
         </style>
       </head>
       <body>
         <main class="page">
+          <!-- Compact Patient Details Box: 18cm × 4cm -->
           <section class="header">
             <div class="patient-info">
               <h1 class="clinic-title">${escapeHtml(template.clinicName)}</h1>
@@ -121,25 +227,42 @@ export function generateOPFormHTML(
             </div>
           </section>
 
-          <div class="blank-area" style="min-height: ${blankAreaHeight}mm;"></div>
+          <!-- Large Empty Space for Clinical Notes -->
+          <div class="blank-area"></div>
 
-          <div class="footer">
-            <div><div class="signature-line"></div><p>Patient / Attendant Signature</p></div>
-            <div><div class="signature-line"></div><p>Consultant Signature</p></div>
+          <!-- Footer Section -->
+          <div class="footer-section">
+            <!-- Signature Lines -->
+            <div class="signature-section">
+              <div class="signature-box">
+                <div class="signature-line"></div>
+                <p class="signature-label">Patient / Attendant Signature</p>
+              </div>
+              <div class="signature-box">
+                <div class="signature-line"></div>
+                <p class="signature-label">Consultant Signature</p>
+              </div>
+            </div>
+
+            <!-- Clinic Footer Text -->
+            <p class="clinic-footer-text">
+              At Max Diagnostics, Punjagutta - Available timings: 5:30 pm-8:00 pm (Mon to Sat) & 10am-12 noon (Sun)
+            </p>
+
+            <!-- User Info and Timestamp -->
+            ${userInfo ? `<div class="user-info">
+              <div class="user-generated">
+                <p class="user-generated-label">Generated by:</p>
+                <p class="user-generated-value">${escapeHtml(userInfo.name)}</p>
+                <p class="user-generated-value" style="color: #666;">(${escapeHtml(userInfo.role)})</p>
+              </div>
+              <div class="user-datetime">
+                <p class="user-datetime-label">Date & Time:</p>
+                <p class="user-datetime-value">${new Date().toLocaleDateString()}</p>
+                <p class="user-datetime-value">${new Date().toLocaleTimeString()}</p>
+              </div>
+            </div>` : ""}
           </div>
-          ${userInfo ? `<div style="margin-top: 8mm; padding-top: 4mm; border-top: 1px solid #ccc; font-size: 9px; display: flex; justify-content: space-between;">
-            <div>
-              <p style="margin: 0 0 1.5mm 0; font-weight: bold;">Generated by:</p>
-              <p style="margin: 0; font-size: 8px;">${escapeHtml(userInfo.name)}</p>
-              <p style="margin: 0; font-size: 8px; color: #666;">(${escapeHtml(userInfo.role)})</p>
-            </div>
-            <div style="text-align: right;">
-              <p style="margin: 0 0 1.5mm 0; font-weight: bold;">Date & Time:</p>
-              <p style="margin: 0; font-size: 8px;">${new Date().toLocaleDateString()}</p>
-              <p style="margin: 0; font-size: 8px;">${new Date().toLocaleTimeString()}</p>
-            </div>
-          </div>` : ""}
-          ${template.footerText ? `<div style="margin-top: 4mm; font-size: 8px; color: #666;">${escapeHtml(template.footerText)}</div>` : ""}
         </main>
         <script>window.onload = () => setTimeout(() => { window.print(); window.close(); }, 350);</script>
       </body>
