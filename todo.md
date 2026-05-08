@@ -364,6 +364,7 @@
 - [x] Test print layout and spacing on A4 paper (all 119 tests passing)
 - [x] Verify all patient details fit in compact box (18cm × 4cm confirmed)
 - [x] Add 4cm top margin/spacing before patient details box
+- [x] Change top margin from 4cm to 1.5cm
 - [x] Remove barcode from OP form (keep only QR code)
 - [x] Position QR code in top right corner of patient details box
 - [x] Make footer area compact within 1cm height
