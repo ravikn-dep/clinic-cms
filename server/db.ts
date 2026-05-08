@@ -95,8 +95,15 @@ export async function createPatient(patientData: typeof patients.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.insert(patients).values(patientData);
-  return patientData;
+  const now = new Date();
+  const dataWithTimestamps = {
+    ...patientData,
+    createdAt: patientData.createdAt || now,
+    updatedAt: patientData.updatedAt || now,
+  };
+  
+  await db.insert(patients).values(dataWithTimestamps);
+  return dataWithTimestamps;
 }
 
 export async function getPatientById(patientId: string) {

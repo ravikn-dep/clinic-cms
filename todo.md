@@ -367,3 +367,6 @@
 - [x] Remove barcode from OP form (keep only QR code)
 - [x] Position QR code in top right corner of patient details box
 - [x] Make footer area compact within 1cm height
+
+## Bug Reports
+- [x] Error in OP new registration - fixed by adding explicit timestamps to createPatient function
