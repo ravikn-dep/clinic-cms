@@ -9,7 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
 import { CalendarDays, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound } from "lucide-react";
 import { toast } from "sonner";
-import { generateOPFormHTML } from "@/lib/opFormGenerator";
+import { generateOPFormHTML, type UserInfo } from "@/lib/opFormGenerator";
 
 function formatDate(value: unknown) {
   if (!value) return "—";
@@ -114,7 +114,8 @@ export default function PatientRecords() {
         barcodeData: "",
         barcodeImageUrl: patient.barcodeImageUrl,
         qrcodeImageUrl: patient.qrcodeImageUrl,
-      }
+      },
+      user ? { name: user.name || "Unknown", role: user.role || "user" } : undefined
     );
 
     const printWindow = window.open("", "", "width=800,height=600");

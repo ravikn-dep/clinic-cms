@@ -331,6 +331,7 @@
 - [x] Add "Print Preview" button to test custom form layout
 - [x] Write tests for form template CRUD operations (11 tests added)
 - [x] Validate end-to-end custom form printing (integration complete, all 119 tests passing)
+- [x] Fix template save functionality (moved to useEffect, fixed route paths)
 
 ## Print OP Form from Patient Records (NEW)
 - [x] Add "Print OP Form" button/action to Patient Records page
@@ -338,3 +339,21 @@
 - [x] Implement print functionality using custom form template
 - [x] Add print preview modal (integrated with existing opFormGenerator)
 - [x] Test end-to-end printing from patient records (all 119 tests passing)
+- [x] Fix template save bug - now persists across page refreshes
+
+## User Signature & Timestamp in OP Form Footer (NEW)
+- [ ] Capture current user name and role from auth context
+- [ ] Add user name, signature field, date, and timestamp to OP form footer
+- [ ] Update opFormGenerator.ts to include user info in form HTML
+- [ ] Update OPFormCustomization preview to show user info in footer
+- [ ] Update PatientRegistration print form to include user info
+- [ ] Update PatientRecords print form to include user info
+- [ ] Test end-to-end printing with user signature and timestamp
+
+## User Signature & Timestamp in OP Form Footer (NEW)
+- [x] Capture current user name and role from auth context
+- [x] Add user name, signature field, date, and timestamp to OP form footer
+- [x] Update opFormGenerator.ts to include user info in form HTML
+- [x] Update OPFormCustomization preview to show user info in footer
+- [x] Update PatientRecords print form to include user info
+- [x] Test end-to-end printing with user signature and timestamp (all 119 tests passing)
