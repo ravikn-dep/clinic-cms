@@ -54,30 +54,18 @@ export function generateOPFormHTML(
       .replace(/'/g, "&#039;");
 
   const patientName = `${patient.firstName} ${patient.lastName}`;
+  const currentDateTime = new Date().toLocaleString('en-IN', { 
+    day: '2-digit', 
+    month: '2-digit', 
+    year: 'numeric', 
+    hour: '2-digit', 
+    minute: '2-digit',
+    second: '2-digit'
+  });
 
-  // Build field rows dynamically from template - compact format
-  const fieldRows = template.headerFields
-    .map((field) => {
-      let value = "_______________";
-      if (field.id === "name") value = escapeHtml(patientName);
-      else if (field.id === "dob") value = escapeHtml(patient.dateOfBirth);
-      else if (field.id === "contact") value = escapeHtml(patient.contactNumber);
-      else if (field.id === "gender") value = escapeHtml(patient.gender);
-      else if (field.id === "consultant") value = escapeHtml(patient.consultantName || "_______________");
-      else if (field.id === "datetime") value = "_______________";
-
-      return `<div class="info-row"><span class="info-label">${escapeHtml(field.label)}:</span> <span class="info-value">${value}</span></div>`;
-    })
-    .join("");
-
-  const blankAreaHeight = template.blankAreaHeight || 200;
   const qrCodeHtml =
     template.showQRCode && registeredPatient.qrcodeImageUrl
       ? `<img class="qr" src="${escapeHtml(registeredPatient.qrcodeImageUrl)}" alt="QR code" />`
-      : "";
-  const barcodeHtml =
-    template.showBarcode && registeredPatient.barcodeImageUrl
-      ? `<img class="barcode" src="${escapeHtml(registeredPatient.barcodeImageUrl)}" alt="Barcode" />`
       : "";
 
   return `
@@ -90,193 +78,208 @@ export function generateOPFormHTML(
           body { font-family: 'Times New Roman', Arial, serif; font-size: 12px; margin: 0; color: #111827; background: #ffffff; }
           .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 8mm; display: flex; flex-direction: column; }
           
-          /* Compact patient details box: 18cm × 4cm */
+          /* Patient details box with 3-row layout */
           .header { 
-            width: 180mm; 
-            height: 40mm; 
+            width: 100%; 
             border: 2px solid #111827; 
             padding: 3mm; 
-            display: grid; 
-            grid-template-columns: 1fr 32mm; 
-            gap: 4mm; 
-            align-items: start; 
             margin-top: 15mm;
             margin-bottom: 8mm;
             background: #ffffff;
             position: relative;
           }
           
-          .header .qr {
+          .clinic-title { font-size: 13px; font-weight: 800; letter-spacing: 0.02em; margin: 0 0 1mm; }
+          .clinic-subtitle { font-size: 10px; color: #666; margin: 0 0 2mm; }
+          
+          /* QR Code in top right */
+          .qr { 
             position: absolute;
             top: 3mm;
             right: 3mm;
+            width: 20mm; 
+            height: 20mm; 
+            object-fit: contain; 
+            border: 1px solid #d1d5db; 
+            padding: 0.5mm; 
           }
           
-          .clinic-title { font-size: 13px; font-weight: 800; letter-spacing: 0.02em; margin: 0 0 0.5mm; }
-          .clinic-subtitle { font-size: 10px; color: #666; margin: 0.5mm 0 1mm; }
-          .patient-info { font-size: 11px; line-height: 1.3; }
-          .info-row { display: flex; gap: 4mm; margin-bottom: 0.8mm; align-items: center; }
-          .info-label { font-weight: 700; min-width: 20mm; }
-          .info-value { flex: 1; }
-          .patient-id { display: inline-block; border: 1px solid #111827; padding: 1mm 2mm; font-family: monospace; font-size: 10px; font-weight: 800; margin-top: 1mm; }
-          .qr { width: 20mm; height: 20mm; object-fit: contain; border: 1px solid #d1d5db; padding: 0.5mm; }
-          .barcode { display: none; }
-          .barcode-text { display: none; }
+          /* Row 1: Name, Age, Gender */
+          .row1 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 3mm;
+            margin-bottom: 2mm;
+            padding-right: 22mm;
+          }
+          
+          /* Row 2: Contact, Address */
+          .row2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3mm;
+            margin-bottom: 2mm;
+          }
+          
+          /* Row 3: Consultant, Date/Time, ID */
+          .row3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 3mm;
+          }
+          
+          .field {
+            display: flex;
+            flex-direction: column;
+            font-size: 10px;
+          }
+          
+          .field-label {
+            font-weight: 700;
+            font-size: 9px;
+            margin-bottom: 0.5mm;
+          }
+          
+          .field-value {
+            border-bottom: 1px solid #111827;
+            padding: 1mm 0;
+            min-height: 4mm;
+            font-size: 10px;
+          }
           
           /* Large empty space for clinical notes */
           .blank-area { 
             flex: 1; 
             border: 1px solid #d1d5db; 
             background: #fafafa; 
-            min-height: ${blankAreaHeight}mm;
-            margin-bottom: 8mm;
+            min-height: 180mm;
+            margin-bottom: 3mm;
+            padding: 3mm;
+            position: relative;
           }
           
-          /* Footer with clinic info and user signature - compact within 10mm */
+          /* Consultant signature in bottom right of notes area */
+          .consultant-signature {
+            position: absolute;
+            bottom: 3mm;
+            right: 3mm;
+            width: 40mm;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-size: 8px;
+          }
+          
+          .signature-line {
+            border-bottom: 1px solid #111827;
+            width: 100%;
+            height: 8mm;
+            margin-bottom: 1mm;
+          }
+          
+          .signature-label {
+            font-size: 7px;
+            font-weight: 600;
+          }
+          
+          /* Footer - compact */
           .footer-section {
-            margin-top: 2mm;
+            margin-top: 1mm;
             padding-top: 1mm;
             border-top: 1px solid #111827;
-            max-height: 10mm;
             display: flex;
             flex-direction: column;
             gap: 0.5mm;
           }
           
           .clinic-footer-text {
-            font-size: 7px;
+            font-size: 8px;
             color: #333;
             margin: 0;
             line-height: 1.2;
-            font-weight: 500;
           }
           
-          .signature-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 3mm;
+          .timings-bold {
+            font-weight: 700;
             font-size: 8px;
-            margin-bottom: 0;
-          }
-          
-          .signature-box {
-            display: flex;
-            flex-direction: column;
-          }
-          
-          .signature-line { 
-            border-bottom: 1px solid #111827; 
-            height: 4mm; 
-            margin-bottom: 0.5mm; 
-          }
-          
-          .signature-label { 
-            font-size: 6px; 
-            margin: 0;
           }
           
           .user-info {
-            margin-top: 0;
-            padding-top: 0.5mm;
-            border-top: none;
-            font-size: 6px;
-            display: flex;
-            justify-content: space-between;
-            gap: 2mm;
-          }
-          
-          .user-generated {
-            display: flex;
-            flex-direction: column;
-          }
-          
-          .user-generated-label {
-            margin: 0;
-            font-weight: bold;
-            font-size: 6px;
-          }
-          
-          .user-generated-value {
-            margin: 0;
-            font-size: 6px;
-            line-height: 1;
-          }
-          
-          .user-datetime {
-            text-align: right;
-            display: flex;
-            flex-direction: column;
-          }
-          
-          .user-datetime-label {
-            margin: 0;
-            font-weight: bold;
-            font-size: 6px;
-          }
-          
-          .user-datetime-value {
-            margin: 0;
-            font-size: 6px;
-            line-height: 1;
-          }
-          
-          @media print { 
-            body { background: #ffffff; margin: 0; padding: 0; } 
-            .page { border: none; } 
+            font-size: 7px;
+            color: #555;
+            margin-top: 0.5mm;
           }
         </style>
       </head>
       <body>
-        <main class="page">
-          <!-- Compact Patient Details Box: 18cm × 4cm -->
-          <section class="header">
-            <div class="patient-info">
-              <h1 class="clinic-title">${escapeHtml(template.clinicName)}</h1>
-              ${template.clinicSubtitle ? `<p class="clinic-subtitle">${escapeHtml(template.clinicSubtitle)}</p>` : ""}
-              ${fieldRows}
-              <div class="patient-id">ID: ${escapeHtml(registeredPatient.patientId)}</div>
-            </div>
-            <div>${qrCodeHtml}</div>
-          </section>
-
-          <!-- Large Empty Space for Clinical Notes -->
-          <div class="blank-area"></div>
-
-          <!-- Footer Section -->
-          <div class="footer-section">
-            <!-- Signature Lines -->
-            <div class="signature-section">
-              <div class="signature-box">
-                <div class="signature-line"></div>
-                <p class="signature-label">Patient / Attendant Signature</p>
+        <div class="page">
+          <!-- Patient Details Box -->
+          <div class="header">
+            <div class="clinic-title">${escapeHtml(template.clinicName)}</div>
+            ${template.clinicSubtitle ? `<div class="clinic-subtitle">${escapeHtml(template.clinicSubtitle)}</div>` : ''}
+            
+            ${qrCodeHtml}
+            
+            <!-- Row 1: Name, Age, Gender -->
+            <div class="row1">
+              <div class="field">
+                <div class="field-label">Name</div>
+                <div class="field-value">${escapeHtml(patientName)}</div>
               </div>
-              <div class="signature-box">
-                <div class="signature-line"></div>
-                <p class="signature-label">Consultant Signature</p>
+              <div class="field">
+                <div class="field-label">Age</div>
+                <div class="field-value">${escapeHtml(patient.age || "___")}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Gender</div>
+                <div class="field-value">${escapeHtml(patient.gender || "___")}</div>
               </div>
             </div>
-
-            <!-- Clinic Footer Text -->
-            <p class="clinic-footer-text">
-              At Max Diagnostics, Punjagutta - Available timings: 5:30 pm-8:00 pm (Mon to Sat) & 10am-12 noon (Sun)
-            </p>
-
-            <!-- User Info and Timestamp -->
-            ${userInfo ? `<div class="user-info">
-              <div class="user-generated">
-                <p class="user-generated-label">Generated by:</p>
-                <p class="user-generated-value">${escapeHtml(userInfo.name)}</p>
-                <p class="user-generated-value" style="color: #666;">(${escapeHtml(userInfo.role)})</p>
+            
+            <!-- Row 2: Contact, Address -->
+            <div class="row2">
+              <div class="field">
+                <div class="field-label">Contact</div>
+                <div class="field-value">${escapeHtml(patient.contactNumber)}</div>
               </div>
-              <div class="user-datetime">
-                <p class="user-datetime-label">Date & Time:</p>
-                <p class="user-datetime-value">${new Date().toLocaleDateString()}</p>
-                <p class="user-datetime-value">${new Date().toLocaleTimeString()}</p>
+              <div class="field">
+                <div class="field-label">Address</div>
+                <div class="field-value">${escapeHtml(patient.address || "___")}</div>
               </div>
-            </div>` : ""}
+            </div>
+            
+            <!-- Row 3: Consultant, Date/Time, ID -->
+            <div class="row3">
+              <div class="field">
+                <div class="field-label">Consultant</div>
+                <div class="field-value">${escapeHtml(patient.consultantName || "___")}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Date/Time</div>
+                <div class="field-value">${escapeHtml(currentDateTime)}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Patient ID</div>
+                <div class="field-value">${escapeHtml(registeredPatient.patientId)}</div>
+              </div>
+            </div>
           </div>
-        </main>
-        <script>window.onload = () => setTimeout(() => { window.print(); window.close(); }, 350);</script>
+          
+          <!-- Clinical Notes Area -->
+          <div class="blank-area">
+            <div class="consultant-signature">
+              <div class="signature-line"></div>
+              <div class="signature-label">Consultant Signature</div>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div class="footer-section">
+            <div class="clinic-footer-text">At Max Diagnostics, Punjagutta</div>
+            <div class="timings-bold">Available Timings: 5:30 pm-8:00 pm (Mon to Sat) & 10am-12 noon (Sun)</div>
+            ${userInfo ? `<div class="user-info">Generated by: ${escapeHtml(userInfo.name)} (${escapeHtml(userInfo.role)}) | ${escapeHtml(currentDateTime)}</div>` : ''}
+          </div>
+        </div>
       </body>
     </html>
   `;

@@ -388,3 +388,11 @@
 ## OP Form Styling Updates
 - [x] Change font to Times Roman/Arial, size 12 for entire OP form
 - [x] Reduce QR code size to small (20mm × 20mm, was 28mm × 28mm)
+
+## OP Form Layout Redesign (Complete Restructure)
+- [x] Rearrange patient details: Row 1 (Name, Age, Gender), Row 2 (Contact, Address), Row 3 (Consultant, Date/Time, ID)
+- [x] Move QR code inside patient details box (top right)
+- [x] Remove patient signature line
+- [x] Add consultant signature space in bottom right of clinical notes section
+- [x] Make footer compact with bold "Available Timings" section
+- [x] Ensure everything fits on A4 printable page (all 119 tests passing)
