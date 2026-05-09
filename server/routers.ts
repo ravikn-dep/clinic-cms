@@ -1,6 +1,7 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
+import { sdk } from "./_core/sdk";
 import { publicProcedure, router, protectedProcedure, adminProcedure } from "./_core/trpc";
 import { z } from "zod";
 import * as db from "./db";
@@ -1236,7 +1237,7 @@ export const appRouter = router({
 
     loginWithQRCode: publicProcedure
       .input(z.object({ encodedData: z.string() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
           const { userId, password } = utils.decodeQRCodeLogin(input.encodedData);
           const user = await db.getStaffUserByUsername(userId);
@@ -1256,6 +1257,20 @@ export const appRouter = router({
 
           // Update last signed in
           await db.updateStaffUser(user.userId!, { lastSignedIn: new Date() });
+
+          // Create session token and set cookie
+          const sessionToken = await sdk.createSessionToken(user.openId || `local-${user.userId}`, {
+            name: user.name || "",
+          });
+
+          // Set session cookie
+          ctx.res.cookie("session", sessionToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
+            path: "/",
+          });
 
           return {
             success: true,

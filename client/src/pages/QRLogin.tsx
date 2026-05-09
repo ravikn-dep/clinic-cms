@@ -1,57 +1,31 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { QrCode, Loader2, AlertCircle } from "lucide-react";
+import { QrCode, Loader2, AlertCircle, CheckCircle } from "lucide-react";
 
 export default function QRLogin() {
-  const [qrData, setQrData] = useState("");
   const [manualUserId, setManualUserId] = useState("");
   const [manualPassword, setManualPassword] = useState("");
-  const [useManual, setUseManual] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loginWithQR = trpc.rbac.loginWithQRCode.useMutation({
     onSuccess: (data) => {
       setSuccess(true);
       setError("");
-      // Store user session or redirect to dashboard
+      // Redirect to dashboard after successful login
       setTimeout(() => {
         window.location.href = "/";
-      }, 2000);
+      }, 1500);
     },
     onError: (error) => {
       setError(error.message || "Login failed. Please try again.");
       setIsLoading(false);
     },
   });
-
-  const handleQRUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsLoading(true);
-    setError("");
-
-    try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const imageData = event.target?.result as string;
-        // In a real implementation, you would decode the QR code image
-        // For now, we'll show a placeholder message
-        setError("QR code scanning requires a QR decoder library. Please use manual entry or scan with your device camera.");
-        setIsLoading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      setError("Failed to read QR code image");
-      setIsLoading(false);
-    }
-  };
 
   const handleManualLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,9 +51,9 @@ export default function QRLogin() {
               <QrCode className="h-6 w-6 text-teal-600" />
             </div>
           </div>
-          <CardTitle>Staff Login</CardTitle>
+          <CardTitle>Staff & Consultant Login</CardTitle>
           <CardDescription>
-            Scan your QR code or enter your credentials to access the clinic system
+            Enter your credentials to access the clinic system
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -92,120 +66,72 @@ export default function QRLogin() {
 
           {success && (
             <div className="flex gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-              <div className="h-4 w-4 flex-shrink-0 mt-0.5 rounded-full bg-green-600" />
-              <p>Login successful! Redirecting...</p>
+              <CheckCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+              <p>Login successful! Redirecting to dashboard...</p>
             </div>
           )}
 
-          {!useManual ? (
-            <div className="space-y-4">
-              <div className="rounded-lg border-2 border-dashed border-teal-300 bg-teal-50 p-8 text-center">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleQRUpload}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading}
-                  className="w-full gap-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Scanning...
-                    </>
-                  ) : (
-                    <>
-                      <QrCode className="h-4 w-4" />
-                      Upload QR Code
-                    </>
-                  )}
-                </Button>
-                <p className="mt-3 text-xs text-teal-700">
-                  Or use your device camera to scan the QR code
-                </p>
-              </div>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="bg-white px-2 text-slate-500">Or</span>
-                </div>
-              </div>
-
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setUseManual(true)}
-                className="w-full"
-              >
-                Enter Credentials Manually
-              </Button>
+          <form onSubmit={handleManualLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                User ID
+              </label>
+              <Input
+                type="text"
+                value={manualUserId}
+                onChange={(e) => setManualUserId(e.target.value)}
+                placeholder="e.g., CONS-001 or STAFF-001"
+                disabled={isLoading || success}
+                required
+                autoFocus
+              />
+              <p className="text-xs text-slate-500 mt-1">
+                Example: CONS-001 for consultant, STAFF-001 for staff
+              </p>
             </div>
-          ) : (
-            <form onSubmit={handleManualLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  User ID
-                </label>
-                <Input
-                  type="text"
-                  value={manualUserId}
-                  onChange={(e) => setManualUserId(e.target.value)}
-                  placeholder="e.g., CONS-001"
-                  disabled={isLoading}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Password
-                </label>
-                <Input
-                  type="password"
-                  value={manualPassword}
-                  onChange={(e) => setManualPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  disabled={isLoading}
-                  required
-                />
-              </div>
-              <Button
-                type="submit"
-                className="w-full bg-teal-600 hover:bg-teal-700"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging in...
-                  </>
-                ) : (
-                  "Login"
-                )}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setUseManual(false);
-                  setManualUserId("");
-                  setManualPassword("");
-                  setError("");
-                }}
-                className="w-full"
-              >
-                Back to QR Code
-              </Button>
-            </form>
-          )}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Password
+              </label>
+              <Input
+                type="password"
+                value={manualPassword}
+                onChange={(e) => setManualPassword(e.target.value)}
+                placeholder="Enter your password"
+                disabled={isLoading || success}
+                required
+              />
+            </div>
+            <Button
+              type="submit"
+              className="w-full bg-teal-600 hover:bg-teal-700"
+              disabled={isLoading || success}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Logging in...
+                </>
+              ) : success ? (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Login Successful
+                </>
+              ) : (
+                "Login"
+              )}
+            </Button>
+          </form>
+
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800">
+            <p className="font-semibold mb-1">Test Credentials:</p>
+            <p className="mb-1">
+              <strong>Consultant:</strong> CONS-001 / mpwM3dgl
+            </p>
+            <p>
+              <strong>Staff:</strong> STAFF-001 / 1ZVOc@uD
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>

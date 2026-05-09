@@ -415,3 +415,23 @@
 - [x] Add route protection with unauthorized redirects in App.tsx
 - [x] Write tests for feature access constants and utilities
 - [x] Verify all 119 tests passing
+
+## Frontend Feature Access Enforcement (NEW)
+- [x] Create useFeatureAccess hook for permission checking
+- [x] Implement navigation filtering in DashboardLayout (hide menu items based on permissions)
+- [x] Create ProtectedRoute component for route-level access control
+- [x] Create FeatureGate component for conditional UI rendering
+- [x] Update App.tsx to use ProtectedRoute for feature-gated pages
+- [x] Add comprehensive tests for frontend feature access enforcement
+- [x] Verify navigation filtering, route protection, and UI gating (all 119 tests passing)
+
+## Local Authentication for Consultants & Staff (NEW)
+- [x] Implement local username/password authentication (no Manus OAuth required)
+- [x] Create QR login page at /qr-login with manual credential entry
+- [x] Update loginWithQRCode backend procedure to set session cookies
+- [x] Update SDK authenticateRequest to handle local users (openId format: local-{userId})
+- [x] Add session token creation with JWT signing for local users
+- [x] Test local login flow with consultant and staff credentials
+- [x] Verify feature access filtering after local login
+- [x] Create comprehensive LOCAL_AUTH_SETUP.md documentation
+- [x] All 119 tests passing, dev server running
