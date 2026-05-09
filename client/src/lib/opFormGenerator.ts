@@ -87,7 +87,7 @@ export function generateOPFormHTML(
         <style>
           @page { size: A4 portrait; margin: 8mm; }
           * { box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; margin: 0; color: #111827; background: #ffffff; }
+          body { font-family: 'Times New Roman', Arial, serif; font-size: 12px; margin: 0; color: #111827; background: #ffffff; }
           .page { width: 190mm; min-height: 277mm; margin: 0 auto; padding: 8mm; display: flex; flex-direction: column; }
           
           /* Compact patient details box: 18cm × 4cm */
@@ -112,14 +112,14 @@ export function generateOPFormHTML(
             right: 3mm;
           }
           
-          .clinic-title { font-size: 14px; font-weight: 800; letter-spacing: 0.02em; margin: 0 0 0.5mm; }
-          .clinic-subtitle { font-size: 9px; color: #666; margin: 0.5mm 0 1mm; }
-          .patient-info { font-size: 8px; line-height: 1.3; }
+          .clinic-title { font-size: 13px; font-weight: 800; letter-spacing: 0.02em; margin: 0 0 0.5mm; }
+          .clinic-subtitle { font-size: 10px; color: #666; margin: 0.5mm 0 1mm; }
+          .patient-info { font-size: 11px; line-height: 1.3; }
           .info-row { display: flex; gap: 4mm; margin-bottom: 0.8mm; align-items: center; }
           .info-label { font-weight: 700; min-width: 20mm; }
           .info-value { flex: 1; }
           .patient-id { display: inline-block; border: 1px solid #111827; padding: 1mm 2mm; font-family: monospace; font-size: 10px; font-weight: 800; margin-top: 1mm; }
-          .qr { width: 28mm; height: 28mm; object-fit: contain; border: 1px solid #d1d5db; padding: 0.5mm; }
+          .qr { width: 20mm; height: 20mm; object-fit: contain; border: 1px solid #d1d5db; padding: 0.5mm; }
           .barcode { display: none; }
           .barcode-text { display: none; }
           

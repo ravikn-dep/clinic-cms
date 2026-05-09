@@ -384,3 +384,7 @@
 - [x] Add selected consultant name in printable OP form (displays consultant name from form)
 - [x] Add Address text box in patient registration form (already exists)
 - [x] Update backend schema to include age field
+
+## OP Form Styling Updates
+- [x] Change font to Times Roman/Arial, size 12 for entire OP form
+- [x] Reduce QR code size to small (20mm × 20mm, was 28mm × 28mm)
