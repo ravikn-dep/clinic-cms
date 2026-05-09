@@ -400,3 +400,6 @@
 ## Font Size Adjustments
 - [x] Increase patient details font size to 14px (field-value: 14px, field-label: 12px)
 - [x] Increase available timings in footer to 14px
+
+## Bug Reports - Billing Invoice
+- [x] Invoice PDF shows encoded/corrupted content - fixed by replacing rupee symbol with "Rs." for better compatibility

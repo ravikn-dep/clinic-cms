@@ -110,8 +110,8 @@ export async function generateInvoicePDF(invoiceData: InvoiceData): Promise<Buff
     doc.setTextColor(66, 66, 66);
     doc.text(item.description, margin + 2, yPosition);
     doc.text(item.quantity.toString(), margin + colWidth + 2, yPosition);
-    doc.text(`₹${item.unitPrice.toFixed(2)}`, margin + colWidth * 2 + 2, yPosition);
-    doc.text(`₹${item.subtotal.toFixed(2)}`, margin + colWidth * 3 + 2, yPosition);
+    doc.text(`Rs. ${item.unitPrice.toFixed(2)}`, margin + colWidth * 2 + 2, yPosition);
+    doc.text(`Rs. ${item.subtotal.toFixed(2)}`, margin + colWidth * 3 + 2, yPosition);
     yPosition += 6;
   });
 
@@ -122,14 +122,14 @@ export async function generateInvoicePDF(invoiceData: InvoiceData): Promise<Buff
   doc.setFontSize(10);
   doc.setTextColor(66, 66, 66);
   doc.text("Subtotal:", summaryX, yPosition);
-  doc.text(`₹${invoiceData.totalAmount.toFixed(2)}`, summaryX + 40, yPosition, {
+  doc.text(`Rs. ${invoiceData.totalAmount.toFixed(2)}`, summaryX + 40, yPosition, {
     align: "right",
   });
 
   yPosition += 6;
   if (invoiceData.discountAmount > 0) {
     doc.text("Discount:", summaryX, yPosition);
-    doc.text(`-₹${invoiceData.discountAmount.toFixed(2)}`, summaryX + 40, yPosition, {
+    doc.text(`-Rs. ${invoiceData.discountAmount.toFixed(2)}`, summaryX + 40, yPosition, {
       align: "right",
     });
     yPosition += 6;
@@ -137,7 +137,7 @@ export async function generateInvoicePDF(invoiceData: InvoiceData): Promise<Buff
 
   if (invoiceData.taxAmount > 0) {
     doc.text("Tax (GST):", summaryX, yPosition);
-    doc.text(`₹${invoiceData.taxAmount.toFixed(2)}`, summaryX + 40, yPosition, {
+    doc.text(`Rs. ${invoiceData.taxAmount.toFixed(2)}`, summaryX + 40, yPosition, {
       align: "right",
     });
     yPosition += 6;
@@ -149,7 +149,7 @@ export async function generateInvoicePDF(invoiceData: InvoiceData): Promise<Buff
   doc.setTextColor(33, 33, 33);
   (doc.setFont as any)(undefined, "bold");
   doc.text("Final Amount:", summaryX, yPosition);
-  doc.text(`₹${invoiceData.finalAmount.toFixed(2)}`, summaryX + 40, yPosition);
+  doc.text(`Rs. ${invoiceData.finalAmount.toFixed(2)}`, summaryX + 40, yPosition);
 
   // Payment Status
   yPosition += 10;
