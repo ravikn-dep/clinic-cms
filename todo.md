@@ -373,3 +373,14 @@
 - [x] Error in OP new registration - fixed by adding explicit timestamps to createPatient function
 - [x] Email validation too strict in patient registration - fixed by removing strict email regex, now accepts optional strings
 - [x] blankAreaHeight validation too restrictive (max 300) - fixed by increasing to 500
+
+## Patient Registration & OP Form Enhancements
+- [ ] Add Age field in text format with "years" postfix in patient registration
+- [ ] Add selected consultant name in printable OP form
+- [ ] Add Address text box in patient registration form
+
+## Patient Registration & OP Form Enhancements
+- [x] Add Age field in text format with "years" postfix in patient registration
+- [x] Add selected consultant name in printable OP form (displays consultant name from form)
+- [x] Add Address text box in patient registration form (already exists)
+- [x] Update backend schema to include age field

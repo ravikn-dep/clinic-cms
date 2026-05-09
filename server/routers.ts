@@ -55,6 +55,7 @@ export const appRouter = router({
         firstName: z.string().min(1),
         lastName: z.string().min(1),
         dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        age: z.string().optional(),
         gender: z.enum(["Male", "Female", "Other"]).optional(),
         contactNumber: z.string().min(10),
         email: z.string().optional(),

@@ -18,9 +18,10 @@ const registrationSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
+  age: z.string().optional(),
   gender: z.enum(["Male", "Female", "Other"]).optional(),
   contactNumber: z.string().min(10, "Contact number must be at least 10 digits"),
-  email: z.string().email().optional().or(z.literal("")),
+  email: z.string().optional(),
   address: z.string().optional(),
   consultantName: z.string().optional(),
 });
@@ -122,6 +123,14 @@ export default function PatientRegistration() {
                 <Label htmlFor="dateOfBirth">Date of Birth (YYYY-MM-DD) *</Label>
                 <Input id="dateOfBirth" type="date" {...register("dateOfBirth")} className={`transition-colors ${errors.dateOfBirth ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
                 {errors.dateOfBirth && <p className="text-sm text-red-500">{errors.dateOfBirth.message}</p>}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="age">Age (Optional)</Label>
+                <div className="flex items-center gap-2">
+                  <Input id="age" type="number" placeholder="30" {...register("age")} className="focus-visible:ring-teal-200" />
+                  <span className="text-sm font-medium text-slate-600">years</span>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

@@ -19,6 +19,7 @@ interface PatientData {
   firstName: string;
   lastName: string;
   dateOfBirth: string;
+  age?: string;
   gender?: string;
   contactNumber: string;
   email?: string;
@@ -62,7 +63,7 @@ export function generateOPFormHTML(
       else if (field.id === "dob") value = escapeHtml(patient.dateOfBirth);
       else if (field.id === "contact") value = escapeHtml(patient.contactNumber);
       else if (field.id === "gender") value = escapeHtml(patient.gender);
-      else if (field.id === "consultant") value = "_______________";
+      else if (field.id === "consultant") value = escapeHtml(patient.consultantName || "_______________");
       else if (field.id === "datetime") value = "_______________";
 
       return `<div class="info-row"><span class="info-label">${escapeHtml(field.label)}:</span> <span class="info-value">${value}</span></div>`;
