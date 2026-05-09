@@ -402,4 +402,4 @@
 - [x] Increase available timings in footer to 14px
 
 ## Bug Reports - Billing Invoice
-- [x] Invoice PDF shows encoded/corrupted content - fixed by replacing rupee symbol with "Rs." for better compatibility
+- [x] Invoice PDF shows encoded/corrupted content - fixed by adding explicit font setup and removing period after "Rs" for better jsPDF compatibility
