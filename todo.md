@@ -396,3 +396,7 @@
 - [x] Add consultant signature space in bottom right of clinical notes section
 - [x] Make footer compact with bold "Available Timings" section
 - [x] Ensure everything fits on A4 printable page (all 119 tests passing)
+
+## Font Size Adjustments
+- [x] Increase patient details font size to 14px (field-value: 14px, field-label: 12px)
+- [x] Increase available timings in footer to 14px

@@ -136,7 +136,7 @@ export function generateOPFormHTML(
           
           .field-label {
             font-weight: 700;
-            font-size: 9px;
+            font-size: 12px;
             margin-bottom: 0.5mm;
           }
           
@@ -144,7 +144,7 @@ export function generateOPFormHTML(
             border-bottom: 1px solid #111827;
             padding: 1mm 0;
             min-height: 4mm;
-            font-size: 10px;
+            font-size: 14px;
           }
           
           /* Large empty space for clinical notes */
@@ -201,7 +201,7 @@ export function generateOPFormHTML(
           
           .timings-bold {
             font-weight: 700;
-            font-size: 8px;
+            font-size: 14px;
           }
           
           .user-info {
