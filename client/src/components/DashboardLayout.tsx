@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { FEATURE_TO_ROUTES } from "@/lib/featureAccess";
 import { Activity, Bell, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -30,17 +32,17 @@ import { Button } from "./ui/button";
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: UserPlus, label: "Register Patient", path: "/register-patient" },
-  { icon: Users, label: "Patient Records", path: "/patients" },
-  { icon: ClipboardPenLine, label: "Ambient Scribe", path: "/scribe" },
-  { icon: PackageSearch, label: "Pharmacy", path: "/pharmacy" },
-  { icon: Receipt, label: "Billing", path: "/billing" },
-  { icon: ShoppingCart, label: "Purchase Orders", path: "/purchase-orders" },
-  { icon: Bell, label: "Notifications", path: "/notifications" },
+  { icon: Users, label: "Patient Records", path: "/patients", feature: "patient_records" as const },
+  { icon: ClipboardPenLine, label: "Ambient Scribe", path: "/scribe", feature: "ambient_scribe" as const },
+  { icon: PackageSearch, label: "Pharmacy", path: "/pharmacy", feature: "pharmacy" as const },
+  { icon: Receipt, label: "Billing", path: "/billing", feature: "billing" as const },
+  { icon: ShoppingCart, label: "Purchase Orders", path: "/purchase-orders", feature: "purchase_orders" as const },
+  { icon: Bell, label: "Notifications", path: "/notifications", feature: "notifications" as const },
   { icon: Users, label: "User Management", path: "/users", adminOnly: true },
   { icon: Settings, label: "Feature Access Control", path: "/feature-access", adminOnly: true },
   { icon: Settings, label: "OP Form Customization", path: "/op-form-customization", adminOnly: true },
-  { icon: Activity, label: "Audit Trail", path: "/audit-logs", adminOnly: true },
-  { icon: Download, label: "Daily Export", path: "/daily-export", adminOnly: true },
+  { icon: Activity, label: "Audit Trail", path: "/audit-logs", feature: "audit_trail" as const },
+  { icon: Download, label: "Daily Export", path: "/daily-export", feature: "daily_export" as const },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
@@ -121,12 +123,26 @@ function DashboardLayoutContent({
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
   const { user, logout } = useAuth();
+  const { hasAccess } = useFeatureAccess();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const visibleMenuItems = menuItems.filter(item => !item.adminOnly || user?.role === "admin");
+  const visibleMenuItems = menuItems.filter(item => {
+    // Always show dashboard and register patient
+    if (item.path === "/" || item.path === "/register-patient") return true;
+    
+    // Admin-only items visible only to admins
+    if (item.adminOnly && user?.role !== "admin") return false;
+    
+    // Feature-gated items visible only if user has access
+    if ("feature" in item && item.feature) {
+      return hasAccess(item.feature);
+    }
+    
+    return true;
+  });
   const activeMenuItem = visibleMenuItems.find(item => item.path === location);
   const isMobile = useIsMobile();
 

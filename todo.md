@@ -403,3 +403,15 @@
 
 ## Bug Reports - Billing Invoice
 - [x] Invoice PDF shows encoded/corrupted content - fixed by adding explicit font setup and removing period after "Rs" for better jsPDF compatibility
+
+## Frontend Feature Access Enforcement (NEW)
+- [x] Create shared feature access constants (featureAccess.ts)
+- [x] Create useFeatureAccess hook for checking permissions
+- [x] Create useCanAccessFeature and useCanAccessRoute hooks
+- [x] Implement navigation filtering in DashboardLayout based on permissions
+- [x] Create ProtectedRoute component for route-level access control
+- [x] Create FeatureGate component for conditional UI rendering
+- [x] Create FeatureGateButton component for permission-aware buttons
+- [x] Add route protection with unauthorized redirects in App.tsx
+- [x] Write tests for feature access constants and utilities
+- [x] Verify all 119 tests passing

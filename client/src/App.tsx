@@ -24,6 +24,7 @@ import NotFound from "./pages/NotFound";
 import { useAuth } from "./_core/hooks/useAuth";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 function AdminOnly({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
@@ -61,17 +62,17 @@ function Router() {
         return <Home />;
       }} />
       <Route path={"/register-patient"} component={PatientRegistration} />
-      <Route path={"/patients"} component={PatientRecords} />
-      <Route path={"/scribe"} component={AmbientScribe} />
-      <Route path={"/pharmacy"} component={PharmacyInventory} />
-      <Route path={"/billing"} component={Billing} />
-      <Route path={"/purchase-orders"} component={PurchaseOrders} />
+      <Route path={"/patients"}>{() => <ProtectedRoute feature="patient_records"><PatientRecords /></ProtectedRoute>}</Route>
+      <Route path={"/scribe"}>{() => <ProtectedRoute feature="ambient_scribe"><AmbientScribe /></ProtectedRoute>}</Route>
+      <Route path={"/pharmacy"}>{() => <ProtectedRoute feature="pharmacy"><PharmacyInventory /></ProtectedRoute>}</Route>
+      <Route path={"/billing"}>{() => <ProtectedRoute feature="billing"><Billing /></ProtectedRoute>}</Route>
+      <Route path={"/purchase-orders"}>{() => <ProtectedRoute feature="purchase_orders"><PurchaseOrders /></ProtectedRoute>}</Route>
       <Route path={"/users"}>{() => <AdminOnly><UserManagement /></AdminOnly>}</Route>
-      <Route path={"/audit-logs"}>{() => <AdminOnly><AuditLogs /></AdminOnly>}</Route>
-      <Route path={"/daily-export"}>{() => <AdminOnly><DailyExport /></AdminOnly>}</Route>
-        <Route path={"/feature-access"}>{() => <AdminOnly><FeatureAccessControl /></AdminOnly>}</Route>
+      <Route path={"/audit-logs"}>{() => <ProtectedRoute feature="audit_trail" adminOnly><AuditLogs /></ProtectedRoute>}</Route>
+      <Route path={"/daily-export"}>{() => <ProtectedRoute feature="daily_export" adminOnly><DailyExport /></ProtectedRoute>}</Route>
+      <Route path={"/feature-access"}>{() => <AdminOnly><FeatureAccessControl /></AdminOnly>}</Route>
       <Route path={"/op-form-customization"}>{() => <AdminOnly><OPFormCustomization /></AdminOnly>}</Route>
-      <Route path={"/notifications"} component={Notifications} />
+      <Route path={"/notifications"}>{() => <ProtectedRoute feature="notifications"><Notifications /></ProtectedRoute>}</Route>
       <Route path={"/qr-login"} component={QRLogin} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
