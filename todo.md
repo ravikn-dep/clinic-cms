@@ -271,11 +271,11 @@
 - [x] Optimize for A4 paper printing (190mm x 277mm with 8mm margins)
 - [x] Test print layout and spacing (all 97 tests passing)
 
-## Appointment Scheduling System (DEFERRED)
-- [ ] Create appointments table with date, time, consultant, patient, status fields
-- [ ] Create consultant_availability table for working hours and slots
-- [ ] Add backend procedures for booking, rescheduling, and canceling appointments
-- [ ] Implement appointment conflict detection and slot availability checking
+## Appointment Scheduling System
+- [x] Create appointments table with date, time, consultant, patient, status fields (already in schema)
+- [x] Create consultant_availability table for working hours and slots (already in schema)
+- [x] Add backend procedures for booking, rescheduling, and canceling appointments (db.ts functions)
+- [x] Implement appointment conflict detection and slot availability checking (checkAppointmentConflict, getAvailableSlots)
 - [ ] Add appointment list view for consultants and admin
 - [ ] Build appointment booking UI with calendar and time slot selection
 - [ ] Implement no-show tracking and follow-up reminders

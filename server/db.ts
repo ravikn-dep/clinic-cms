@@ -1,4 +1,4 @@
-import { count, desc, eq, like, lte, inArray, sql } from "drizzle-orm";
+import { count, desc, eq, like, lte, inArray, sql, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, patients, consultations, inventory, bills, billItems, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -600,4 +600,213 @@ export async function setOPFormTemplate(template: OPFormTemplate): Promise<void>
 
 export async function resetOPFormTemplate(): Promise<void> {
   opFormTemplateStore = { ...DEFAULT_OP_FORM_TEMPLATE };
+}
+
+
+// ============ APPOINTMENT SCHEDULING ============
+
+export async function createAppointment(data: {
+  patientId: string;
+  consultantId: number;
+  appointmentDate: string;
+  appointmentTime: string;
+  duration?: number;
+  notes?: string;
+  notificationMethod?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const appointmentId = `APT-${Date.now()}`;
+  
+  await db.insert(appointments).values({
+    appointmentId,
+    patientId: data.patientId,
+    consultantId: data.consultantId,
+    appointmentDate: data.appointmentDate,
+    appointmentTime: data.appointmentTime,
+    duration: data.duration ?? 30,
+    notes: data.notes,
+    notificationMethod: data.notificationMethod ?? "SMS",
+    status: "Scheduled",
+  });
+
+  return appointmentId;
+}
+
+export async function getAppointmentById(appointmentId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.select().from(appointments).where(eq(appointments.appointmentId, appointmentId));
+  return result[0];
+}
+
+export async function getAppointmentsByPatient(patientId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.select().from(appointments).where(eq(appointments.patientId, patientId));
+}
+
+export async function getAppointmentsByConsultant(consultantId: number, date?: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  if (date) {
+    return await db.select().from(appointments).where(
+      and(
+        eq(appointments.consultantId, consultantId),
+        eq(appointments.appointmentDate, date)
+      )
+    );
+  }
+
+  return await db.select().from(appointments).where(eq(appointments.consultantId, consultantId));
+}
+
+export async function updateAppointmentStatus(appointmentId: string, status: "Scheduled" | "Completed" | "Cancelled" | "No-show" | "Rescheduled") {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(appointments)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(appointments.appointmentId, appointmentId));
+}
+
+export async function cancelAppointment(appointmentId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(appointments)
+    .set({ status: "Cancelled", updatedAt: new Date() })
+    .where(eq(appointments.appointmentId, appointmentId));
+}
+
+export async function rescheduleAppointment(appointmentId: string, newDate: string, newTime: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(appointments)
+    .set({ 
+      appointmentDate: newDate,
+      appointmentTime: newTime,
+      status: "Rescheduled",
+      updatedAt: new Date() 
+    })
+    .where(eq(appointments.appointmentId, appointmentId));
+}
+
+export async function checkAppointmentConflict(consultantId: number, date: string, time: string, duration: number = 30) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existingAppointments = await db.select().from(appointments).where(
+    and(
+      eq(appointments.consultantId, consultantId),
+      eq(appointments.appointmentDate, date),
+      eq(appointments.status, "Scheduled")
+    )
+  );
+
+  const [hours, minutes] = time.split(":").map(Number);
+  const appointmentStart = hours * 60 + minutes;
+  const appointmentEnd = appointmentStart + duration;
+
+  for (const apt of existingAppointments as any[]) {
+    const [aptHours, aptMinutes] = apt.appointmentTime.split(":").map(Number);
+    const aptStart = aptHours * 60 + aptMinutes;
+    const aptEnd = aptStart + (apt.duration ?? 30);
+
+    if (appointmentStart < aptEnd && appointmentEnd > aptStart) {
+      return true; // Conflict found
+    }
+  }
+
+  return false; // No conflict
+}
+
+export async function getConsultantAvailability(consultantId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.select().from(consultantAvailability).where(eq(consultantAvailability.consultantId, consultantId));
+}
+
+export async function setConsultantAvailability(data: {
+  consultantId: number;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  slotDuration?: number;
+  maxAppointmentsPerDay?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const availabilityId = `AVL-${Date.now()}`;
+
+  await db.insert(consultantAvailability).values({
+    availabilityId,
+    consultantId: data.consultantId,
+    dayOfWeek: data.dayOfWeek,
+    startTime: data.startTime,
+    endTime: data.endTime,
+    slotDuration: data.slotDuration ?? 30,
+    maxAppointmentsPerDay: data.maxAppointmentsPerDay ?? 10,
+    isActive: true,
+  } as any);
+
+  return availabilityId;
+}
+
+export async function getAvailableSlots(consultantId: number, date: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const dateObj = new Date(date);
+  const dayOfWeek = dateObj.getDay();
+
+  const availabilityList = await db.select().from(consultantAvailability).where(
+    and(
+      eq(consultantAvailability.consultantId, consultantId),
+      eq(consultantAvailability.dayOfWeek, dayOfWeek),
+      eq(consultantAvailability.isActive, true)
+    )
+  );
+
+  const availability = availabilityList[0];
+
+  if (!availability) return [];
+
+  const appointments = await getAppointmentsByConsultant(consultantId, date);
+  const slots: string[] = [];
+
+  const [startHours, startMinutes] = availability.startTime.split(":").map(Number);
+  const [endHours, endMinutes] = availability.endTime.split(":").map(Number);
+  
+  let currentTime = startHours * 60 + startMinutes;
+  const endTime = endHours * 60 + endMinutes;
+  const slotDuration = availability.slotDuration ?? 30;
+
+  while (currentTime + slotDuration <= endTime) {
+    const slotHours = Math.floor(currentTime / 60);
+    const slotMinutes = currentTime % 60;
+    const timeStr = `${String(slotHours).padStart(2, "0")}:${String(slotMinutes).padStart(2, "0")}`;
+
+    const hasConflict = appointments.some((apt: any) => {
+      const [aptHours, aptMinutes] = apt.appointmentTime.split(":").map(Number);
+      const aptStart = aptHours * 60 + aptMinutes;
+      const aptEnd = aptStart + (apt.duration ?? 30);
+      return currentTime < aptEnd && currentTime + slotDuration > aptStart;
+    });
+
+    if (!hasConflict) {
+      slots.push(timeStr);
+    }
+
+    currentTime += slotDuration;
+  }
+
+  return slots;
 }
