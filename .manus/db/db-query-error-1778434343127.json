@@ -1,0 +1,8 @@
+{
+  "query": "INSERT INTO users (userId, username, name, email, role, isActive, passwordHash, openId, createdAt, lastSignedIn) VALUES ('STAFF-001', 'staff-001', 'Rajesh Kumar', 'rajesh@clinic.com', 'staff', 1, '$2b$10$WQvlwQvlwQvlwQvlwQvlwOZW.5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'local-STAFF-001', datetime('now'), datetime('now'));",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute INSERT INTO users (userId, username, name, email, role, isActive, passwordHash, openId, createdAt, lastSignedIn) VALUES ('STAFF-001', 'staff-001', 'Rajesh Kumar', 'rajesh@clinic.com', 'staff', 1, '$2b$10$WQvlwQvlwQvlwQvlwQvlwOZW.5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5Z5', 'local-STAFF-001', datetime('now'), datetime('now'));",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your TiDB version for the right syntax to use line 1 column 287 near \"('now'), datetime('now'))\""
+  ]
+}

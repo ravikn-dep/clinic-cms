@@ -1268,14 +1268,9 @@ export const appRouter = router({
             name: user.name || "",
           });
 
-          // Set session cookie
-          ctx.res.cookie("session", sessionToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
-            path: "/",
-          });
+          // Set session cookie with correct cookie name
+          const cookieOptions = getSessionCookieOptions(ctx.req);
+          ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 365 * 24 * 60 * 60 * 1000 });
 
           return {
             success: true,
@@ -1336,14 +1331,9 @@ export const appRouter = router({
             name: user.name || "",
           });
 
-          // Set session cookie
-          ctx.res.cookie("session", sessionToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
-            path: "/",
-          });
+          // Set session cookie with correct cookie name
+          const cookieOptions = getSessionCookieOptions(ctx.req);
+          ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 365 * 24 * 60 * 60 * 1000 });
 
           return {
             success: true,
