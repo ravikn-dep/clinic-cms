@@ -74,8 +74,6 @@ function Router() {
       <Route path={"/feature-access"}>{() => <AdminOnly><FeatureAccessControl /></AdminOnly>}</Route>
       <Route path={"/op-form-customization"}>{() => <AdminOnly><OPFormCustomization /></AdminOnly>}</Route>
       <Route path={"/notifications"}>{() => <ProtectedRoute feature="notifications"><Notifications /></ProtectedRoute>}</Route>
-      <Route path={"/login"} component={Login} />
-      <Route path={"/qr-login"} component={QRLogin} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -88,9 +86,15 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Toaster />
-          <DashboardLayout>
-            <Router />
-          </DashboardLayout>
+          <Switch>
+            <Route path={"/login"} component={Login} />
+            <Route path={"/qr-login"} component={QRLogin} />
+            <Route component={() => (
+              <DashboardLayout>
+                <Router />
+              </DashboardLayout>
+            )} />
+          </Switch>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>

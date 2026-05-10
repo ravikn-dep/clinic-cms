@@ -15,8 +15,12 @@ export default function Login() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const utils = trpc.useUtils();
+
   const loginMutation = trpc.rbac.loginWithCredentials.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Invalidate auth cache to force fresh user data
+      await utils.auth.me.invalidate();
       // Redirect to dashboard
       navigate("/");
     },

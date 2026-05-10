@@ -445,7 +445,9 @@
 - [x] Create test users: CONS-001 (password: test123), STAFF-001
 - [x] Verify backend authentication API works correctly
 - [x] Test local login flow in browser (login successful, redirects to dashboard)
-- [ ] Fix browser session persistence issue (old admin session still active after local login)
+- [x] Fix browser session persistence issue (old admin session still active after local login) - Added cache invalidation in Login component
+- [x] Update client-side unauthorized error handling to redirect to /login instead of Manus OAuth
+- [x] Exclude login pages from DashboardLayout to show clean login form
+- [ ] Fix session cookie conflict between OAuth and local authentication (server-side issue)
 - [ ] Verify feature access filtering works for consultant/staff users after local login
-- [ ] Update client-side unauthorized error handling to redirect to /login instead of Manus OAuth
 - [ ] Test complete login flow: logout → login as consultant → verify dashboard filtering

@@ -18,7 +18,8 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
-  window.location.href = getLoginUrl();
+  // Redirect to local CMS login page instead of Manus OAuth
+  window.location.href = "/login";
 };
 
 queryClient.getQueryCache().subscribe(event => {
