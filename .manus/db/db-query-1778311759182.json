@@ -1,0 +1,15 @@
+{
+  "query": "SELECT userId, username, passwordHash FROM users WHERE userId = 'CONS-001';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute SELECT userId, username, passwordHash FROM users WHERE userId = 'CONS-001';",
+  "rows": [
+    {
+      "userId": "CONS-001",
+      "username": "cons-001",
+      "passwordHash": "$2b$10$XKD9F7U5Y4gYSjk/5TwhHONtATJP0pZlx2jzlH26WrVw9p4PYxx8y"
+    }
+  ],
+  "messages": [],
+  "stdout": "userId\tusername\tpasswordHash\nCONS-001\tcons-001\t$2b$10$XKD9F7U5Y4gYSjk/5TwhHONtATJP0pZlx2jzlH26WrVw9p4PYxx8y\n",
+  "stderr": "",
+  "execution_time_ms": 1940
+}

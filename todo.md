@@ -435,3 +435,17 @@
 - [x] Verify feature access filtering after local login
 - [x] Create comprehensive LOCAL_AUTH_SETUP.md documentation
 - [x] All 119 tests passing, dev server running
+
+## Local Authentication System (CMS-based Login)
+- [x] Create dedicated Login page component with username/password form
+- [x] Create loginWithCredentials backend procedure for local authentication
+- [x] Update SDK to handle local user authentication with JWT sessions
+- [x] Update routing to show login page for unauthenticated users
+- [x] Implement session management for local users with "local-" prefix in openId
+- [x] Create test users: CONS-001 (password: test123), STAFF-001
+- [x] Verify backend authentication API works correctly
+- [x] Test local login flow in browser (login successful, redirects to dashboard)
+- [ ] Fix browser session persistence issue (old admin session still active after local login)
+- [ ] Verify feature access filtering works for consultant/staff users after local login
+- [ ] Update client-side unauthorized error handling to redirect to /login instead of Manus OAuth
+- [ ] Test complete login flow: logout → login as consultant → verify dashboard filtering

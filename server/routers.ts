@@ -1240,7 +1240,12 @@ export const appRouter = router({
       .mutation(async ({ input, ctx }) => {
         try {
           const { userId, password } = utils.decodeQRCodeLogin(input.encodedData);
-          const user = await db.getStaffUserByUsername(userId);
+          // Try to find user by username (case-insensitive)
+          let user = await db.getStaffUserByUsername(userId.toLowerCase());
+          if (!user) {
+            // Try by userId field directly
+            user = await db.getStaffUserById(userId);
+          }
 
           if (!user || !user.passwordHash) {
             throw new Error("Invalid credentials");
@@ -1285,6 +1290,74 @@ export const appRouter = router({
         } catch (error) {
           console.error("[RBAC] QR code login failed:", error);
           throw new Error("QR code login failed");
+        }
+      }),
+
+    loginWithCredentials: publicProcedure
+      .input(z.object({
+        userId: z.string(),
+        password: z.string(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          console.log(`[RBAC] Login attempt with credentials - userId: ${input.userId}`);
+          
+          // Try to find user by username (case-insensitive)
+          let user = await db.getStaffUserByUsername(input.userId.toLowerCase());
+          console.log(`[RBAC] User lookup by username(${input.userId.toLowerCase()}):`, user ? 'found' : 'not found');
+          
+          if (!user) {
+            // Try by userId field directly
+            user = await db.getStaffUserById(input.userId);
+            console.log(`[RBAC] User lookup by userId(${input.userId}):`, user ? 'found' : 'not found');
+          }
+
+          if (!user || !user.passwordHash) {
+            console.log(`[RBAC] User not found or no password hash`);
+            throw new Error("Invalid credentials");
+          }
+
+          console.log(`[RBAC] User found: ${user.username}, verifying password...`);
+          const isPasswordValid = await utils.verifyPassword(input.password, user.passwordHash);
+          console.log(`[RBAC] Password valid: ${isPasswordValid}`);
+          if (!isPasswordValid) {
+            throw new Error("Invalid credentials");
+          }
+
+          if (!user.isActive) {
+            throw new Error("User account is inactive");
+          }
+
+          // Update last signed in
+          await db.updateStaffUser(user.userId!, { lastSignedIn: new Date() });
+
+          // Create session token and set cookie
+          const sessionToken = await sdk.createSessionToken(user.openId || `local-${user.userId}`, {
+            name: user.name || "",
+          });
+
+          // Set session cookie
+          ctx.res.cookie("session", sessionToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
+            path: "/",
+          });
+
+          return {
+            success: true,
+            user: {
+              id: user.id,
+              userId: user.userId,
+              name: user.name,
+              role: user.role,
+              department: user.department,
+            },
+          };
+        } catch (error) {
+          console.error("[RBAC] Credential login failed:", error);
+          throw new Error("Login failed. Please check your credentials.");
         }
       }),
   }),

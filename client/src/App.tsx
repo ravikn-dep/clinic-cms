@@ -13,6 +13,7 @@ import Billing from "./pages/Billing";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import UserManagement from "./pages/UserManagement";
 import QRLogin from "./pages/QRLogin";
+import Login from "./pages/Login";
 import DailyExport from "./pages/DailyExport";
 import ConsultantDashboard from "./pages/ConsultantDashboard";
 import StaffDashboard from "./pages/StaffDashboard";
@@ -73,6 +74,7 @@ function Router() {
       <Route path={"/feature-access"}>{() => <AdminOnly><FeatureAccessControl /></AdminOnly>}</Route>
       <Route path={"/op-form-customization"}>{() => <AdminOnly><OPFormCustomization /></AdminOnly>}</Route>
       <Route path={"/notifications"}>{() => <ProtectedRoute feature="notifications"><Notifications /></ProtectedRoute>}</Route>
+      <Route path={"/login"} component={Login} />
       <Route path={"/qr-login"} component={QRLogin} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
