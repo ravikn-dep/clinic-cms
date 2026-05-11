@@ -1591,6 +1591,184 @@ export const appRouter = router({
 
 
   }),
+
+  appointments: router({
+    // Get all appointments for a consultant or all appointments for admin
+    list: protectedProcedure
+      .input(z.object({
+        consultantId: z.number().optional(),
+        patientId: z.string().optional(),
+        status: z.enum(["Scheduled", "Completed", "Cancelled", "No-show"]).optional(),
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
+      }))
+      .query(async ({ input, ctx }) => {
+        try {
+          let appointments: any[] = [];
+          
+          if (input.patientId) {
+            appointments = await db.getAppointmentsByPatient(input.patientId);
+          } else if (input.consultantId) {
+            appointments = await db.getAppointmentsByConsultant(input.consultantId);
+          }
+          
+          if (input.status) {
+            appointments = appointments.filter((a: any) => a.status === input.status);
+          }
+          
+          if (input.dateFrom) {
+            appointments = appointments.filter((a: any) => a.appointmentDate >= input.dateFrom!);
+          }
+          
+          if (input.dateTo) {
+            appointments = appointments.filter((a: any) => a.appointmentDate <= input.dateTo!);
+          }
+          
+          return appointments;
+        } catch (error) {
+          console.error("[Appointments] List failed:", error);
+          throw new Error("Failed to fetch appointments");
+        }
+      }),
+
+    // Create a new appointment
+    create: protectedProcedure
+      .input(z.object({
+        patientId: z.string(),
+        consultantId: z.number(),
+        appointmentDate: z.string(),
+        appointmentTime: z.string(),
+        reason: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          // Check for conflicts
+          const conflict = await db.checkAppointmentConflict(
+            input.consultantId,
+            input.appointmentDate,
+            input.appointmentTime
+          );
+          
+          if (conflict) {
+            throw new Error("Time slot already booked");
+          }
+          
+          const appointment = await db.createAppointment({
+            patientId: input.patientId,
+            consultantId: input.consultantId,
+            appointmentDate: input.appointmentDate,
+            appointmentTime: input.appointmentTime,
+            notes: input.notes,
+          });
+          
+          return appointment;
+        } catch (error) {
+          console.error("[Appointments] Create failed:", error);
+          throw new Error(error instanceof Error ? error.message : "Failed to create appointment");
+        }
+      }),
+
+    // Reschedule an appointment
+    reschedule: protectedProcedure
+      .input(z.object({
+        appointmentId: z.string(),
+        newDate: z.string(),
+        newTime: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const appointment = await db.getAppointmentById(input.appointmentId);
+          if (!appointment) throw new Error("Appointment not found");
+          
+          const conflict = await db.checkAppointmentConflict(
+            appointment.consultantId,
+            input.newDate,
+            input.newTime
+          );
+          
+          if (conflict) {
+            throw new Error("New time slot already booked");
+          }
+          
+          await db.rescheduleAppointment(
+            input.appointmentId,
+            input.newDate,
+            input.newTime
+          );
+          
+          return { success: true };
+        } catch (error) {
+          console.error("[Appointments] Reschedule failed:", error);
+          throw new Error(error instanceof Error ? error.message : "Failed to reschedule appointment");
+        }
+      }),
+
+    // Cancel an appointment
+    cancel: protectedProcedure
+      .input(z.object({
+        appointmentId: z.string(),
+        reason: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          await db.cancelAppointment(input.appointmentId);
+          return { success: true };
+        } catch (error) {
+          console.error("[Appointments] Cancel failed:", error);
+          throw new Error("Failed to cancel appointment");
+        }
+      }),
+
+    // Mark appointment as no-show
+    markNoShow: protectedProcedure
+      .input(z.object({
+        appointmentId: z.string(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          await db.updateAppointmentStatus(input.appointmentId, "No-show");
+          return { success: true };
+        } catch (error) {
+          console.error("[Appointments] Mark no-show failed:", error);
+          throw new Error("Failed to mark appointment as no-show");
+        }
+      }),
+
+    // Complete an appointment
+    complete: protectedProcedure
+      .input(z.object({
+        appointmentId: z.string(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          await db.updateAppointmentStatus(input.appointmentId, "Completed");
+          return { success: true };
+        } catch (error) {
+          console.error("[Appointments] Complete failed:", error);
+          throw new Error("Failed to complete appointment");
+        }
+      }),
+
+    // Get available slots for a consultant on a specific date
+    getAvailableSlots: publicProcedure
+      .input(z.object({
+        consultantId: z.number(),
+        date: z.string(),
+      }))
+      .query(async ({ input }) => {
+        try {
+          const slots = await db.getAvailableSlots(input.consultantId, input.date);
+          return slots;
+        } catch (error) {
+          console.error("[Appointments] Get available slots failed:", error);
+          throw new Error("Failed to fetch available slots");
+        }
+      }),
+  }),
+
 });
 
 // Default feature permissions by role

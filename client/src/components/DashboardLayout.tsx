@@ -23,7 +23,7 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { FEATURE_TO_ROUTES } from "@/lib/featureAccess";
-import { Activity, Bell, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings } from "lucide-react";
+import { Activity, Bell, Calendar, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -37,6 +37,7 @@ const menuItems = [
   { icon: PackageSearch, label: "Pharmacy", path: "/pharmacy", feature: "pharmacy" as const },
   { icon: Receipt, label: "Billing", path: "/billing", feature: "billing" as const },
   { icon: ShoppingCart, label: "Purchase Orders", path: "/purchase-orders", feature: "purchase_orders" as const },
+  { icon: Calendar, label: "Appointments", path: "/appointments", feature: "appointments" as const },
   { icon: Bell, label: "Notifications", path: "/notifications", feature: "notifications" as const },
   { icon: Users, label: "User Management", path: "/users", adminOnly: true },
   { icon: Settings, label: "Feature Access Control", path: "/feature-access", adminOnly: true },
@@ -86,7 +87,7 @@ export default function DashboardLayout({
           </div>
           <Button
             onClick={() => {
-              window.location.href = getLoginUrl();
+              window.location.href = "/login";
             }}
             size="lg"
             className="friendly-action w-full bg-teal-600 text-white hover:bg-teal-700"

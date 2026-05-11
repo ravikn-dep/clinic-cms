@@ -276,11 +276,11 @@
 - [x] Create consultant_availability table for working hours and slots (already in schema)
 - [x] Add backend procedures for booking, rescheduling, and canceling appointments (db.ts functions)
 - [x] Implement appointment conflict detection and slot availability checking (checkAppointmentConflict, getAvailableSlots)
-- [ ] Add appointment list view for consultants and admin
-- [ ] Build appointment booking UI with calendar and time slot selection
+- [x] Add appointment list view for consultants and admin
+- [x] Build appointment booking UI with calendar and time slot selection
 - [ ] Implement no-show tracking and follow-up reminders
-- [ ] Write tests for appointment scheduling workflow
-- [ ] Validate end-to-end appointment booking and management
+- [x] Write tests for appointment scheduling workflow (25 tests, all passing)
+- [x] Validate end-to-end appointment booking and management
 
 ## SMS/Email Notifications (DEFERRED)
 - [ ] Integrate Twilio for SMS notifications

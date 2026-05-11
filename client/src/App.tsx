@@ -21,6 +21,7 @@ import AuditLogs from "./pages/AuditLogs";
 import Notifications from "./pages/Notifications";
 import FeatureAccessControl from "./pages/FeatureAccessControl";
 import OPFormCustomization from "./pages/OPFormCustomization";
+import Appointments from "./pages/Appointments";
 import NotFound from "./pages/NotFound";
 import { useAuth } from "./_core/hooks/useAuth";
 import { Button } from "./components/ui/button";
@@ -74,6 +75,7 @@ function Router() {
       <Route path={"/feature-access"}>{() => <AdminOnly><FeatureAccessControl /></AdminOnly>}</Route>
       <Route path={"/op-form-customization"}>{() => <AdminOnly><OPFormCustomization /></AdminOnly>}</Route>
       <Route path={"/notifications"}>{() => <ProtectedRoute feature="notifications"><Notifications /></ProtectedRoute>}</Route>
+      <Route path={"/appointments"}>{() => <ProtectedRoute feature="appointments"><Appointments /></ProtectedRoute>}</Route>
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
