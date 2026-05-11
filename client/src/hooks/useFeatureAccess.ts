@@ -41,7 +41,7 @@ export function useFeatureAccess(): UseFeatureAccessResult {
   // For consultants and staff, fetch their permissions using getMyPermissions
   const { data: fullPermissions, isLoading: fullPermissionsLoading, error } = trpc.featureAccess.getMyPermissions.useQuery(
     undefined,
-    { enabled: !!user && user.role !== "admin" }
+    { enabled: !!user && (user.role === "consultant" || user.role === "staff") }
   );
 
   const result = useMemo(() => {

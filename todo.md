@@ -448,9 +448,9 @@
 - [x] Fix browser session persistence issue (old admin session still active after local login) - Added cache invalidation in Login component
 - [x] Update client-side unauthorized error handling to redirect to /login instead of Manus OAuth
 - [x] Exclude login pages from DashboardLayout to show clean login form
-- [ ] Fix session cookie conflict between OAuth and local authentication (server-side issue)
-- [ ] Verify feature access filtering works for consultant/staff users after local login
-- [ ] Test complete login flow: logout → login as consultant → verify dashboard filtering
+- [x] Fix session cookie conflict between OAuth and local authentication - Fixed by using correct cookie name constant
+- [x] Verify feature access filtering works for consultant/staff users after local login - Tested and working
+- [x] Test complete login flow: logout → login as consultant → verify dashboard filtering - All tests passing
 
 
 ## Session Management & Local Authentication (NEW)

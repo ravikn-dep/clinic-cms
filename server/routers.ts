@@ -1477,12 +1477,10 @@ export const appRouter = router({
         const defaultPerms = getDefaultPermissions(input.role);
         const perms = permissions || defaultPerms;
         return perms[input.featureKey] ?? false;
+      }),
 
     // Get current user's feature permissions (for non-admin users)
     getMyPermissions: protectedProcedure.query(async ({ ctx }) => {
-      if (ctx.user.role === "admin") {
-        return getDefaultPermissions("admin");
-      }
       if (ctx.user.role === "consultant" || ctx.user.role === "staff") {
         const stored = await db.getFeaturePermissions(ctx.user.role);
         return stored || getDefaultPermissions(ctx.user.role);
