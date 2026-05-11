@@ -12,6 +12,7 @@ const FEATURES = [
   { key: "pharmacy", label: "Pharmacy", description: "Manage inventory and stock" },
   { key: "billing", label: "Billing", description: "Create and manage bills" },
   { key: "purchase_orders", label: "Purchase Orders", description: "Create and manage purchase orders" },
+  { key: "appointments", label: "Appointments", description: "Schedule and manage appointments" },
   { key: "notifications", label: "Notifications", description: "View notifications" },
   { key: "audit_trail", label: "Audit Trail", description: "View system audit logs" },
   { key: "daily_export", label: "Daily Export", description: "Export daily reports" },
@@ -73,6 +74,32 @@ export default function FeatureAccessControl() {
     }
   };
 
+  // Apply template mutation
+  const applyTemplateMutation = trpc.featureAccess.applyTemplate.useMutation({
+    onSuccess: () => {
+      setIsSaving(false);
+      window.location.reload();
+    },
+    onError: (error) => {
+      console.error("Failed to apply template:", error);
+      setIsSaving(false);
+    },
+  });
+
+  // Apply a permission template
+  const handleApplyTemplate = async (template: "consultant" | "staff") => {
+    setIsSaving(true);
+    try {
+      await applyTemplateMutation.mutateAsync({
+        role: activeRole,
+        template,
+      });
+    } catch (error) {
+      console.error("Error applying template:", error);
+      setIsSaving(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -89,6 +116,31 @@ export default function FeatureAccessControl() {
           Configure which dashboard features are accessible to consultants and staff
         </p>
       </div>
+
+      <Card className="bg-blue-50 border-blue-200">
+        <CardHeader>
+          <CardTitle className="text-blue-900">Permission Templates</CardTitle>
+          <CardDescription className="text-blue-800">
+            Quickly apply pre-configured permission templates to roles
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex gap-3">
+          <Button
+            onClick={() => handleApplyTemplate("consultant")}
+            variant="outline"
+            className="border-blue-300 text-blue-700 hover:bg-blue-100"
+          >
+            Apply Consultant Template
+          </Button>
+          <Button
+            onClick={() => handleApplyTemplate("staff")}
+            variant="outline"
+            className="border-blue-300 text-blue-700 hover:bg-blue-100"
+          >
+            Apply Staff Template
+          </Button>
+        </CardContent>
+      </Card>
 
       <Tabs value={activeRole} onValueChange={(value) => setActiveRole(value as "consultant" | "staff")}>
         <TabsList className="grid w-full max-w-md grid-cols-2">

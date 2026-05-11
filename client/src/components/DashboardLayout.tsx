@@ -23,7 +23,7 @@ import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { FEATURE_TO_ROUTES } from "@/lib/featureAccess";
-import { Activity, Bell, Calendar, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings } from "lucide-react";
+import { Activity, Bell, BarChart3, Calendar, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -42,6 +42,7 @@ const menuItems = [
   { icon: Users, label: "User Management", path: "/users", adminOnly: true },
   { icon: Settings, label: "Feature Access Control", path: "/feature-access", adminOnly: true },
   { icon: Settings, label: "OP Form Customization", path: "/op-form-customization", adminOnly: true },
+  { icon: BarChart3, label: "Analytics", path: "/analytics", adminOnly: true },
   { icon: Activity, label: "Audit Trail", path: "/audit-logs", feature: "audit_trail" as const },
   { icon: Download, label: "Daily Export", path: "/daily-export", feature: "daily_export" as const },
 ];

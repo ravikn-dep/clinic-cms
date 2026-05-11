@@ -278,7 +278,7 @@
 - [x] Implement appointment conflict detection and slot availability checking (checkAppointmentConflict, getAvailableSlots)
 - [x] Add appointment list view for consultants and admin
 - [x] Build appointment booking UI with calendar and time slot selection
-- [ ] Implement no-show tracking and follow-up reminders
+- [x] Implement no-show tracking and follow-up reminders (markNoShow procedure + UI button)
 - [x] Write tests for appointment scheduling workflow (25 tests, all passing)
 - [x] Validate end-to-end appointment booking and management
 
@@ -313,12 +313,20 @@
 - [x] Write tests for role permissions procedures (11 test cases, all passing)
 - [x] Validate feature end-to-end with admin configuration and role-based visibility (108/108 tests passing)
 
+## Analytics Dashboard
+- [x] Create analytics page with appointment metrics (total, completed, no-show)
+- [x] Add revenue tracking and trends
+- [x] Build charts for appointment status breakdown
+- [x] Add consultant performance metrics
+- [x] Implement time range filtering (week, month, year)
+- [x] Add navigation menu item for admin users
+
 ## Next Steps (Optional Enhancements)
 - [ ] Persist feature permissions to database for durability across server restarts
 - [ ] Add feature access enforcement in frontend (hide nav items based on permissions)
 - [ ] Add feature access enforcement in individual pages (redirect if not permitted)
 - [ ] Implement audit logging for feature permission changes
-- [ ] Add default permission templates (Consultant, Staff, Custom)
+- [x] Add default permission templates (Consultant, Staff, Custom) - getTemplates and applyTemplate procedures added
 
 ## OP Registration Form Customization (NEW)
 - [x] Create admin UI page for OP form template customization (OPFormCustomization.tsx)

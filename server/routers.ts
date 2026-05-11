@@ -1487,6 +1487,44 @@ export const appRouter = router({
       }
       return {};
     }),
+
+    getTemplates: protectedProcedure.query(async () => {
+      return {
+        consultant: {
+          name: "Consultant",
+          description: "Full access to clinical features",
+          permissions: getDefaultPermissions("consultant"),
+        },
+        staff: {
+          name: "Staff",
+          description: "Limited access to administrative features",
+          permissions: getDefaultPermissions("staff"),
+        },
+      };
+    }),
+
+    applyTemplate: adminProcedure
+      .input(z.object({
+        role: z.enum(["consultant", "staff"]),
+        template: z.enum(["consultant", "staff"]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const templatePermissions = getDefaultPermissions(input.template as "consultant" | "staff");
+        await db.setFeaturePermissions(input.role, templatePermissions);
+        
+        await db.createAuditLog({
+          logId: nanoid(),
+          userId: String(ctx.user.id),
+          actionType: "UPDATE",
+          tableName: "rolePermissions",
+          recordId: input.role,
+          oldValue: "",
+          newValue: JSON.stringify(templatePermissions),
+          timestamp: new Date(),
+        });
+
+        return { success: true };
+      }),
   }),
 
   opForm: router({
@@ -1780,6 +1818,7 @@ function getDefaultPermissions(role: "consultant" | "staff"): Record<string, boo
       pharmacy: true,
       billing: true,
       purchase_orders: false,
+      appointments: true,
       notifications: true,
       audit_trail: false,
       daily_export: false,
@@ -1791,6 +1830,7 @@ function getDefaultPermissions(role: "consultant" | "staff"): Record<string, boo
       pharmacy: true,
       billing: false,
       purchase_orders: true,
+      appointments: false,
       notifications: true,
       audit_trail: false,
       daily_export: false,
