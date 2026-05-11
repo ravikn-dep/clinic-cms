@@ -525,30 +525,116 @@ export async function updateRolePermission(role: "admin" | "consultant" | "staff
 
 
 
-// ============ FEATURE ACCESS CONTROL (JSON-based) ============
+// ============ FEATURE ACCESS CONTROL (Database-persisted) ============
 
-// Store feature permissions in memory with persistence via localStorage-like pattern
-const featurePermissionsStore: Record<string, Record<string, boolean>> = {};
+export async function getFeaturePermissions(role: "consultant" | "staff" | "admin"): Promise<Record<string, boolean>> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
 
-export async function getFeaturePermissions(role: "consultant" | "staff"): Promise<Record<string, boolean> | null> {
-  // In production, this could be persisted to a settings table or file
-  return featurePermissionsStore[role] || null;
+  const perms = await db.select().from(rolePermissions).where(eq(rolePermissions.role, role));
+  
+  const result: Record<string, boolean> = {};
+  for (const perm of perms as any[]) {
+    result[perm.featureKey] = perm.isEnabled;
+  }
+  
+  return result;
+}
+
+export async function setFeaturePermission(role: "consultant" | "staff", featureKey: string, isEnabled: boolean): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const permissionId = `PERM-${Date.now()}`;
+  
+  const existing = await db.select().from(rolePermissions).where(
+    and(
+      eq(rolePermissions.role, role),
+      eq(rolePermissions.featureKey, featureKey)
+    )
+  );
+
+  if (existing.length > 0) {
+    await db.update(rolePermissions)
+      .set({ isEnabled, updatedAt: new Date() })
+      .where(
+        and(
+          eq(rolePermissions.role, role),
+          eq(rolePermissions.featureKey, featureKey)
+        )
+      );
+  } else {
+    await db.insert(rolePermissions).values({
+      permissionId,
+      role,
+      featureKey,
+      isEnabled,
+    } as any);
+  }
 }
 
 export async function setFeaturePermissions(role: "consultant" | "staff", permissions: Record<string, boolean>): Promise<void> {
-  // Store in memory
-  featurePermissionsStore[role] = permissions;
-  
-  // In production, persist to database or file
-  // For now, we'll rely on the in-memory store which persists during server runtime
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(rolePermissions).where(eq(rolePermissions.role, role));
+
+  for (const [featureKey, isEnabled] of Object.entries(permissions)) {
+    const permissionId = `PERM-${Date.now()}-${Math.random()}`;
+    await db.insert(rolePermissions).values({
+      permissionId,
+      role,
+      featureKey,
+      isEnabled,
+    } as any);
+  }
 }
 
 export async function checkFeatureAccess(role: "admin" | "consultant" | "staff", featureKey: string): Promise<boolean> {
-  // Admin always has access
   if (role === "admin") return true;
   
-  const permissions = await getFeaturePermissions(role as "consultant" | "staff");
-  return permissions?.[featureKey] ?? false;
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const perm = await db.select().from(rolePermissions).where(
+    and(
+      eq(rolePermissions.role, role),
+      eq(rolePermissions.featureKey, featureKey)
+    )
+  );
+
+  return perm.length > 0 ? (perm[0] as any).isEnabled : false;
+}
+
+export async function initializeDefaultPermissions(): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await db.select().from(rolePermissions);
+  if (existing.length > 0) return;
+
+  const consultantFeatures = ["patient_records", "ambient_scribe", "billing", "notifications"];
+  const staffFeatures = ["patient_records", "pharmacy", "purchase_orders", "notifications"];
+
+  for (const feature of consultantFeatures) {
+    const permissionId = `PERM-${Date.now()}-${Math.random()}`;
+    await db.insert(rolePermissions).values({
+      permissionId,
+      role: "consultant",
+      featureKey: feature,
+      isEnabled: true,
+    } as any);
+  }
+
+  for (const feature of staffFeatures) {
+    const permissionId = `PERM-${Date.now()}-${Math.random()}`;
+    await db.insert(rolePermissions).values({
+      permissionId,
+      role: "staff",
+      featureKey: feature,
+      isEnabled: true,
+    } as any);
+  }
 }
 
 

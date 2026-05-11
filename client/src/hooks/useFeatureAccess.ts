@@ -38,11 +38,10 @@ export function useFeatureAccess(): UseFeatureAccessResult {
     };
   }
 
-  // For consultants and staff, fetch their permissions
-  const role = (user?.role === "consultant" || user?.role === "staff") ? user.role : undefined;
-  const { data: fullPermissions, isLoading: fullPermissionsLoading, error } = trpc.featureAccess.getPermissions.useQuery(
-    { role: role || "staff" },
-    { enabled: !!role }
+  // For consultants and staff, fetch their permissions using getMyPermissions
+  const { data: fullPermissions, isLoading: fullPermissionsLoading, error } = trpc.featureAccess.getMyPermissions.useQuery(
+    undefined,
+    { enabled: !!user && user.role !== "admin" }
   );
 
   const result = useMemo(() => {

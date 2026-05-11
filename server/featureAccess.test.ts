@@ -8,9 +8,10 @@ describe("Feature Access Control", () => {
   });
 
   describe("getFeaturePermissions", () => {
-    it("should return null for unset permissions", async () => {
+    it("should return default permissions for unset permissions", async () => {
       const perms = await db.getFeaturePermissions("consultant");
-      expect(perms).toBeNull();
+      expect(perms).toBeDefined();
+      expect(perms?.patient_records).toBe(true);
     });
 
     it("should return stored permissions for consultant", async () => {

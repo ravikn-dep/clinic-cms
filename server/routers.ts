@@ -1477,8 +1477,20 @@ export const appRouter = router({
         const defaultPerms = getDefaultPermissions(input.role);
         const perms = permissions || defaultPerms;
         return perms[input.featureKey] ?? false;
-      }),
+
+    // Get current user's feature permissions (for non-admin users)
+    getMyPermissions: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role === "admin") {
+        return getDefaultPermissions("admin");
+      }
+      if (ctx.user.role === "consultant" || ctx.user.role === "staff") {
+        const stored = await db.getFeaturePermissions(ctx.user.role);
+        return stored || getDefaultPermissions(ctx.user.role);
+      }
+      return {};
+    }),
   }),
+
   opForm: router({
     getTemplate: protectedProcedure.query(async () => {
       const template = await db.getOPFormTemplate();
@@ -1535,6 +1547,51 @@ export const appRouter = router({
 
       return { success: true };
     }),
+
+    getFeaturePermissions: adminProcedure
+      .input(z.object({ role: z.enum(["consultant", "staff", "admin"]) }))
+      .query(async ({ input }) => {
+        try {
+          return await db.getFeaturePermissions(input.role);
+        } catch (error) {
+          console.error("[RBAC] Get feature permissions failed:", error);
+          throw new Error("Failed to get feature permissions");
+        }
+      }),
+
+    setFeaturePermission: adminProcedure
+      .input(z.object({ role: z.enum(["consultant", "staff"]), featureKey: z.string(), isEnabled: z.boolean() }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          await db.setFeaturePermission(input.role, input.featureKey, input.isEnabled);
+          await db.createAuditLog({
+            logId: nanoid(),
+            userId: String(ctx.user.id),
+            actionType: "UPDATE",
+            tableName: "rolePermissions",
+            recordId: `${input.role}-${input.featureKey}`,
+            oldValue: { isEnabled: !input.isEnabled },
+            newValue: { isEnabled: input.isEnabled },
+            timestamp: new Date(),
+          });
+          return { success: true };
+        } catch (error) {
+          console.error("[RBAC] Set feature permission failed:", error);
+          throw new Error("Failed to set feature permission");
+        }
+      }),
+
+    initializeDefaultPermissions: adminProcedure.mutation(async () => {
+      try {
+        await db.initializeDefaultPermissions();
+        return { success: true, message: "Default permissions initialized" };
+      } catch (error) {
+        console.error("[RBAC] Initialize default permissions failed:", error);
+        throw new Error("Failed to initialize default permissions");
+      }
+    }),
+
+
   }),
 });
 
