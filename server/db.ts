@@ -922,11 +922,15 @@ export async function setUserPassword(userId: number, password: string): Promise
     .where(eq(users.id, userId));
 }
 
-export async function authenticateUser(email: string, password: string): Promise<{ id: number; name: string | null; email: string | null; role: string } | null> {
+export async function authenticateUser(userIdOrEmail: string, password: string): Promise<{ id: number; name: string | null; email: string | null; role: string } | null> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  let user = await db.select().from(users).where(eq(users.email, userIdOrEmail)).limit(1);
+  
+  if (user.length === 0) {
+    user = await db.select().from(users).where(eq(users.userId, userIdOrEmail.toUpperCase())).limit(1);
+  }
   
   if (user.length === 0 || !user[0].passwordHash) {
     return null;

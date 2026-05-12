@@ -1,4 +1,3 @@
-import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Route, Switch, Link } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -92,11 +91,10 @@ function App() {
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
-          <Toaster />
           <Switch>
-      <Route path={"/login"} component={Login} />
-      <Route path={"/password-login"} component={PasswordLogin} />
-      <Route path={"/qr-login"} component={QRLogin} />
+            <Route path={"/login"} component={Login} />
+            <Route path={"/password-login"} component={PasswordLogin} />
+            <Route path={"/qr-login"} component={QRLogin} />
             <Route component={() => (
               <DashboardLayout>
                 <Router />

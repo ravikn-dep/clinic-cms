@@ -8,7 +8,7 @@ import { trpc } from "@/lib/trpc";
 
 export default function PasswordLogin() {
   const [, setLocation] = useLocation();
-  const [email, setEmail] = useState("");
+  const [userIdOrEmail, setUserIdOrEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -21,7 +21,7 @@ export default function PasswordLogin() {
     },
     onError: (err) => {
       setIsLoading(false);
-      setError(err.message || "Login failed");
+      setError(err.message || "Login failed. Please check your credentials.");
     },
   });
 
@@ -32,8 +32,8 @@ export default function PasswordLogin() {
 
     try {
       await loginMutation.mutateAsync({
-        email,
-        password,
+        email: userIdOrEmail.trim(),
+        password: password.trim(),
       });
     } catch (err) {
       setIsLoading(false);
@@ -46,12 +46,12 @@ export default function PasswordLogin() {
         <CardHeader className="space-y-2">
           <div className="flex items-center justify-center mb-4">
             <div className="rounded-full border border-teal-200 bg-teal-50 px-4 py-2 text-sm font-medium text-teal-800">
-              Dr.Deepthi's Ortho clinic CMS
+              🏥 Dr. Deepthi's Ortho Clinic
             </div>
           </div>
-          <CardTitle className="text-2xl text-center">Sign in with Password</CardTitle>
+          <CardTitle className="text-2xl text-center">Clinic CMS Login</CardTitle>
           <CardDescription className="text-center">
-            Enter your email and password to access your clinic workspace
+            Enter your User ID and password to access your clinic workspace
           </CardDescription>
         </CardHeader>
 
@@ -65,15 +65,17 @@ export default function PasswordLogin() {
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-900">Email</label>
+              <label className="text-sm font-medium text-slate-900">User ID or Email</label>
               <Input
-                type="email"
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                type="text"
+                placeholder="e.g., CONS-001 or your@email.com"
+                value={userIdOrEmail}
+                onChange={(e) => setUserIdOrEmail(e.target.value)}
                 disabled={isLoading}
                 required
+                className="border-slate-200 focus:border-teal-500 focus:ring-teal-500"
               />
+              <p className="text-xs text-slate-500 mt-1">Enter your User ID or Email address</p>
             </div>
 
             <div className="space-y-2">
@@ -87,11 +89,13 @@ export default function PasswordLogin() {
                   disabled={isLoading}
                   required
                   minLength={6}
+                  className="border-slate-200 focus:border-teal-500 focus:ring-teal-500"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                  disabled={isLoading}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -100,8 +104,8 @@ export default function PasswordLogin() {
 
             <Button
               type="submit"
-              disabled={isLoading || !email || !password}
-              className="w-full bg-teal-600 hover:bg-teal-700 text-white"
+              disabled={isLoading || !userIdOrEmail || !password}
+              className="w-full bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 text-white font-medium"
             >
               {isLoading ? (
                 <>
@@ -109,25 +113,24 @@ export default function PasswordLogin() {
                   Signing in...
                 </>
               ) : (
-                "Sign in"
+                "Sign In"
               )}
             </Button>
-          </form>
 
-          <div className="mt-6 pt-6 border-t border-slate-200 space-y-3">
-            <p className="text-sm text-slate-600 text-center">
-              Don't have a password yet?
-            </p>
-            <Button
-              variant="outline"
-              className="w-full"
-              onClick={() => setLocation("/login")}
-            >
-              Sign in with Manus OAuth
-            </Button>
-          </div>
+            {/* Help Text */}
+            <div className="pt-4 text-center text-sm text-slate-600">
+              <p>Contact your clinic administrator if you forgot your credentials</p>
+            </div>
+          </form>
         </CardContent>
       </Card>
+
+      {/* Footer */}
+      <div className="absolute bottom-4 left-0 right-0 text-center">
+        <p className="text-xs text-slate-500">
+          © 2026 Dr. Deepthi's Ortho Clinic. All rights reserved.
+        </p>
+      </div>
     </div>
   );
 }
