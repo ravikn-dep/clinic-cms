@@ -2,6 +2,9 @@ import { count, desc, eq, like, lte, inArray, sql, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users, patients, consultations, inventory, bills, billItems, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import bcrypt from 'bcrypt';
+
+const SALT_ROUNDS = 10;
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -895,4 +898,58 @@ export async function getAvailableSlots(consultantId: number, date: string) {
   }
 
   return slots;
+}
+
+
+// ============ PASSWORD AUTHENTICATION ============
+
+export async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, SALT_ROUNDS);
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return bcrypt.compare(password, hash);
+}
+
+export async function setUserPassword(userId: number, password: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const hashedPassword = await hashPassword(password);
+  
+  await db.update(users)
+    .set({ passwordHash: hashedPassword, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+}
+
+export async function authenticateUser(email: string, password: string): Promise<{ id: number; name: string | null; email: string | null; role: string } | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  
+  if (user.length === 0 || !user[0].passwordHash) {
+    return null;
+  }
+
+  const isPasswordValid = await verifyPassword(password, user[0].passwordHash);
+  
+  if (!isPasswordValid) {
+    return null;
+  }
+
+  return {
+    id: user[0].id as number,
+    name: user[0].name,
+    email: user[0].email,
+    role: user[0].role,
+  };
+}
+
+export async function getUserByEmail(email: string): Promise<any | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return user.length > 0 ? user[0] : null;
 }

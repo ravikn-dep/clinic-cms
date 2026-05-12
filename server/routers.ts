@@ -47,6 +47,83 @@ export const appRouter = router({
         success: true,
       } as const;
     }),
+
+    loginWithPassword: publicProcedure
+      .input(z.object({
+        email: z.string().email(),
+        password: z.string().min(6),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const user = await db.authenticateUser(input.email, input.password);
+          
+          if (!user) {
+            throw new Error("Invalid email or password");
+          }
+
+          const sessionToken = await sdk.createSessionToken(String(user.id), {
+            name: user.name || "",
+            expiresInMs: 365 * 24 * 60 * 60 * 1000,
+          });
+
+          const cookieOptions = getSessionCookieOptions(ctx.req);
+          ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 365 * 24 * 60 * 60 * 1000 });
+
+          return {
+            success: true,
+            user: {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+            },
+          };
+        } catch (error) {
+          console.error("[Auth] Password login failed:", error);
+          throw new Error("Login failed");
+        }
+      }),
+
+    setPassword: protectedProcedure
+      .input(z.object({
+        password: z.string().min(6),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          await db.setUserPassword(ctx.user.id as number, input.password);
+          return { success: true };
+        } catch (error) {
+          console.error("[Auth] Set password failed:", error);
+          throw new Error("Failed to set password");
+        }
+      }),
+
+    changePassword: protectedProcedure
+      .input(z.object({
+        currentPassword: z.string(),
+        newPassword: z.string().min(6),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const user = await db.getUserByEmail(ctx.user.email || "");
+          
+          if (!user || !user.passwordHash) {
+            throw new Error("User not found or password not set");
+          }
+
+          const isValid = await db.verifyPassword(input.currentPassword, user.passwordHash);
+          
+          if (!isValid) {
+            throw new Error("Current password is incorrect");
+          }
+
+          await db.setUserPassword(ctx.user.id as number, input.newPassword);
+          return { success: true };
+        } catch (error) {
+          console.error("[Auth] Change password failed:", error);
+          throw error;
+        }
+      }),
   }),
 
   // ============ PATIENT REGISTRATION ============

@@ -1,0 +1,31 @@
+{
+  "query": "SELECT id, name, email, role, openId FROM users;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute SELECT id, name, email, role, openId FROM users;",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Dr. RAVI KIRAN NAIK",
+      "email": "ravikiranenaik@outlook.com",
+      "role": "admin",
+      "openId": "e6jCorqoBEzLpoPBn9eicP"
+    },
+    {
+      "id": "1830011",
+      "name": "Dr. Deepthi S",
+      "email": "chauhandeepthi20@gmail.com",
+      "role": "consultant",
+      "openId": "local-CONS-001"
+    },
+    {
+      "id": "1860002",
+      "name": "ravi kiran naik",
+      "email": "ravikirannaike@gmail.com",
+      "role": "consultant",
+      "openId": "local-CONS-002"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\topenId\n1\tDr. RAVI KIRAN NAIK\travikiranenaik@outlook.com\tadmin\te6jCorqoBEzLpoPBn9eicP\n1830011\tDr. Deepthi S\tchauhandeepthi20@gmail.com\tconsultant\tlocal-CONS-001\n1860002\travi kiran naik\travikirannaike@gmail.com\tconsultant\tlocal-CONS-002\n",
+  "stderr": "",
+  "execution_time_ms": 1872
+}

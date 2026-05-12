@@ -486,3 +486,13 @@
 - [x] Test route protection and unauthorized redirects
 - [x] Test UI component gating and feature gates
 - [x] All 119 tests passing
+
+
+## Local Password Authentication (NEW)
+- [x] Add password hashing and verification functions to db.ts (bcrypt integration)
+- [x] Create password login backend procedures (authenticate, setPassword, changePassword)
+- [x] Build password login form UI (PasswordLogin.tsx)
+- [x] Add password change/reset functionality (PasswordManagement.tsx)
+- [x] Integrate password auth with existing OAuth flow (dual login options)
+- [x] Write tests for password authentication (144 tests passing)
+- [x] Validate end-to-end password login and management

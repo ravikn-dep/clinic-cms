@@ -129,6 +129,19 @@ export default function Login() {
               <div className="pt-4 text-center text-sm text-slate-600">
                 <p>Contact your clinic administrator for login credentials</p>
               </div>
+
+              {/* Password Login Option */}
+              <div className="pt-4 border-t border-slate-200">
+                <p className="text-xs text-slate-500 text-center mb-3">or</p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => navigate("/password-login")}
+                >
+                  Sign in with Email & Password
+                </Button>
+              </div>
             </form>
           </CardContent>
         </Card>

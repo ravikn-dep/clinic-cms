@@ -14,6 +14,8 @@ import PurchaseOrders from "./pages/PurchaseOrders";
 import UserManagement from "./pages/UserManagement";
 import QRLogin from "./pages/QRLogin";
 import Login from "./pages/Login";
+import PasswordLogin from "./pages/PasswordLogin";
+import PasswordManagement from "./pages/PasswordManagement";
 import DailyExport from "./pages/DailyExport";
 import ConsultantDashboard from "./pages/ConsultantDashboard";
 import StaffDashboard from "./pages/StaffDashboard";
@@ -78,6 +80,7 @@ function Router() {
       <Route path={"/notifications"}>{() => <ProtectedRoute feature="notifications"><Notifications /></ProtectedRoute>}</Route>
       <Route path={"/appointments"}>{() => <ProtectedRoute feature="appointments"><Appointments /></ProtectedRoute>}</Route>
       <Route path={"/analytics"}>{() => <AdminOnly><Analytics /></AdminOnly>}</Route>
+      <Route path={"/password-management"}>{() => <ProtectedRoute><PasswordManagement /></ProtectedRoute>}</Route>
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -91,8 +94,9 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Switch>
-            <Route path={"/login"} component={Login} />
-            <Route path={"/qr-login"} component={QRLogin} />
+      <Route path={"/login"} component={Login} />
+      <Route path={"/password-login"} component={PasswordLogin} />
+      <Route path={"/qr-login"} component={QRLogin} />
             <Route component={() => (
               <DashboardLayout>
                 <Router />
