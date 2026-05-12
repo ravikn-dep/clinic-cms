@@ -88,12 +88,25 @@ export default function DashboardLayout({
           </div>
           <Button
             onClick={() => {
-              window.location.href = "/login";
+              window.location.href = "/password-login";
             }}
             size="lg"
             className="friendly-action w-full bg-teal-600 text-white hover:bg-teal-700"
           >
-            Sign in
+            Sign in with Password
+          </Button>
+          <div className="text-sm text-muted-foreground">
+            or
+          </div>
+          <Button
+            onClick={() => {
+              window.location.href = "/login";
+            }}
+            variant="outline"
+            size="lg"
+            className="w-full"
+          >
+            Sign in with Manus OAuth
           </Button>
         </div>
       </div>
