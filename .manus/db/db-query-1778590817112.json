@@ -1,0 +1,18 @@
+{
+  "query": "SELECT * FROM rolePermissions WHERE role = 'consultant' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute SELECT * FROM rolePermissions WHERE role = 'consultant' LIMIT 1;",
+  "rows": [
+    {
+      "permissionId": "PERM-1778590538559-0.1776888545787565",
+      "role": "consultant",
+      "featureKey": "patient_records",
+      "isEnabled": "1",
+      "createdAt": "2026-05-12 12:55:38",
+      "updatedAt": "2026-05-12 12:55:38"
+    }
+  ],
+  "messages": [],
+  "stdout": "permissionId\trole\tfeatureKey\tisEnabled\tcreatedAt\tupdatedAt\nPERM-1778590538559-0.1776888545787565\tconsultant\tpatient_records\t1\t2026-05-12 12:55:38\t2026-05-12 12:55:38\n",
+  "stderr": "",
+  "execution_time_ms": 1866
+}
