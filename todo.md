@@ -515,3 +515,8 @@
 - [ ] Add appointment status update procedures (Consulted/Pending)
 - [ ] Build consultation UI with appointment status update
 - [ ] Test complete workflow: Registration → Appointment → Consultation → Status Update
+
+
+## Bug Fixes (Current)
+- [ ] Fix OP form to populate Age and Address fields from registration
+- [ ] Auto-book appointment with registered patient details and manual time selection
