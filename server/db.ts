@@ -957,3 +957,20 @@ export async function getUserByEmail(email: string): Promise<any | null> {
   const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
   return user.length > 0 ? user[0] : null;
 }
+
+
+export async function updateUserOpenId(userId: number, newOpenId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(users).set({ openId: newOpenId }).where(eq(users.id, userId));
+}
+
+
+export async function getUserById(userId: number): Promise<any | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  return user.length > 0 ? user[0] : null;
+}

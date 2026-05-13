@@ -61,7 +61,18 @@ export const appRouter = router({
             throw new Error("Invalid email or password");
           }
 
-          const sessionToken = await sdk.createSessionToken(String(user.id), {
+          // Ensure user has a valid openId for session token creation
+          // First fetch the full user object to get openId
+          const fullUser = await db.getUserById(user.id);
+          let openId = fullUser?.openId;
+          if (!openId || openId.startsWith('CONS-') || openId.startsWith('STAFF-')) {
+            // Generate a unique openId for password-login users
+            openId = `pwd-${user.id}-${Date.now()}`;
+            // Update user with new openId
+            await db.updateUserOpenId(user.id, openId);
+          }
+
+          const sessionToken = await sdk.createSessionToken(openId, {
             name: user.name || "",
             expiresInMs: 365 * 24 * 60 * 60 * 1000,
           });
