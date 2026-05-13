@@ -974,3 +974,27 @@ export async function getUserById(userId: number): Promise<any | null> {
   const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   return user.length > 0 ? user[0] : null;
 }
+
+
+
+export async function updateAppointmentPatient(appointmentId: string, patientId: string): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.update(appointments).set({ patientId }).where(eq(appointments.appointmentId, appointmentId));
+}
+
+export async function generateOPForm(data: {
+  patientId: string;
+  consultantId: number;
+  consultantName: string;
+  appointmentDate: string;
+  appointmentTime: string;
+}): Promise<{ url: string; key: string }> {
+  // This will be implemented to generate an OP form PDF
+  // For now, return a placeholder
+  return {
+    url: `/op-forms/${data.patientId}-${Date.now()}.pdf`,
+    key: `op-forms/${data.patientId}-${Date.now()}.pdf`,
+  };
+}

@@ -496,3 +496,13 @@
 - [x] Integrate password auth with existing OAuth flow (dual login options)
 - [x] Write tests for password authentication (144 tests passing)
 - [x] Validate end-to-end password login and management
+
+
+## Appointment-to-Patient Registration Workflow (NEW)
+- [ ] Add backend procedure to register patient from appointment data
+- [ ] Add backend procedure to generate OP form from appointment and patient
+- [ ] Create appointment detail modal/page with patient registration form
+- [ ] Add "Register Patient" button in appointment detail view
+- [ ] Add "Generate OP Form" button after patient registration
+- [ ] Link appointment to registered patient (update appointment with patientId)
+- [ ] Test end-to-end workflow from appointment to OP form
