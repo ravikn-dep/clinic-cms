@@ -40,7 +40,7 @@ export const patients = mysqlTable("patients", {
   patientId: varchar("patientId", { length: 50 }).primaryKey(),
   firstName: varchar("firstName", { length: 100 }).notNull(),
   lastName: varchar("lastName", { length: 100 }).notNull(),
-  dateOfBirth: varchar("dateOfBirth", { length: 10 }).notNull(),
+  dateOfBirth: varchar("dateOfBirth", { length: 10 }),
   gender: varchar("gender", { length: 20 }),
   contactNumber: varchar("contactNumber", { length: 20 }).notNull(),
   email: varchar("email", { length: 255 }),

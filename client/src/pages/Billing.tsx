@@ -44,7 +44,7 @@ type PatientDetails = {
   contactNumber: string;
   email?: string;
   address?: string;
-  dateOfBirth: string;
+  dateOfBirth?: string | null;
   lastConsultationDate: Date | null;
 };
 

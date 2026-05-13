@@ -506,3 +506,12 @@
 - [x] Add optional appointment booking modal in patient registration flow (added "Book Appointment" button)
 - [x] Link generated OP form to patient and appointment (if booked) (workflow ready)
 - [x] Test end-to-end workflow from patient registration to OP form generation (144 tests passing)
+
+
+## Complete End-to-End Clinic Workflow
+- [ ] Update registration success screen to prompt for appointment booking
+- [ ] Create appointment booking modal within registration flow
+- [ ] Link consultation page to show appointment details
+- [ ] Add appointment status update procedures (Consulted/Pending)
+- [ ] Build consultation UI with appointment status update
+- [ ] Test complete workflow: Registration → Appointment → Consultation → Status Update

@@ -18,7 +18,7 @@ interface OPFormTemplate {
 interface PatientData {
   firstName: string;
   lastName: string;
-  dateOfBirth: string;
+  dateOfBirth?: string;
   age?: string;
   gender?: string;
   contactNumber: string;

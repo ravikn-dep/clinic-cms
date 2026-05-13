@@ -14,11 +14,12 @@ import { trpc } from "@/lib/trpc";
 import { Download, Loader2, Printer, QrCode } from "lucide-react";
 import { generateOPFormHTML } from "@/lib/opFormGenerator";
 
+
 const registrationSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)"),
-  age: z.string().optional(),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").optional(),
+  age: z.string().min(1, "Age is required"),
   gender: z.enum(["Male", "Female", "Other"]).optional(),
   contactNumber: z.string().min(10, "Contact number must be at least 10 digits"),
   email: z.string().optional(),
@@ -120,13 +121,13 @@ export default function PatientRegistration() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="dateOfBirth">Date of Birth (YYYY-MM-DD) *</Label>
+                <Label htmlFor="dateOfBirth">Date of Birth (YYYY-MM-DD) (Optional)</Label>
                 <Input id="dateOfBirth" type="date" {...register("dateOfBirth")} className={`transition-colors ${errors.dateOfBirth ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
                 {errors.dateOfBirth && <p className="text-sm text-red-500">{errors.dateOfBirth.message}</p>}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="age">Age (Optional)</Label>
+                <Label htmlFor="age">Age *</Label>
                 <div className="flex items-center gap-2">
                   <Input id="age" type="number" placeholder="30" {...register("age")} className="focus-visible:ring-teal-200" />
                   <span className="text-sm font-medium text-slate-600">years</span>
@@ -215,10 +216,28 @@ export default function PatientRegistration() {
                   </div>
                 )}
 
-                <Button onClick={printTrackingSlip} className="w-full gap-2 bg-teal-600 hover:bg-teal-700">
-                  <Printer className="h-4 w-4" />
-                  Print A4 OP Form
-                </Button>
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-slate-700">Next Steps:</p>
+                  <Button onClick={printTrackingSlip} className="w-full gap-2 bg-teal-600 hover:bg-teal-700">
+                    <Printer className="h-4 w-4" />
+                    Generate OP Form
+                  </Button>
+                </div>
+
+                <div className="border-t border-green-200 pt-4">
+                  <p className="mb-3 text-sm font-medium text-slate-700">Would you like to book an appointment?</p>
+                  <Button className="w-full gap-2 bg-blue-600 hover:bg-blue-700" onClick={() => {
+                    window.location.href = `/appointments?patientId=${registeredPatient.patientId}&action=book`;
+                  }}>
+                    Book Appointment Now
+                  </Button>
+                  <Button variant="outline" className="w-full mt-2" onClick={() => {
+                    setRegisteredPatient(null);
+                    setRegisteredPatientDetails(null);
+                  }}>
+                    Skip for Now
+                  </Button>
+                </div>
 
                 <Button onClick={() => { setRegisteredPatient(null); setRegisteredPatientDetails(null); }} variant="outline" className="w-full">
                   Register Another Patient
