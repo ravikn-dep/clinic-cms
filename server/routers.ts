@@ -143,7 +143,6 @@ export const appRouter = router({
       .input(z.object({
         firstName: z.string().min(1),
         lastName: z.string().min(1),
-        dateOfBirth: z.string().regex(/^d{4}-d{2}-d{2}$/).optional(),
         age: z.string().min(1),
         gender: z.enum(["Male", "Female", "Other"]).optional(),
         contactNumber: z.string().min(10),
@@ -183,7 +182,7 @@ export const appRouter = router({
           patientId,
           firstName: input.firstName,
           lastName: input.lastName,
-          dateOfBirth: input.dateOfBirth || null,
+          dateOfBirth: null,
           gender: input.gender,
           contactNumber: input.contactNumber,
           email: input.email,

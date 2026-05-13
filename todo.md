@@ -509,8 +509,8 @@
 
 
 ## Complete End-to-End Clinic Workflow
-- [ ] Update registration success screen to prompt for appointment booking
-- [ ] Create appointment booking modal within registration flow
+- [x] Update registration success screen to prompt for appointment booking (added "Book Appointment Now" button)
+- [ ] Create appointment booking modal within registration flow (redirect to appointments page)
 - [ ] Link consultation page to show appointment details
 - [ ] Add appointment status update procedures (Consulted/Pending)
 - [ ] Build consultation UI with appointment status update

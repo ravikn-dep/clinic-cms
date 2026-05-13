@@ -18,7 +18,6 @@ import { generateOPFormHTML } from "@/lib/opFormGenerator";
 const registrationSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date format (YYYY-MM-DD)").optional(),
   age: z.string().min(1, "Age is required"),
   gender: z.enum(["Male", "Female", "Other"]).optional(),
   contactNumber: z.string().min(10, "Contact number must be at least 10 digits"),
@@ -118,12 +117,6 @@ export default function PatientRegistration() {
                   <Input id="lastName" placeholder="Doe" {...register("lastName")} className={`transition-colors ${errors.lastName ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
                   {errors.lastName && <p className="text-sm text-red-500">{errors.lastName.message}</p>}
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="dateOfBirth">Date of Birth (YYYY-MM-DD) (Optional)</Label>
-                <Input id="dateOfBirth" type="date" {...register("dateOfBirth")} className={`transition-colors ${errors.dateOfBirth ? "border-red-500 focus-visible:ring-red-200" : "focus-visible:ring-teal-200"}`} />
-                {errors.dateOfBirth && <p className="text-sm text-red-500">{errors.dateOfBirth.message}</p>}
               </div>
 
               <div className="space-y-2">
