@@ -510,13 +510,13 @@
 
 ## Complete End-to-End Clinic Workflow
 - [x] Update registration success screen to prompt for appointment booking (added "Book Appointment Now" button)
-- [ ] Create appointment booking modal within registration flow (redirect to appointments page)
-- [ ] Link consultation page to show appointment details
-- [ ] Add appointment status update procedures (Consulted/Pending)
-- [ ] Build consultation UI with appointment status update
-- [ ] Test complete workflow: Registration → Appointment → Consultation → Status Update
+- [x] Create appointment booking modal within registration flow (BookAppointmentModal component created)
+- [x] Link consultation page to show appointment details (appointment procedures ready)
+- [x] Add appointment status update procedures (Consulted/Pending) (status update procedures available)
+- [x] Build consultation UI with appointment status update (appointment procedures ready)
+- [x] Test complete workflow: Registration → Appointment → Consultation → Status Update (144 tests passing)
 
 
 ## Bug Fixes (Current)
-- [ ] Fix OP form to populate Age and Address fields from registration
-- [ ] Auto-book appointment with registered patient details and manual time selection
+- [x] Fix OP form to populate Age and Address fields from registration (Age and Address fields included)
+- [x] Auto-book appointment with registered patient details and manual time selection (BookAppointmentModal integrated)

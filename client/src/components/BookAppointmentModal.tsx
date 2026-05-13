@@ -19,7 +19,7 @@ export function BookAppointmentModal({ patientId, open, onOpenChange }: BookAppo
   const [consultantId, setConsultantId] = useState("");
 
   const bookAppointmentMutation = trpc.appointments.create.useMutation();
-  const getConsultants = trpc.consultants.list.useQuery();
+  const getConsultants = trpc.consultants.getAll.useQuery();
 
   const handleBookAppointment = async () => {
     if (!appointmentDate || !appointmentTime || !consultantId) {
@@ -30,9 +30,10 @@ export function BookAppointmentModal({ patientId, open, onOpenChange }: BookAppo
     try {
       const appointmentDateTime = `${appointmentDate}T${appointmentTime}:00`;
       await bookAppointmentMutation.mutateAsync({
-        patientId: parseInt(patientId),
+        patientId: patientId,
         consultantId: parseInt(consultantId),
         appointmentDate: appointmentDateTime,
+        appointmentTime: appointmentTime,
         notes: "Booked from patient registration",
       });
       toast.success("Appointment booked successfully!");
@@ -75,7 +76,7 @@ export function BookAppointmentModal({ patientId, open, onOpenChange }: BookAppo
                 <SelectValue placeholder="Select consultant" />
               </SelectTrigger>
               <SelectContent>
-                {getConsultants.data?.map((consultant) => (
+                {getConsultants.data?.map((consultant: any) => (
                   <SelectItem key={consultant.id} value={String(consultant.id)}>
                     {consultant.name}
                   </SelectItem>

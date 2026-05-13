@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { BookAppointmentModal } from "@/components/BookAppointmentModal";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { BookAppointmentModal } from "@/components/BookAppointmentModal";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -44,6 +43,7 @@ export default function PatientRegistration() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [registeredPatient, setRegisteredPatient] = useState<RegisteredPatient | null>(null);
   const [registeredPatientDetails, setRegisteredPatientDetails] = useState<RegistrationFormData | null>(null);
+  const [showBookAppointmentModal, setShowBookAppointmentModal] = useState(false);
 
   const { register, handleSubmit, formState: { errors }, setValue, reset } = useForm<RegistrationFormData>({
     resolver: zodResolver(registrationSchema),
@@ -222,7 +222,7 @@ export default function PatientRegistration() {
                 <div className="border-t border-green-200 pt-4">
                   <p className="mb-3 text-sm font-medium text-slate-700">Would you like to book an appointment?</p>
                   <Button className="w-full gap-2 bg-blue-600 hover:bg-blue-700" onClick={() => {
-                    window.location.href = `/appointments?patientId=${registeredPatient.patientId}&action=book`;
+                    setShowBookAppointmentModal(true);
                   }}>
                     Book Appointment Now
                   </Button>
@@ -233,6 +233,14 @@ export default function PatientRegistration() {
                     Skip for Now
                   </Button>
                 </div>
+
+                {registeredPatient && (
+                  <BookAppointmentModal
+                    patientId={registeredPatient.patientId}
+                    open={showBookAppointmentModal}
+                    onOpenChange={setShowBookAppointmentModal}
+                  />
+                )}
 
                 <Button onClick={() => { setRegisteredPatient(null); setRegisteredPatientDetails(null); }} variant="outline" className="w-full">
                   Register Another Patient

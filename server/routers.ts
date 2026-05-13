@@ -1204,6 +1204,31 @@ export const appRouter = router({
   }),
 
   // ============ RBAC USER MANAGEMENT ============
+  // ============ CONSULTANTS ============
+  consultants: router({
+    getAll: protectedProcedure.query(async () => {
+      try {
+        const consultants = await db.getAllStaffUsers();
+        return consultants
+          .filter(u => u.role === 'consultant')
+          .map(u => ({
+            id: u.id,
+            userId: u.userId,
+            name: u.name,
+            email: u.email,
+            phone: u.phone,
+            department: u.department,
+            role: u.role,
+            isActive: u.isActive,
+            createdAt: u.createdAt,
+          }));
+      } catch (error) {
+        console.error("[Consultants] Get all failed:", error);
+        throw new Error("Failed to fetch consultants");
+      }
+    }),
+  }),
+
   rbac: router({
     createStaffUser: adminProcedure
       .input(z.object({
