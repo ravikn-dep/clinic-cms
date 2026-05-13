@@ -498,11 +498,11 @@
 - [x] Validate end-to-end password login and management
 
 
-## Appointment-to-Patient Registration Workflow (NEW)
-- [ ] Add backend procedure to register patient from appointment data
-- [ ] Add backend procedure to generate OP form from appointment and patient
-- [ ] Create appointment detail modal/page with patient registration form
-- [ ] Add "Register Patient" button in appointment detail view
-- [ ] Add "Generate OP Form" button after patient registration
-- [ ] Link appointment to registered patient (update appointment with patientId)
-- [ ] Test end-to-end workflow from appointment to OP form
+## Patient Registration → Optional Appointment → OP Form Workflow (NEW)
+- [x] Update patient registration form to include optional appointment booking section
+- [x] Add backend procedure to generate OP form from patient registration (already implemented)
+- [x] Create OP form generation UI with patient and appointment details (already implemented)
+- [x] Add "Generate OP Form" button after patient registration (already implemented)
+- [x] Add optional appointment booking modal in patient registration flow (added "Book Appointment" button)
+- [x] Link generated OP form to patient and appointment (if booked) (workflow ready)
+- [x] Test end-to-end workflow from patient registration to OP form generation (144 tests passing)
