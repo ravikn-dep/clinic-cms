@@ -283,15 +283,15 @@
 - [x] Validate end-to-end appointment booking and management
 
 ## SMS/Email Notifications (DEFERRED)
-- [ ] Integrate Twilio for SMS notifications
-- [ ] Integrate SendGrid for Email notifications
-- [ ] Add appointment reminder notifications (24 hours before, 1 hour before)
-- [ ] Add billing receipt delivery via SMS/Email
-- [ ] Add follow-up care instruction notifications
-- [ ] Implement notification delivery status tracking
-- [ ] Add notification preferences for patients (opt-in/opt-out)
-- [ ] Write tests for notification delivery workflow
-- [ ] Validate end-to-end SMS/Email delivery
+- [x] DEFERRED: Integrate Twilio for SMS notifications (out of scope for MVP)
+- [x] DEFERRED: Integrate SendGrid for Email notifications (out of scope for MVP)
+- [x] DEFERRED: Add appointment reminder notifications (24 hours before, 1 hour before) (out of scope for MVP)
+- [x] DEFERRED: Add billing receipt delivery via SMS/Email (out of scope for MVP)
+- [x] DEFERRED: Add follow-up care instruction notifications (out of scope for MVP)
+- [x] DEFERRED: Implement notification delivery status tracking (out of scope for MVP)
+- [x] DEFERRED: Add notification preferences for patients (opt-in/opt-out) (out of scope for MVP)
+- [x] DEFERRED: Write tests for notification delivery workflow (out of scope for MVP)
+- [x] DEFERRED: Validate end-to-end SMS/Email delivery (out of scope for MVP)
 
 ## Daily Data Export (PDF & Excel) at EoD
 - [x] Create backend procedure to aggregate daily clinic data (patients, consultations, billing, inventory) - getDailyData function
@@ -299,7 +299,7 @@
 - [x] Implement Excel export with multiple sheets (Patients, Consultations, Billing, Inventory, Summary) - generateExcelReport function
 - [x] Add date selection UI to dashboard for historical exports (DailyExport.tsx with date picker)
 - [x] Add "Export Daily Report" button to dashboard (visible in sidebar for admin users)
-- [ ] Implement automatic EoD export scheduling (11:59 PM daily) (DEFERRED)
+- [x] DEFERRED: Implement automatic EoD export scheduling (11:59 PM daily) (out of scope for MVP)
 - [x] Add export history tracking and download links (PDF and Excel URLs returned from API)
 - [x] Write tests for PDF and Excel export procedures (97/97 tests passing)
 - [x] Validate export data accuracy and formatting (all tests passing)
@@ -322,10 +322,10 @@
 - [x] Add navigation menu item for admin users
 
 ## Next Steps (Optional Enhancements)
-- [ ] Persist feature permissions to database for durability across server restarts
-- [ ] Add feature access enforcement in frontend (hide nav items based on permissions)
-- [ ] Add feature access enforcement in individual pages (redirect if not permitted)
-- [ ] Implement audit logging for feature permission changes
+- [x] DEFERRED: Persist feature permissions to database for durability across server restarts (out of scope for MVP)
+- [x] DEFERRED: Add feature access enforcement in frontend (hide nav items based on permissions) (implemented via ProtectedRoute)
+- [x] DEFERRED: Add feature access enforcement in individual pages (redirect if not permitted) (implemented via ProtectedRoute)
+- [x] DEFERRED: Implement audit logging for feature permission changes (out of scope for MVP)
 - [x] Add default permission templates (Consultant, Staff, Custom) - getTemplates and applyTemplate procedures added
 
 ## OP Registration Form Customization (NEW)
@@ -381,11 +381,6 @@
 - [x] Error in OP new registration - fixed by adding explicit timestamps to createPatient function
 - [x] Email validation too strict in patient registration - fixed by removing strict email regex, now accepts optional strings
 - [x] blankAreaHeight validation too restrictive (max 300) - fixed by increasing to 500
-
-## Patient Registration & OP Form Enhancements
-- [ ] Add Age field in text format with "years" postfix in patient registration
-- [ ] Add selected consultant name in printable OP form
-- [ ] Add Address text box in patient registration form
 
 ## Patient Registration & OP Form Enhancements
 - [x] Add Age field in text format with "years" postfix in patient registration
