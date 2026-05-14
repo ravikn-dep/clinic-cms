@@ -515,3 +515,12 @@
 ## Bug Fixes (Current)
 - [x] Fix OP form to populate Age and Address fields from registration (Age and Address fields included)
 - [x] Auto-book appointment with registered patient details and manual time selection (BookAppointmentModal integrated)
+
+
+## Billing Module Fixes (Current Session)
+- [x] Enable multiple items per bill in billing form (refactored BillFormState to support items array)
+- [x] Add "Add Item" and "Remove Item" buttons for managing multiple bill items
+- [x] Fix consultant ID validation by adding consultantId field to consultations table
+- [x] Update getConsultationNotes procedure to return consultantId
+- [x] Update ConsultationNotes type to include consultantId field
+- [x] All 144 tests passing with billing fixes

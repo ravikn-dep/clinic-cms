@@ -882,6 +882,7 @@ export const appRouter = router({
         return {
           consultationId: consultation.consultationId,
           patientId: consultation.patientId,
+          consultantId: consultation.consultantId,
           consultationDate: consultation.consultationDate,
           clinicalHistory: consultation.clinicalHistory,
           presentComplaints: consultation.presentComplaints,

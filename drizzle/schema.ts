@@ -61,6 +61,7 @@ export type InsertPatient = typeof patients.$inferInsert;
 export const consultations = mysqlTable("consultations", {
   consultationId: varchar("consultationId", { length: 50 }).primaryKey(),
   patientId: varchar("patientId", { length: 50 }).notNull(),
+  consultantId: int("consultantId"),
   consultationDate: timestamp("consultationDate").defaultNow().notNull(),
   audioFileUrl: text("audioFileUrl"),
   audioFileKey: text("audioFileKey"),

@@ -1,0 +1,1 @@
+ALTER TABLE `consultations` ADD `consultantId` int;

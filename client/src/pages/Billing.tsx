@@ -6,20 +6,25 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { AlertCircle, Download, FileText, Loader2, Mail, Plus, RefreshCcw, Printer } from "lucide-react";
+import { AlertCircle, Download, FileText, Loader2, Mail, Plus, RefreshCcw, Printer, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
 import { useAuth } from "@/_core/hooks/useAuth";
 
 type PaymentStatus = "Pending" | "Paid" | "Partial";
 
-type BillFormState = {
-  patientId: string;
-  consultationId: string;
+type BillItem = {
+  id: string;
   itemType: string;
   description: string;
   quantity: string;
   unitPrice: string;
+};
+
+type BillFormState = {
+  patientId: string;
+  consultationId: string;
+  items: BillItem[];
   discountAmount: string;
   taxAmount: string;
 };
@@ -27,10 +32,15 @@ type BillFormState = {
 const initialBillForm: BillFormState = {
   patientId: "",
   consultationId: "",
-  itemType: "Consultation",
-  description: "Consultation fee",
-  quantity: "1",
-  unitPrice: "500",
+  items: [
+    {
+      id: "item-1",
+      itemType: "Consultation",
+      description: "Consultation fee",
+      quantity: "1",
+      unitPrice: "500",
+    },
+  ],
   discountAmount: "0",
   taxAmount: "0",
 };
@@ -51,6 +61,7 @@ type PatientDetails = {
 type ConsultationNotes = {
   consultationId: string;
   patientId: string;
+  consultantId: number | null;
   consultationDate: Date;
   clinicalHistory: string | null;
   presentComplaints: string | null;
@@ -175,7 +186,9 @@ export default function Billing() {
     );
   }, [bills]);
 
-  const totalAmount = parseCurrency(form.quantity) * parseCurrency(form.unitPrice);
+  const totalAmount = form.items.reduce((sum, item) => {
+    return sum + parseCurrency(item.quantity) * parseCurrency(item.unitPrice);
+  }, 0);
   const finalAmount = Math.max(0, totalAmount - parseCurrency(form.discountAmount) + parseCurrency(form.taxAmount));
 
   const handleCreateBill = (event: FormEvent<HTMLFormElement>) => {
@@ -185,32 +198,37 @@ export default function Billing() {
       toast.error("Patient ID is required.");
       return;
     }
-    if (!form.description.trim()) {
-      toast.error("Item description is required.");
+    if (form.items.length === 0) {
+      toast.error("At least one item is required.");
       return;
     }
-    if (parseCurrency(form.quantity) <= 0 || parseCurrency(form.unitPrice) <= 0) {
-      toast.error("Quantity and unit price must be greater than zero.");
-      return;
+    
+    for (const item of form.items) {
+      if (!item.description.trim()) {
+        toast.error("Item description is required for all items.");
+        return;
+      }
+      if (parseCurrency(item.quantity) <= 0 || parseCurrency(item.unitPrice) <= 0) {
+        toast.error("Quantity and unit price must be greater than zero for all items.");
+        return;
+      }
     }
 
     createBill.mutate({
       patientId: form.patientId.trim(),
       consultationId: form.consultationId.trim() || undefined,
-      items: [
-        {
-          itemType: form.itemType,
-          description: form.description.trim(),
-          quantity: Number.parseInt(form.quantity, 10),
-          unitPrice: parseCurrency(form.unitPrice).toString(),
-        },
-      ],
+      items: form.items.map(item => ({
+        itemType: item.itemType,
+        description: item.description.trim(),
+        quantity: Number.parseInt(item.quantity, 10),
+        unitPrice: parseCurrency(item.unitPrice).toString(),
+      })),
       discountAmount: parseCurrency(form.discountAmount).toString(),
       taxAmount: parseCurrency(form.taxAmount).toString(),
     });
   };
 
-  const setField = (field: keyof BillFormState, value: string) => {
+  const setField = (field: keyof BillFormState, value: string | BillItem[]) => {
     setForm((current) => ({ ...current, [field]: value }));
     // Clear patient details when patient ID changes
     if (field === "patientId") {
@@ -220,6 +238,40 @@ export default function Billing() {
     if (field === "consultationId") {
       setConsultationNotes(null);
     }
+  };
+
+  const updateItem = (itemId: string, field: keyof BillItem, value: string) => {
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.id === itemId ? { ...item, [field]: value } : item
+      ),
+    }));
+  };
+
+  const addItem = () => {
+    const newItem: BillItem = {
+      id: `item-${Date.now()}`,
+      itemType: "Medicine",
+      description: "",
+      quantity: "1",
+      unitPrice: "0",
+    };
+    setForm((current) => ({
+      ...current,
+      items: [...current.items, newItem],
+    }));
+  };
+
+  const removeItem = (itemId: string) => {
+    if (form.items.length === 1) {
+      toast.error("At least one item is required.");
+      return;
+    }
+    setForm((current) => ({
+      ...current,
+      items: current.items.filter((item) => item.id !== itemId),
+    }));
   };
 
   const formatDate = (date: Date | string | null | undefined) => {
@@ -444,33 +496,48 @@ export default function Billing() {
               )}
 
               <div className="space-y-4">
-                <Label className="font-semibold">Bill Item</Label>
-                <div className="grid gap-3 rounded-xl border bg-slate-50/70 p-4 shadow-inner md:grid-cols-[180px_1fr_120px_160px]">
-                  <div className="space-y-2">
-                    <Label>Item Type</Label>
-                    <Select value={form.itemType} onValueChange={(value) => setField("itemType", value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Consultation">Consultation</SelectItem>
-                        <SelectItem value="Medicine">Medicine</SelectItem>
-                        <SelectItem value="Procedure">Procedure</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description *</Label>
-                    <Input id="description" value={form.description} onChange={(event) => setField("description", event.target.value)} placeholder="Consultation fee" className="transition-colors focus-visible:ring-teal-200" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="quantity">Qty *</Label>
-                    <Input id="quantity" type="number" min="1" value={form.quantity} onChange={(event) => setField("quantity", event.target.value)} className="transition-colors focus-visible:ring-teal-200" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="unitPrice">Unit Price *</Label>
-                    <Input id="unitPrice" type="number" min="0" step="0.01" value={form.unitPrice} onChange={(event) => setField("unitPrice", event.target.value)} className="transition-colors focus-visible:ring-teal-200" />
-                  </div>
+                <div className="flex items-center justify-between">
+                  <Label className="font-semibold">Bill Items</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addItem} className="gap-1">
+                    <Plus className="h-4 w-4" />
+                    Add Item
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {form.items.map((item) => (
+                    <div key={item.id} className="grid gap-3 rounded-xl border bg-slate-50/70 p-4 shadow-inner md:grid-cols-[140px_1fr_100px_140px_50px]">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Item Type</Label>
+                        <Select value={item.itemType} onValueChange={(value) => updateItem(item.id, "itemType", value)}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Consultation">Consultation</SelectItem>
+                            <SelectItem value="Medicine">Medicine</SelectItem>
+                            <SelectItem value="Procedure">Procedure</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Description *</Label>
+                        <Input value={item.description} onChange={(event) => updateItem(item.id, "description", event.target.value)} placeholder="Item description" className="transition-colors focus-visible:ring-teal-200" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Qty *</Label>
+                        <Input type="number" min="1" value={item.quantity} onChange={(event) => updateItem(item.id, "quantity", event.target.value)} className="transition-colors focus-visible:ring-teal-200" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Unit Price *</Label>
+                        <Input type="number" min="0" step="0.01" value={item.unitPrice} onChange={(event) => updateItem(item.id, "unitPrice", event.target.value)} className="transition-colors focus-visible:ring-teal-200" />
+                      </div>
+                      <div className="flex items-end">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => removeItem(item.id)} className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
