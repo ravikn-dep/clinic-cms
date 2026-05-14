@@ -9,6 +9,7 @@ import PatientRecords from "./pages/PatientRecords";
 import AmbientScribe from "./pages/AmbientScribe";
 import PharmacyInventory from "./pages/PharmacyInventory";
 import Billing from "./pages/Billing";
+import BillTemplateManagement from "./pages/BillTemplateManagement";
 import PurchaseOrders from "./pages/PurchaseOrders";
 import UserManagement from "./pages/UserManagement";
 import QRLogin from "./pages/QRLogin";
@@ -70,6 +71,7 @@ function Router() {
       <Route path={"/scribe"}>{() => <ProtectedRoute feature="ambient_scribe"><AmbientScribe /></ProtectedRoute>}</Route>
       <Route path={"/pharmacy"}>{() => <ProtectedRoute feature="pharmacy"><PharmacyInventory /></ProtectedRoute>}</Route>
       <Route path={"/billing"}>{() => <ProtectedRoute feature="billing"><Billing /></ProtectedRoute>}</Route>
+      <Route path={"/bill-templates"}>{() => <AdminOnly><BillTemplateManagement /></AdminOnly>}</Route>
       <Route path={"/purchase-orders"}>{() => <ProtectedRoute feature="purchase_orders"><PurchaseOrders /></ProtectedRoute>}</Route>
       <Route path={"/users"}>{() => <AdminOnly><UserManagement /></AdminOnly>}</Route>
       <Route path={"/audit-logs"}>{() => <ProtectedRoute feature="audit_trail" adminOnly><AuditLogs /></ProtectedRoute>}</Route>

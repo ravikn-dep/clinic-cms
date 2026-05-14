@@ -524,3 +524,35 @@
 - [x] Update getConsultationNotes procedure to return consultantId
 - [x] Update ConsultationNotes type to include consultantId field
 - [x] All 144 tests passing with billing fixes
+
+
+## Bill Templates Feature (NEW)
+- [ ] Design bill templates schema (templateId, name, description, items array, createdBy, isActive)
+- [ ] Create billTemplates table in database schema
+- [ ] Add backend procedures: createTemplate, getTemplate, getAllTemplates, updateTemplate, deleteTemplate
+- [ ] Build template management UI page (TemplateManagement.tsx) for admins
+- [ ] Add template selection dropdown in billing form
+- [ ] Implement auto-populate functionality when template is selected
+- [ ] Create pre-defined templates: Consultation, Imaging, Procedure, Follow-up, Combined
+- [ ] Add tests for template CRUD operations
+- [ ] Add tests for template auto-population in billing form
+- [ ] Validate end-to-end template workflow
+
+- [ ] Upload Max Diagnostics logo to S3 storage
+- [ ] Integrate logo into bill PDF header (invoiceGen.ts)
+- [ ] Update invoice PDF generation to include logo with clinic details
+
+- [x] Upload Max Diagnostics logo to S3 storage
+- [x] Integrate logo into bill PDF header (invoiceGen.ts)
+- [x] Update invoice PDF generation to include logo with clinic details
+- [x] Design bill templates schema (templateId, name, description, items array, createdBy, isActive)
+- [x] Create billTemplates table in database schema
+- [x] Add backend procedures: createTemplate, getTemplate, getAllTemplates, updateTemplate, deleteTemplate
+- [x] Add generateBillTemplateId function to utils.ts
+- [x] Build template management UI page (BillTemplateManagement.tsx) for admins
+- [ ] Add template selection dropdown in billing form
+- [ ] Implement auto-populate functionality when template is selected
+- [ ] Create pre-defined templates: Consultation, Imaging, Procedure, Follow-up, Combined
+- [ ] Add tests for template CRUD operations
+- [ ] Add tests for template auto-population in billing form
+- [ ] Validate end-to-end template workflow

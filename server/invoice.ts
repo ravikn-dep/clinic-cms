@@ -59,12 +59,23 @@ export async function generateInvoicePDF(invoiceData: InvoiceData): Promise<Buff
 
   let yPosition = margin;
 
-  // Header
-  doc.setFontSize(20);
+  // Header with Logo and Clinic Info
+  doc.setDrawColor(0, 51, 102);
+  doc.rect(margin, yPosition, contentWidth, 22);
+  
+  doc.setFontSize(16);
+  doc.setTextColor(0, 51, 102);
+  doc.text("MAX DIAGNOSTICS", margin + 5, yPosition + 8);
+  
+  doc.setFontSize(9);
   doc.setTextColor(33, 33, 33);
-  doc.text("CLINIC INVOICE", margin, yPosition);
+  doc.text("The Pioneers in Diagnostic Medicare.", margin + 5, yPosition + 13);
+  doc.text("Address: Max Diagnostics Kranthi shikara complex, yashoda hospital", margin + 5, yPosition + 17);
+  doc.text("Road, Panjagutta Hyderabad 500082", margin + 5, yPosition + 20);
+  
+  yPosition += 27;
 
-  yPosition += 10;
+  // Invoice details
   doc.setFontSize(10);
   doc.setTextColor(100, 100, 100);
   doc.text(`Invoice ID: ${invoiceData.billId}`, margin, yPosition);

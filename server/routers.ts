@@ -1920,6 +1920,70 @@ export const appRouter = router({
       }),
   }),
 
+  billTemplates: router({
+    create: adminProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        items: z.array(z.object({
+          itemType: z.string(),
+          description: z.string(),
+          quantity: z.number().min(1),
+          unitPrice: z.string(),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const templateId = utils.generateBillTemplateId();
+        await db.createBillTemplate({
+          templateId,
+          name: input.name,
+          description: input.description,
+          itemsJson: input.items,
+          createdBy: ctx.user.id,
+        });
+        return { templateId };
+      }),
+
+    getAll: protectedProcedure
+      .query(async () => {
+        return db.getAllBillTemplates();
+      }),
+
+    getById: protectedProcedure
+      .input(z.object({ templateId: z.string() }))
+      .query(async ({ input }) => {
+        return db.getBillTemplateById(input.templateId);
+      }),
+
+    update: adminProcedure
+      .input(z.object({
+        templateId: z.string(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        items: z.array(z.object({
+          itemType: z.string(),
+          description: z.string(),
+          quantity: z.number().min(1),
+          unitPrice: z.string(),
+        })).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const updates: any = {};
+        if (input.name) updates.name = input.name;
+        if (input.description) updates.description = input.description;
+        if (input.items) updates.itemsJson = input.items;
+        await db.updateBillTemplate(input.templateId, updates);
+        return { success: true };
+      }),
+
+    delete: adminProcedure
+      .input(z.object({ templateId: z.string() }))
+      .mutation(async ({ input }) => {
+        await db.deleteBillTemplate(input.templateId);
+        return { success: true };
+      }),
+  }),
+
 });
 
 // Default feature permissions by role

@@ -63,6 +63,14 @@ export function generateBillId(): string {
 }
 
 /**
+ * Generate a unique Bill Template ID
+ * Format: TPL-{timestamp}-{random}
+ */
+export function generateBillTemplateId(): string {
+  return `TPL-${Date.now()}-${nanoid(6)}`;
+}
+
+/**
  * Generate a unique Bill Item ID
  * Format: BIT-{random}
  */

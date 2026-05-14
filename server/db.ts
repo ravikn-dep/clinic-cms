@@ -1,6 +1,6 @@
 import { count, desc, eq, like, lte, inArray, sql, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, patients, consultations, inventory, bills, billItems, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions } from "../drizzle/schema";
+import { InsertUser, users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 
@@ -976,3 +976,41 @@ export async function getUserById(userId: number): Promise<any | null> {
 }
 
 
+
+
+// Bill Templates
+export async function createBillTemplate(template: typeof billTemplates.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(billTemplates).values(template);
+}
+
+export async function getBillTemplateById(templateId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(billTemplates).where(eq(billTemplates.templateId, templateId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getAllBillTemplates() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(billTemplates).where(eq(billTemplates.isActive, true)).orderBy(desc(billTemplates.createdAt));
+}
+
+export async function updateBillTemplate(templateId: string, updates: Partial<typeof billTemplates.$inferInsert>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(billTemplates).set(updates).where(eq(billTemplates.templateId, templateId));
+}
+
+export async function deleteBillTemplate(templateId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(billTemplates).set({ isActive: false }).where(eq(billTemplates.templateId, templateId));
+}

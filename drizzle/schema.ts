@@ -266,3 +266,19 @@ export const rolePermissions = mysqlTable("rolePermissions", {
 
 export type RolePermission = typeof rolePermissions.$inferSelect;
 export type InsertRolePermission = typeof rolePermissions.$inferInsert;
+
+
+// Bill Templates - Pre-defined billing scenarios
+export const billTemplates = mysqlTable("billTemplates", {
+  templateId: varchar("templateId", { length: 50 }).primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(), // e.g., "Consultation", "Imaging", "Procedure"
+  description: text("description"), // e.g., "Standard consultation fee with follow-up"
+  itemsJson: json("itemsJson").notNull(), // Array of {itemType, description, quantity, unitPrice}
+  isActive: boolean("isActive").default(true),
+  createdBy: int("createdBy").notNull(), // Admin user ID
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BillTemplate = typeof billTemplates.$inferSelect;
+export type InsertBillTemplate = typeof billTemplates.$inferInsert;
