@@ -7,9 +7,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
-import { CalendarDays, Copy, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound } from "lucide-react";
+import { CalendarDays, Copy, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound, FileCheck, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { generateOPFormHTML, type UserInfo } from "@/lib/opFormGenerator";
+import { useLocation } from "wouter";
 
 function formatDate(value: unknown) {
   if (!value) return "—";
@@ -33,6 +34,7 @@ export default function PatientRecords() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const [, setLocation] = useLocation();
 
   const patientsQuery = trpc.patients.getAll.useQuery();
   const getFormTemplate = trpc.opForm.getTemplate.useQuery();
@@ -319,6 +321,19 @@ export default function PatientRecords() {
                               title="Copy Consultation ID"
                             >
                               <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-auto gap-1 px-2 py-1 text-xs"
+                              onClick={() => {
+                                setLocation(`/billing?consultationId=${consultation.consultationId}&patientId=${selectedPatientId}`);
+                              }}
+                              title="Generate Bill for this consultation"
+                            >
+                              <DollarSign className="h-3.5 w-3.5" />
+                              Generate Bill
                             </Button>
                           </div>
                           <Badge variant={consultation.isFinalized ? "default" : "outline"}>{consultation.isFinalized ? "Finalized" : "Draft"}</Badge>

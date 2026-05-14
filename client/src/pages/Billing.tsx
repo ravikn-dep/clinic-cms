@@ -10,6 +10,7 @@ import { AlertCircle, Download, FileText, Loader2, Mail, Plus, RefreshCcw, Print
 import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useLocation } from "wouter";
 
 type PaymentStatus = "Pending" | "Paid" | "Partial";
 
@@ -78,6 +79,23 @@ export default function Billing() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const utils = trpc.useUtils();
+  const [location] = useLocation();
+
+  // Handle query parameters from Patient Records "Generate Bill" button
+  useEffect(() => {
+    const params = new URLSearchParams(location.split('?')[1]);
+    const consultationId = params.get('consultationId');
+    const patientId = params.get('patientId');
+    
+    if (consultationId || patientId) {
+      setForm((current) => ({
+        ...current,
+        consultationId: consultationId || current.consultationId,
+        patientId: patientId || current.patientId,
+      }));
+      setShowNewBill(true);
+    }
+  }, [location]);
 
   // Fetch available templates
   const templatesQuery = trpc.billTemplates.getAll.useQuery();

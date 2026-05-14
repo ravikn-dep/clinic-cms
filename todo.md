@@ -563,3 +563,15 @@
 - [x] Add copy-to-clipboard button for Consultation ID (click icon to copy)
 - [x] Show consultation date alongside Consultation ID (displayed below ID)
 - [ ] Make Consultation ID clickable to view full consultation details (optional enhancement)
+
+- [x] Add "Generate Bill" button next to Consultation ID in Patient Records (button added with DollarSign icon)
+- [x] Implement navigation to Billing page with consultation ID pre-filled (query parameters handled)
+- [x] Test Generate Bill workflow end-to-end (144 tests passing)
+
+
+## Authentication Changes (Current)
+- [ ] Replace Manus OAuth with direct domain login (email/password)
+- [ ] Create login page with email and password fields
+- [ ] Implement session management for direct login
+- [ ] Update authentication flow to use direct credentials
+- [ ] Remove OAuth redirect logic and use local session instead
