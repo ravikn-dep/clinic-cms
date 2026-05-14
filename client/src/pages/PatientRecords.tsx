@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
-import { CalendarDays, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound } from "lucide-react";
+import { CalendarDays, Copy, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { generateOPFormHTML, type UserInfo } from "@/lib/opFormGenerator";
 
@@ -305,7 +305,22 @@ export default function PatientRecords() {
                     ) : consultations.map((consultation) => (
                       <div key={consultation.consultationId} className="rounded-lg border bg-white p-4 shadow-sm transition-colors hover:bg-accent/30">
                         <div className="flex items-center justify-between gap-3">
-                          <div className="font-medium">{consultation.consultationId}</div>
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium font-mono text-sm">{consultation.consultationId}</div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-auto p-1"
+                              onClick={() => {
+                                navigator.clipboard.writeText(consultation.consultationId);
+                                toast.success("Consultation ID copied to clipboard");
+                              }}
+                              title="Copy Consultation ID"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                           <Badge variant={consultation.isFinalized ? "default" : "outline"}>{consultation.isFinalized ? "Finalized" : "Draft"}</Badge>
                         </div>
                         <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
