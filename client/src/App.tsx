@@ -16,6 +16,7 @@ import QRLogin from "./pages/QRLogin";
 import Login from "./pages/Login";
 import PasswordLogin from "./pages/PasswordLogin";
 import PasswordManagement from "./pages/PasswordManagement";
+import DirectLogin from "./pages/DirectLogin";
 import DailyExport from "./pages/DailyExport";
 import ConsultantDashboard from "./pages/ConsultantDashboard";
 import StaffDashboard from "./pages/StaffDashboard";
@@ -60,8 +61,10 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
 function Router() {
   return (
     <Switch>
+      <Route path={"/direct-login"} component={DirectLogin} />
       <Route path={"/"} component={() => {
         const { user } = useAuth();
+        if (!user) return <DirectLogin />;
         if (user?.role === "consultant") return <ConsultantDashboard />;
         if (user?.role === "staff") return <StaffDashboard />;
         return <Home />;

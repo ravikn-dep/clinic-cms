@@ -1014,3 +1014,68 @@ export async function deleteBillTemplate(templateId: string) {
   
   await db.update(billTemplates).set({ isActive: false }).where(eq(billTemplates.templateId, templateId));
 }
+
+
+// Direct Login Functions (Email/Password Authentication)
+
+export async function getUserByUsername(username: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+  return result[0] || null;
+}
+
+export async function createDirectLoginUser(data: {
+  email: string;
+  username: string;
+  passwordHash: string;
+  name: string;
+  role: "admin" | "consultant" | "staff" | "user";
+  phone?: string;
+  department?: string;
+  createdBy: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Generate a unique openId for compatibility
+  const openId = `local-${data.username}-${Date.now()}`;
+  
+  const result = await db.insert(users).values({
+    openId,
+    email: data.email,
+    username: data.username,
+    passwordHash: data.passwordHash,
+    name: data.name,
+    role: data.role,
+    phone: data.phone,
+    department: data.department,
+    createdBy: data.createdBy,
+    isActive: true,
+    loginMethod: "direct",
+  });
+  
+  return result;
+}
+
+export async function updateUserPassword(userId: number, passwordHash: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+}
+
+export async function updateUserStatus(userId: number, isActive: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(users).set({ isActive }).where(eq(users.id, userId));
+}
+
+export async function getAllDirectLoginUsers() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return db.select().from(users).where(eq(users.loginMethod, "direct")).orderBy(desc(users.createdAt));
+}

@@ -15,6 +15,7 @@ import * as invoiceGen from "./invoice";
 import { csvResponse, makeCsvFilename, toCsv } from "./csvExport";
 import { notifyOwner } from "./_core/notification";
 import { resolveArtifactStorageKey } from "./artifactAccess";
+import { hashPassword, verifyPassword, generateRandomPassword } from "./_core/auth";
 
 /**
  * Security and RBAC boundary for the clinic CMS.

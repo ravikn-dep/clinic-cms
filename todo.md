@@ -570,8 +570,8 @@
 
 
 ## Authentication Changes (Current)
-- [ ] Replace Manus OAuth with direct domain login (email/password)
-- [ ] Create login page with email and password fields
-- [ ] Implement session management for direct login
-- [ ] Update authentication flow to use direct credentials
-- [ ] Remove OAuth redirect logic and use local session instead
+- [x] Replace Manus OAuth with direct domain login (email/password) (loginWithPassword procedure ready)
+- [x] Create login page with email and password fields (DirectLogin.tsx created)
+- [x] Implement session management for direct login (authenticateUser function ready)
+- [x] Update authentication flow to use direct credentials (session token creation implemented)
+- [x] Remove OAuth redirect logic and use local session instead (DirectLogin route added to App.tsx)
