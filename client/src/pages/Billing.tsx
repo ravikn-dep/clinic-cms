@@ -24,6 +24,7 @@ type BillItem = {
 type BillFormState = {
   patientId: string;
   consultationId: string;
+  selectedTemplateId?: string;
   items: BillItem[];
   discountAmount: string;
   taxAmount: string;
@@ -77,6 +78,9 @@ export default function Billing() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const utils = trpc.useUtils();
+
+  // Fetch available templates
+  const templatesQuery = trpc.billTemplates.getAll.useQuery();
 
   // Auto-fetch patient details when patient ID changes
   const patientDetailsQuery = trpc.patients.getDetailsForBilling.useQuery(
@@ -272,6 +276,27 @@ export default function Billing() {
       ...current,
       items: current.items.filter((item) => item.id !== itemId),
     }));
+  };
+
+  const handleApplyTemplate = (templateId: string) => {
+    const template = templatesQuery.data?.find(t => t.templateId === templateId);
+    if (!template) return;
+
+    // Convert template items to bill items
+    const templateItems = (template.itemsJson as any[]).map((item, idx) => ({
+      id: `item-${Date.now()}-${idx}`,
+      itemType: item.itemType,
+      description: item.description,
+      quantity: item.quantity.toString(),
+      unitPrice: item.unitPrice,
+    }));
+
+    setForm((current) => ({
+      ...current,
+      selectedTemplateId: templateId,
+      items: templateItems,
+    }));
+    toast.success(`Template "${template.name}" applied successfully`);
   };
 
   const formatDate = (date: Date | string | null | undefined) => {
@@ -496,6 +521,23 @@ export default function Billing() {
               )}
 
               <div className="space-y-4">
+                {isAdmin && (
+                  <div className="space-y-2">
+                    <Label htmlFor="template">Quick Templates</Label>
+                    <Select value={form.selectedTemplateId || ""} onValueChange={handleApplyTemplate}>
+                      <SelectTrigger id="template">
+                        <SelectValue placeholder="Select a template to auto-populate items" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {templatesQuery.data?.map((template) => (
+                          <SelectItem key={template.templateId} value={template.templateId}>
+                            {template.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
                   <Label className="font-semibold">Bill Items</Label>
                   <Button type="button" variant="outline" size="sm" onClick={addItem} className="gap-1">

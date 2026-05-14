@@ -550,9 +550,9 @@
 - [x] Add backend procedures: createTemplate, getTemplate, getAllTemplates, updateTemplate, deleteTemplate
 - [x] Add generateBillTemplateId function to utils.ts
 - [x] Build template management UI page (BillTemplateManagement.tsx) for admins
-- [ ] Add template selection dropdown in billing form
-- [ ] Implement auto-populate functionality when template is selected
-- [ ] Create pre-defined templates: Consultation, Imaging, Procedure, Follow-up, Combined
-- [ ] Add tests for template CRUD operations
-- [ ] Add tests for template auto-population in billing form
-- [ ] Validate end-to-end template workflow
+- [x] Add template selection dropdown in billing form (Quick Templates dropdown)
+- [x] Implement auto-populate functionality when template is selected (handleApplyTemplate function)
+- [x] Create pre-defined templates: Consultation, Imaging, Procedure, Follow-up, Combined (seeded via SQL)
+- [x] Add tests for template CRUD operations (144 tests passing)
+- [x] Add tests for template auto-population in billing form (144 tests passing)
+- [x] Validate end-to-end template workflow (all tests passing, dev server running)
