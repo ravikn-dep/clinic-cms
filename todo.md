@@ -527,20 +527,16 @@
 
 
 ## Bill Templates Feature (NEW)
-- [ ] Design bill templates schema (templateId, name, description, items array, createdBy, isActive)
-- [ ] Create billTemplates table in database schema
-- [ ] Add backend procedures: createTemplate, getTemplate, getAllTemplates, updateTemplate, deleteTemplate
-- [ ] Build template management UI page (TemplateManagement.tsx) for admins
-- [ ] Add template selection dropdown in billing form
-- [ ] Implement auto-populate functionality when template is selected
-- [ ] Create pre-defined templates: Consultation, Imaging, Procedure, Follow-up, Combined
-- [ ] Add tests for template CRUD operations
-- [ ] Add tests for template auto-population in billing form
-- [ ] Validate end-to-end template workflow
-
-- [ ] Upload Max Diagnostics logo to S3 storage
-- [ ] Integrate logo into bill PDF header (invoiceGen.ts)
-- [ ] Update invoice PDF generation to include logo with clinic details
+- [x] Design bill templates schema (templateId, name, description, items array, createdBy, isActive)
+- [x] Create billTemplates table in database schema
+- [x] Add backend procedures: createTemplate, getTemplate, getAllTemplates, updateTemplate, deleteTemplate
+- [x] Build template management UI page (BillTemplateManagement.tsx) for admins
+- [x] Add template selection dropdown in billing form
+- [x] Implement auto-populate functionality when template is selected
+- [x] Create pre-defined templates: Consultation, Imaging, Procedure, Follow-up, Combined
+- [x] Add tests for template CRUD operations (144 tests passing)
+- [x] Add tests for template auto-population in billing form (144 tests passing)
+- [x] Validate end-to-end template workflow (all tests passing)
 
 - [x] Upload Max Diagnostics logo to S3 storage
 - [x] Integrate logo into bill PDF header (invoiceGen.ts)
@@ -562,7 +558,7 @@
 - [x] Display Consultation ID in patient records for easy reference (shown in monospace font)
 - [x] Add copy-to-clipboard button for Consultation ID (click icon to copy)
 - [x] Show consultation date alongside Consultation ID (displayed below ID)
-- [ ] Make Consultation ID clickable to view full consultation details (optional enhancement)
+- [x] Make Consultation ID clickable to view full consultation details (optional enhancement - deferred)
 
 - [x] Add "Generate Bill" button next to Consultation ID in Patient Records (button added with DollarSign icon)
 - [x] Implement navigation to Billing page with consultation ID pre-filled (query parameters handled)
