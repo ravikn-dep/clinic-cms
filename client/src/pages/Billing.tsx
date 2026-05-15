@@ -370,6 +370,20 @@ export default function Billing() {
     sendReceipt.mutate({ billId: bill.billId, method: "Email" });
   };
 
+  const downloadBillPdf = (bill: (typeof bills)[number]) => {
+    if (!bill.invoicePdfUrl) {
+      toast.error("Invoice PDF is not available for this bill.");
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = bill.invoicePdfUrl;
+    link.download = `Bill_${bill.billId}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Bill PDF downloaded successfully.");
+  };
+
   const printReceipt = async (bill: (typeof bills)[number]) => {
     if (bill.paymentStatus !== "Paid") {
       toast.error("Receipt can only be printed for paid bills.");
@@ -714,7 +728,12 @@ export default function Billing() {
                             </Button>
                           ) : null}
                           <Button variant="outline" size="sm" onClick={() => openInvoicePdf(bill)} disabled={getInvoiceLink.isPending} className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50">
+                            {getInvoiceLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                             View PDF
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => downloadBillPdf(bill)} disabled={exportBillingCsv.isPending} className="friendly-action border-emerald-200 bg-white/85 text-emerald-800 hover:bg-emerald-50" title="Download bill as PDF">
+                            {exportBillingCsv.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                            Download
                           </Button>
                           {bill.paymentStatus === "Paid" && (
                             <>

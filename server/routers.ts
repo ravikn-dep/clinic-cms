@@ -978,6 +978,21 @@ export const appRouter = router({
           throw error;
         }
       }),
+
+    exportPDF: protectedProcedure
+      .input(z.object({
+        billId: z.string(),
+      }))
+      .query(async ({ input }) => {
+        const bill = await db.getBillById(input.billId);
+        if (!bill) throw new Error("Bill not found");
+        if (!bill.invoicePdfUrl || !bill.invoicePdfKey) throw new Error("PDF not available for this bill");
+        return {
+          pdfUrl: bill.invoicePdfUrl,
+          pdfKey: bill.invoicePdfKey,
+          billId: input.billId,
+        };
+      }),
   }),
 
   // ============ PHARMACY PURCHASE ORDERS ============
