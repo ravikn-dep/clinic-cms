@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, email, name, role, passwordHash FROM users WHERE email = 'admin@maxdiagnostics.com' LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute SELECT id, email, name, role, passwordHash FROM users WHERE email = 'admin@maxdiagnostics.com' LIMIT 1;",
+  "rows": [
+    {
+      "id": "2670049",
+      "email": "admin@maxdiagnostics.com",
+      "name": "Dr. RAVI KIRAN NAIK",
+      "role": "admin",
+      "passwordHash": "$2b$10$JiR7sPRcXOUGut32jkgx.Ol9gQXV2MlmZJx8BWIUPCNVzcBKZFtQS"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\tname\trole\tpasswordHash\n2670049\tadmin@maxdiagnostics.com\tDr. RAVI KIRAN NAIK\tadmin\t$2b$10$JiR7sPRcXOUGut32jkgx.Ol9gQXV2MlmZJx8BWIUPCNVzcBKZFtQS\n",
+  "stderr": "",
+  "execution_time_ms": 1977
+}

@@ -1,6 +1,6 @@
 import { count, desc, eq, like, lte, inArray, sql, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions } from "../drizzle/schema";
+import { InsertUser, users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 
@@ -1078,4 +1078,60 @@ export async function getAllDirectLoginUsers() {
   if (!db) throw new Error("Database not available");
   
   return db.select().from(users).where(eq(users.loginMethod, "direct")).orderBy(desc(users.createdAt));
+}
+
+
+// ========== VENDOR MANAGEMENT ==========
+
+export async function createVendor(vendorData: any): Promise<any> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const vendorId = `VENDOR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  await db.insert(vendors).values({
+    vendorId,
+    name: vendorData.name,
+    contactNumber: vendorData.contactNumber,
+    gstNumber: vendorData.gstNumber,
+    address: vendorData.address,
+    dlNumber: vendorData.dlNumber ? JSON.stringify(vendorData.dlNumber) : null,
+    email: vendorData.email,
+    isActive: true,
+    createdBy: vendorData.createdBy,
+  });
+  
+  return { vendorId, ...vendorData };
+}
+
+export async function getAllVendors(): Promise<any[]> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  return await db.select().from(vendors).where(eq(vendors.isActive, true));
+}
+
+export async function getVendorById(vendorId: string): Promise<any | null> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.select().from(vendors).where(eq(vendors.vendorId, vendorId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function updateVendor(vendorId: string, vendorData: any): Promise<any> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(vendors).set({
+    name: vendorData.name,
+    contactNumber: vendorData.contactNumber,
+    gstNumber: vendorData.gstNumber,
+    address: vendorData.address,
+    dlNumber: vendorData.dlNumber ? JSON.stringify(vendorData.dlNumber) : null,
+    email: vendorData.email,
+    updatedAt: new Date(),
+  }).where(eq(vendors.vendorId, vendorId));
+  
+  return { vendorId, ...vendorData };
 }

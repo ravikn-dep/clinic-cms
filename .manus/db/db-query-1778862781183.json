@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `vendors` (\n\t`vendorId` varchar(50) NOT NULL,\n\t`name` varchar(150) NOT NULL,\n\t`contactNumber` varchar(20),\n\t`gstNumber` varchar(50),\n\t`address` text,\n\t`dlNumber` json,\n\t`email` varchar(320),\n\t`isActive` boolean DEFAULT true,\n\t`createdBy` int NOT NULL,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `vendors_vendorId` PRIMARY KEY(`vendorId`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute CREATE TABLE `vendors` (\n\t`vendorId` varchar(50) NOT NULL,\n\t`name` varchar(150) NOT NULL,\n\t`contactNumber` varchar(20),\n\t`gstNumber` varchar(50),\n\t`address` text,\n\t`dlNumber` json,\n\t`email` varchar(320),\n\t`isActive` boolean DEFAULT true,\n\t`createdBy` int NOT NULL,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `vendors_vendorId` PRIMARY KEY(`vendorId`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1996
+}

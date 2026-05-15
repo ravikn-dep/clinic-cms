@@ -78,6 +78,13 @@
       "when": 1778727009129,
       "tag": "0010_shocking_energizer",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1778862759881,
+      "tag": "0011_amusing_mantis",
+      "breakpoints": true
     }
   ]
 }

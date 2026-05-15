@@ -571,3 +571,26 @@
 - [x] Implement session management for direct login (authenticateUser function ready)
 - [x] Update authentication flow to use direct credentials (session token creation implemented)
 - [x] Remove OAuth redirect logic and use local session instead (DirectLogin route added to App.tsx)
+
+
+## Bill PDF Export Feature (NEW)
+- [ ] Create PDF export backend procedure for bills
+- [ ] Add download button to Billing page UI
+- [ ] Test PDF generation and download
+- [ ] Verify PDF formatting with Max Diagnostics branding
+
+
+## Purchase Order Module (NEW)
+- [ ] Create vendors table in database schema
+- [ ] Create purchase_orders table with approval workflow status
+- [ ] Create po_items table for line items with batch/expiry tracking
+- [ ] Add backend procedures for vendor CRUD
+- [ ] Add backend procedures for PO CRUD and approval workflow
+- [ ] Implement OCR/LLM text extraction from PO images
+- [ ] Build Purchase Order page with image upload
+- [ ] Implement automatic text extraction and form population
+- [ ] Build vendor management UI (admin only)
+- [ ] Implement approval workflow UI (admin/staff)
+- [ ] Add inventory auto-update when PO is received
+- [ ] Add role-based access control (admin/staff only, not consultants)
+- [ ] Test PO workflow end-to-end

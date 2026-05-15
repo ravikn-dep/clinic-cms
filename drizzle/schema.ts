@@ -282,3 +282,21 @@ export const billTemplates = mysqlTable("billTemplates", {
 
 export type BillTemplate = typeof billTemplates.$inferSelect;
 export type InsertBillTemplate = typeof billTemplates.$inferInsert;
+
+
+// Vendors - Supplier management
+export const vendors = mysqlTable("vendors", {
+  vendorId: varchar("vendorId", { length: 50 }).primaryKey(),
+  name: varchar("name", { length: 150 }).notNull(),
+  contactNumber: varchar("contactNumber", { length: 20 }),
+  gstNumber: varchar("gstNumber", { length: 50 }),
+  address: text("address"),
+  dlNumber: json("dlNumber"), // Array of DL numbers (1 or multiple)
+  email: varchar("email", { length: 320 }),
+  isActive: boolean("isActive").default(true),
+  createdBy: int("createdBy").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type Vendor = typeof vendors.$inferSelect;
+export type InsertVendor = typeof vendors.$inferInsert;

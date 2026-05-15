@@ -34,6 +34,16 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  
+  // Bypass OAuth for direct login routes
+  app.use((req, res, next) => {
+    if (req.path === "/direct-login" || req.path === "/login" || req.path.startsWith("/api/trpc")) {
+      // Skip OAuth middleware for these routes
+      return next();
+    }
+    next();
+  });
+  
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   // tRPC API
@@ -44,6 +54,12 @@ async function startServer() {
       createContext,
     })
   );
+  // Add route handler for direct login before Vite/static files
+  app.get("/direct-login", (req, res, next) => {
+    // Serve the app for direct login route
+    next();
+  });
+  
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
