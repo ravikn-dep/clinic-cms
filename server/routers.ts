@@ -1203,6 +1203,21 @@ export const appRouter = router({
 
         return { success: true };
       }),
+
+    extractFromImage: protectedProcedure
+      .input(z.object({
+        imageUrl: z.string().url(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const poOcr = await import("./_core/poOcr");
+          const extractedData = await poOcr.extractPOFromImage(input.imageUrl);
+          return extractedData;
+        } catch (error) {
+          console.error("[PO OCR] Extraction failed:", error);
+          throw new Error(`Failed to extract PO data: ${error instanceof Error ? error.message : "Unknown error"}`);
+        }
+      }),
   }),
 
   // ============ RBAC USER MANAGEMENT ============

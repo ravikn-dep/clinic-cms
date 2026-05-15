@@ -33,6 +33,7 @@ export default function PurchaseOrders() {
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
   const updatePaymentStatus = trpc.purchaseOrders.updatePaymentStatus.useMutation();
+  const extractPO = trpc.purchaseOrders.extractFromImage.useMutation();
   const approvePO = trpc.purchaseOrders.approve.useMutation({
     onSuccess: () => {
       showAlert("Success", "Purchase Order approved");
@@ -54,6 +55,9 @@ export default function PurchaseOrders() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<{[key: string]: string}>({});
+  const [showOCRDialog, setShowOCRDialog] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrImageFile, setOcrImageFile] = useState<File | null>(null);
 
   const filteredPOs = (purchaseOrders || []).filter((po: any) => {
     const matchesSearch =
@@ -172,6 +176,41 @@ export default function PurchaseOrders() {
     }
   };
 
+  const handleOCRImageUpload = async (file: File) => {
+    if (!file) return;
+    setOcrLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const uploadResponse = await fetch('/api/upload', { method: 'POST', body: formData });
+      if (!uploadResponse.ok) throw new Error('Upload failed');
+      const { url } = await uploadResponse.json();
+      const extractedData = await extractPO.mutateAsync({ imageUrl: url });
+      setFormData({
+        vendorName: extractedData.vendorName || "",
+        vendorContactNumber: extractedData.vendorContactNumber || "",
+        vendorEmail: "",
+        vendorGSTNumber: extractedData.vendorGstNumber || "",
+        vendorBankDetails: "",
+        vendorAddress: extractedData.vendorAddress || "",
+        expectedDeliveryDate: "",
+        notes: "",
+        items: extractedData.items?.map((item: any) => ({
+          itemName: item.name || "",
+          quantity: parseInt(item.quantity) || 1,
+          unitPrice: item.valuePerItem || "",
+        })) || [{ itemName: "", quantity: 1, unitPrice: "" }],
+      });
+      showAlert("Success", "PO data extracted successfully");
+      setShowOCRDialog(false);
+      setOcrImageFile(null);
+    } catch (error) {
+      showAlert("Error", "Failed to extract PO data from image");
+    } finally {
+      setOcrLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -179,10 +218,49 @@ export default function PurchaseOrders() {
           <h1 className="text-3xl font-bold">Purchase Orders</h1>
           <p className="text-gray-600 mt-1">Manage vendor purchase orders and payments</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} className="bg-teal-600 hover:bg-teal-700">
-          <Plus className="w-4 h-4 mr-2" /> New Purchase Order
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setShowOCRDialog(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Zap className="w-4 h-4 mr-2" /> Scan PO
+          </Button>
+          <Button onClick={() => setShowForm(!showForm)} className="bg-teal-600 hover:bg-teal-700">
+            <Plus className="w-4 h-4 mr-2" /> New Purchase Order
+          </Button>
+        </div>
       </div>
+
+      {showOCRDialog && (
+        <Dialog open={showOCRDialog} onOpenChange={setShowOCRDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Scan Purchase Order</DialogTitle>
+              <DialogDescription>Upload a PO image to auto-extract details</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                <label className="cursor-pointer">
+                  <span className="text-sm text-gray-600">Click to upload PO image</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setOcrImageFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                </label>
+                {ocrImageFile && <p className="text-sm text-green-600 mt-2">{ocrImageFile.name}</p>}
+              </div>
+              <Button
+                onClick={() => ocrImageFile && handleOCRImageUpload(ocrImageFile)}
+                disabled={!ocrImageFile || ocrLoading}
+                className="w-full"
+              >
+                {ocrLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
+                {ocrLoading ? "Extracting..." : "Extract PO Data"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {showForm && (
         <Card>

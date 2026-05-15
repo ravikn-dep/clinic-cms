@@ -588,7 +588,7 @@
 - [x] Add backend procedures for PO CRUD and approval workflow (create, getAll, approve, reject, updatePaymentStatus)
 - [x] Implement OCR/LLM text extraction from PO images (poOcr.ts service created with LLM integration)
 - [x] Build Purchase Order page with image upload (PurchaseOrders.tsx exists with form)
-- [ ] Implement automatic text extraction and form population (ready to integrate OCR service)
+- [x] Implement automatic text extraction and form population (OCR dialog and extraction complete)
 - [x] Build vendor management UI (admin only) (PurchaseOrders page ready)
 - [x] Implement approval workflow UI (admin/staff) (approve/reject buttons implemented)
 - [x] Add inventory auto-update when PO is received (auto-add to pharmacy inventory on PO creation)
