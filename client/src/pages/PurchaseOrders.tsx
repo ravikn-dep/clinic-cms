@@ -61,6 +61,8 @@ export default function PurchaseOrders() {
   const [ocrImageFile, setOcrImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageRotation, setImageRotation] = useState(0);
+  const [authorizationNotes, setAuthorizationNotes] = useState("");
+  const [isAuthorized, setIsAuthorized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImageSelect = (file: File | null) => {
@@ -150,6 +152,8 @@ export default function PurchaseOrders() {
           quantity: item.quantity,
           unitPrice: item.unitPrice,
         })),
+        authorizationNotes: authorizationNotes || undefined,
+        approvalStatus: "Approved",
       });
 
       showAlert("Success", "Purchase order created successfully");
@@ -458,11 +462,48 @@ export default function PurchaseOrders() {
                 </div>
               </div>
 
+              <div className="border-t pt-6 space-y-4">
+                <div className="bg-blue-50 p-4 rounded-lg">
+                  <h3 className="font-semibold text-blue-900 mb-3">Authorization & Approval</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <Label>Authorization Notes</Label>
+                      <Textarea
+                        value={authorizationNotes}
+                        onChange={(e) => setAuthorizationNotes(e.target.value)}
+                        placeholder="Add any notes or conditions for this PO approval..."
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="authorize"
+                        checked={isAuthorized}
+                        onChange={(e) => setIsAuthorized(e.target.checked)}
+                        className="w-4 h-4 rounded border-gray-300"
+                      />
+                      <label htmlFor="authorize" className="text-sm font-medium text-gray-700">
+                        I authorize this Purchase Order and confirm all details are correct
+                      </label>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-2">
-                <Button type="submit" className="bg-teal-600 hover:bg-teal-700">
-                  Create Purchase Order
+                <Button 
+                  type="submit" 
+                  className="bg-teal-600 hover:bg-teal-700"
+                  disabled={!isAuthorized}
+                >
+                  {isAuthorized ? "Create & Submit PO" : "Authorize to Submit"}
                 </Button>
-                <Button type="button" onClick={() => setShowForm(false)} variant="outline">
+                <Button type="button" onClick={() => {
+                  setShowForm(false);
+                  setAuthorizationNotes("");
+                  setIsAuthorized(false);
+                }} variant="outline">
                   Cancel
                 </Button>
               </div>

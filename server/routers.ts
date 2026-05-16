@@ -1029,6 +1029,8 @@ export const appRouter = router({
         totalAmount: z.string(),
         expectedDeliveryDate: z.string().optional(),
         notes: z.string().optional(),
+        authorizationNotes: z.string().optional(),
+        approvalStatus: z.enum(["Pending", "Approved", "Rejected"]).optional(),
         items: z.array(z.object({
           itemName: z.string(),
           quantity: z.number(),
@@ -1049,6 +1051,10 @@ export const appRouter = router({
           vendorAddress: input.vendorAddress,
           totalAmount: totalAmount.toString() as any,
           paymentStatus: "Pending",
+          approvalStatus: input.approvalStatus === "Approved" ? "Approved" : "Pending Approval",
+          authorizationNotes: input.authorizationNotes,
+          approvedBy: input.approvalStatus === "Approved" ? ctx.user.name : undefined,
+          approvalTimestamp: input.approvalStatus === "Approved" ? new Date() : undefined,
           expectedDeliveryDate: input.expectedDeliveryDate,
           notes: input.notes,
         });

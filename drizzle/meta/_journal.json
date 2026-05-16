@@ -92,6 +92,13 @@
       "when": 1778864275303,
       "tag": "0012_famous_imperial_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1778902130841,
+      "tag": "0013_powerful_giant_man",
+      "breakpoints": true
     }
   ]
 }

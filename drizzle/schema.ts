@@ -182,6 +182,7 @@ export const purchaseOrders = mysqlTable("purchaseOrders", {
   paymentStatus: mysqlEnum("paymentStatus", ["Pending", "Paid", "Partial"]).default("Pending"),
   approvalStatus: mysqlEnum("approvalStatus", ["Pending Approval", "Approved", "Rejected"]).default("Pending Approval"),
   rejectionReason: text("rejectionReason"),
+  authorizationNotes: text("authorizationNotes"),
   approvedBy: varchar("approvedBy", { length: 100 }),
   approvalTimestamp: timestamp("approvalTimestamp"),
   orderDate: timestamp("orderDate").defaultNow().notNull(),
