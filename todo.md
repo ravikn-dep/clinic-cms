@@ -615,3 +615,18 @@
 - [x] Integrate OCR extraction for uploaded images (frontend now calls uploadPoImage then extractFromImage)
 - [x] Fix URL validation error (convert relative /manus-storage/ URL to absolute URL using request protocol and host)
 - [x] Test PO scan workflow end-to-end (155 tests passing, no TypeScript errors)
+
+
+## PO Extraction Confidence Scoring (NEW)
+- [ ] Review OCR extraction implementation and current data structure
+- [ ] Update OCR extraction to return confidence scores for each field
+- [ ] Update frontend to display confidence scores with visual indicators
+- [ ] Add confidence-based field highlighting and sorting
+- [ ] Test confidence scoring end-to-end
+
+
+## PO Extraction Debugging (BLOCKING)
+- [x] Review browser console and server logs for extraction errors (identified confidence field requirement issue)
+- [x] Check OCR extraction procedure and LLM integration (found strict JSON schema requiring confidence)
+- [x] Fix extraction workflow and error handling (made confidence optional in schema, added error logging)
+- [x] Test PO extraction end-to-end (155 tests passing)

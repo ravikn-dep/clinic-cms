@@ -22,6 +22,23 @@ export interface ExtractedPOData {
   totalDiscount: string;
   totalValue: string;
   rawText: string;
+  confidence?: {
+    vendorName: number;
+    vendorContactNumber: number;
+    vendorGstNumber: number;
+    vendorAddress: number;
+    poToName: number;
+    poToContactNumber: number;
+    poToAddress: number;
+    poToGstNumber: number;
+    items: Array<{
+      name: number;
+      quantity: number;
+      valuePerItem: number;
+      totalValue: number;
+    }>;
+    totalValue: number;
+  };
 }
 
 export async function extractPOFromImage(imageUrl: string): Promise<ExtractedPOData> {
@@ -51,9 +68,29 @@ Extract the following information from the PO image and return a JSON object:
     }
   ],
   "totalDiscount": "Total discount of PO",
-  "totalValue": "Total value of PO"
+  "totalValue": "Total value of PO",
+  "confidence": {
+    "vendorName": 0.95,
+    "vendorContactNumber": 0.85,
+    "vendorGstNumber": 0.90,
+    "vendorAddress": 0.88,
+    "poToName": 0.92,
+    "poToContactNumber": 0.87,
+    "poToAddress": 0.89,
+    "poToGstNumber": 0.80,
+    "items": [
+      {
+        "name": 0.93,
+        "quantity": 0.91,
+        "valuePerItem": 0.89,
+        "totalValue": 0.90
+      }
+    ],
+    "totalValue": 0.94
+  }
 }
 
+For each field, provide a confidence score between 0 and 1 (where 1 is 100% confident).
 Be precise and extract all visible information. If a field is not visible, use empty string or null.
 Return ONLY valid JSON, no other text.`;
 
@@ -115,7 +152,33 @@ Return ONLY valid JSON, no other text.`;
                 }
               },
               totalDiscount: { type: "string" },
-              totalValue: { type: "string" }
+              totalValue: { type: "string" },
+              confidence: {
+                type: "object",
+                properties: {
+                  vendorName: { type: "number" },
+                  vendorContactNumber: { type: "number" },
+                  vendorGstNumber: { type: "number" },
+                  vendorAddress: { type: "number" },
+                  poToName: { type: "number" },
+                  poToContactNumber: { type: "number" },
+                  poToAddress: { type: "number" },
+                  poToGstNumber: { type: "number" },
+                  items: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "number" },
+                        quantity: { type: "number" },
+                        valuePerItem: { type: "number" },
+                        totalValue: { type: "number" }
+                      }
+                    }
+                  },
+                  totalValue: { type: "number" }
+                }
+              }
             },
             required: ["vendorName", "poToName", "items", "totalValue"]
           }

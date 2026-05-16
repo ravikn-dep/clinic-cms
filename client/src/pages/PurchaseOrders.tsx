@@ -210,7 +210,9 @@ export default function PurchaseOrders() {
           setShowOCRDialog(false);
           setOcrImageFile(null);
         } catch (error) {
-          showAlert("Error", "Failed to extract PO data from image");
+          console.error("[PO Extraction] Error:", error);
+          const errorMsg = error instanceof Error ? error.message : "Failed to extract PO data from image";
+          showAlert("Error", errorMsg);
         } finally {
           setOcrLoading(false);
         }
