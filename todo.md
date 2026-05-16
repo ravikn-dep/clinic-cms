@@ -636,3 +636,10 @@
 - [x] Debug file input and upload handler in scan dialog (found label/input connection issue)
 - [x] Fix file selection and upload flow (added useRef, click handler, hover effects)
 - [x] Test file upload end-to-end (155 tests passing, upload area now clickable)
+
+
+## Image Preview in PO Scan Dialog (NEW)
+- [x] Add image preview state and URL generation (handleImageSelect generates base64 preview)
+- [x] Display thumbnail preview in scan dialog (max-h-64 with object-contain)
+- [x] Add image rotation and quality check UI (rotate 90deg button, clear button)
+- [x] Test preview functionality end-to-end (155 tests passing, no TypeScript errors)

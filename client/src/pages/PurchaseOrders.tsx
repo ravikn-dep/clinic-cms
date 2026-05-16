@@ -59,7 +59,24 @@ export default function PurchaseOrders() {
   const [showOCRDialog, setShowOCRDialog] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrImageFile, setOcrImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageRotation, setImageRotation] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageSelect = (file: File | null) => {
+    setOcrImageFile(file);
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreview(e.target?.result as string);
+        setImageRotation(0);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setImagePreview(null);
+      setImageRotation(0);
+    }
+  };
 
   const filteredPOs = (purchaseOrders || []).filter((po: any) => {
     const matchesSearch =
@@ -260,11 +277,41 @@ export default function PurchaseOrders() {
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
-                  onChange={(e) => setOcrImageFile(e.target.files?.[0] || null)}
+                  onChange={(e) => handleImageSelect(e.target.files?.[0] || null)}
                   className="hidden"
                 />
                 {ocrImageFile && <p className="text-sm text-green-600 mt-2">✓ {ocrImageFile.name}</p>}
               </div>
+              {imagePreview && (
+                <div className="space-y-3">
+                  <div className="border rounded-lg overflow-hidden bg-gray-50">
+                    <img
+                      src={imagePreview}
+                      alt="PO Preview"
+                      className="w-full h-auto max-h-64 object-contain"
+                      style={{ transform: `rotate(${imageRotation}deg)` }}
+                    />
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setImageRotation((prev) => (prev + 90) % 360)}
+                      className="text-xs"
+                    >
+                      ↻ Rotate
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleImageSelect(null)}
+                      className="text-xs"
+                    >
+                      ✕ Clear
+                    </Button>
+                  </div>
+                </div>
+              )}
               <Button
                 onClick={() => ocrImageFile && handleOCRImageUpload(ocrImageFile)}
                 disabled={!ocrImageFile || ocrLoading}
