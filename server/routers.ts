@@ -1245,7 +1245,7 @@ export const appRouter = router({
         imageData: z.string(),
         fileName: z.string(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
           // Convert base64 to buffer
           const base64Data = input.imageData.split(',')[1] || input.imageData;
@@ -1254,9 +1254,14 @@ export const appRouter = router({
           // Upload to storage
           const { storagePut } = await import("./storage");
           const fileKey = `po-scans/${Date.now()}-${input.fileName}`;
-          const { url } = await storagePut(fileKey, buffer, 'image/jpeg');
+          const { url: relativeUrl } = await storagePut(fileKey, buffer, 'image/jpeg');
           
-          return { url, key: fileKey };
+          // Convert relative URL to absolute URL for OCR extraction
+          const protocol = ctx.req.protocol || 'https';
+          const host = ctx.req.get('host') || 'localhost:3000';
+          const absoluteUrl = `${protocol}://${host}${relativeUrl}`;
+          
+          return { url: absoluteUrl, key: fileKey };
         } catch (error) {
           console.error("[PO Upload] Failed:", error);
           throw new Error(`Failed to upload PO image: ${error instanceof Error ? error.message : "Unknown error"}`);

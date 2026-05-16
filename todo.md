@@ -613,4 +613,5 @@
 - [x] Fix scan/upload UI to allow file selection (file input already present, updated handler)
 - [x] Implement file upload handler for PO scans (added uploadPoImage tRPC procedure with base64 conversion and S3 storage)
 - [x] Integrate OCR extraction for uploaded images (frontend now calls uploadPoImage then extractFromImage)
+- [x] Fix URL validation error (convert relative /manus-storage/ URL to absolute URL using request protocol and host)
 - [x] Test PO scan workflow end-to-end (155 tests passing, no TypeScript errors)
