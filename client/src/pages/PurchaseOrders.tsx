@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,7 @@ export default function PurchaseOrders() {
   const [showOCRDialog, setShowOCRDialog] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrImageFile, setOcrImageFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredPOs = (purchaseOrders || []).filter((po: any) => {
     const matchesSearch =
@@ -249,18 +250,20 @@ export default function PurchaseOrders() {
               <DialogDescription>Upload a PO image to auto-extract details</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="border-2 border-dashed rounded-lg p-6 text-center">
+              <div 
+                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition"
+                onClick={() => fileInputRef.current?.click()}
+              >
                 <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                <label className="cursor-pointer">
-                  <span className="text-sm text-gray-600">Click to upload PO image</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setOcrImageFile(e.target.files?.[0] || null)}
-                    className="hidden"
-                  />
-                </label>
-                {ocrImageFile && <p className="text-sm text-green-600 mt-2">{ocrImageFile.name}</p>}
+                <p className="text-sm text-gray-600">Click to upload PO image or drag and drop</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setOcrImageFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                />
+                {ocrImageFile && <p className="text-sm text-green-600 mt-2">✓ {ocrImageFile.name}</p>}
               </div>
               <Button
                 onClick={() => ocrImageFile && handleOCRImageUpload(ocrImageFile)}

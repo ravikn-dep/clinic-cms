@@ -630,3 +630,9 @@
 - [x] Check OCR extraction procedure and LLM integration (found strict JSON schema requiring confidence)
 - [x] Fix extraction workflow and error handling (made confidence optional in schema, added error logging)
 - [x] Test PO extraction end-to-end (155 tests passing)
+
+
+## File Upload in Scan Dialog (BLOCKING)
+- [x] Debug file input and upload handler in scan dialog (found label/input connection issue)
+- [x] Fix file selection and upload flow (added useRef, click handler, hover effects)
+- [x] Test file upload end-to-end (155 tests passing, upload area now clickable)
