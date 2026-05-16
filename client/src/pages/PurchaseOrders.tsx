@@ -226,7 +226,10 @@ export default function PurchaseOrders() {
           });
           showAlert("Success", "PO data extracted successfully");
           setShowOCRDialog(false);
+          setShowForm(true);
           setOcrImageFile(null);
+          setImagePreview(null);
+          setImageRotation(0);
         } catch (error) {
           console.error("[PO Extraction] Error:", error);
           const errorMsg = error instanceof Error ? error.message : "Failed to extract PO data from image";
