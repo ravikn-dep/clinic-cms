@@ -26,6 +26,9 @@ export const users = mysqlTable("users", {
   isActive: boolean("isActive").default(true),
   qrcodeLoginUrl: text("qrcodeLoginUrl"), // QR code data URL for easy login
   qrcodeLoginKey: text("qrcodeLoginKey"), // Storage key for QR code image
+  // Consultant registration details
+  stateCounsilSection: varchar("stateCounsilSection", { length: 100 }), // e.g., "Medical Council of India", "State Medical Board"
+  registrationNumber: varchar("registrationNumber", { length: 100 }), // e.g., "MCI/12345", "SMB/67890"
   createdBy: int("createdBy"), // Admin user ID who created this user
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

@@ -18,6 +18,8 @@ export default function UserManagement() {
     phone: "",
     department: "",
     role: "consultant" as "consultant" | "staff",
+    stateCounsilSection: "",
+    registrationNumber: "",
   });
 
   const staffUsers = trpc.rbac.listStaffUsers.useQuery(undefined, {
@@ -27,7 +29,7 @@ export default function UserManagement() {
   const createUser = trpc.rbac.createStaffUser.useMutation({
     onSuccess: () => {
       staffUsers.refetch();
-      setFormData({ name: "", email: "", phone: "", department: "", role: "consultant" });
+      setFormData({ name: "", email: "", phone: "", department: "", role: "consultant", stateCounsilSection: "", registrationNumber: "" });
       setShowForm(false);
       alert("Staff user created successfully!");
     },
@@ -40,7 +42,7 @@ export default function UserManagement() {
     onSuccess: () => {
       staffUsers.refetch();
       setEditingUser(null);
-      setFormData({ name: "", email: "", phone: "", department: "", role: "consultant" });
+      setFormData({ name: "", email: "", phone: "", department: "", role: "consultant", stateCounsilSection: "", registrationNumber: "" });
       alert("Staff user updated successfully!");
     },
     onError: (error) => {
@@ -78,6 +80,8 @@ export default function UserManagement() {
       phone: staffUser.phone || "",
       department: staffUser.department || "",
       role: staffUser.role,
+      stateCounsilSection: staffUser.stateCounsilSection || "",
+      registrationNumber: staffUser.registrationNumber || "",
     });
     setShowForm(true);
   };
@@ -85,7 +89,7 @@ export default function UserManagement() {
   const handleCancel = () => {
     setShowForm(false);
     setEditingUser(null);
-    setFormData({ name: "", email: "", phone: "", department: "", role: "consultant" });
+    setFormData({ name: "", email: "", phone: "", department: "", role: "consultant", stateCounsilSection: "", registrationNumber: "" });
   };
 
   if (user?.role !== "admin") {
@@ -185,6 +189,30 @@ export default function UserManagement() {
                     className="mt-1"
                   />
                 </div>
+                {formData.role === "consultant" && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700">State Council Section</label>
+                      <Input
+                        type="text"
+                        value={formData.stateCounsilSection}
+                        onChange={(e) => setFormData({ ...formData, stateCounsilSection: e.target.value })}
+                        placeholder="e.g., Medical Council of India"
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700">Registration Number</label>
+                      <Input
+                        type="text"
+                        value={formData.registrationNumber}
+                        onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
+                        placeholder="e.g., MCI/12345"
+                        className="mt-1"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
               <div className="flex gap-2">
                 <Button type="submit" className="bg-teal-600 hover:bg-teal-700">
@@ -220,6 +248,7 @@ export default function UserManagement() {
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Department</TableHead>
+                    <TableHead>Registration #</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -241,6 +270,7 @@ export default function UserManagement() {
                       <TableCell>{staffUser.email || "-"}</TableCell>
                       <TableCell>{staffUser.phone || "-"}</TableCell>
                       <TableCell>{staffUser.department || "-"}</TableCell>
+                      <TableCell className="font-mono text-sm">{staffUser.registrationNumber || "-"}</TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                           staffUser.isActive

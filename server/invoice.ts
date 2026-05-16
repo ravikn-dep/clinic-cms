@@ -20,6 +20,9 @@ interface InvoiceData {
   taxAmount: number;
   finalAmount: number;
   paymentStatus: "Pending" | "Paid" | "Partial";
+  consultantName?: string;
+  consultantRegistrationNumber?: string;
+  consultantStateCounsilSection?: string;
 }
 
 /**
@@ -96,6 +99,28 @@ export async function generateInvoicePDF(invoiceData: InvoiceData): Promise<Buff
   doc.text(`Patient ID: ${invoiceData.patientId}`, margin, yPosition);
   yPosition += 5;
   doc.text(`Contact: ${invoiceData.patientContact}`, margin, yPosition);
+
+  // Consultant Information
+  if (invoiceData.consultantName) {
+    yPosition += 10;
+    doc.setFontSize(11);
+    doc.setTextColor(33, 33, 33);
+    doc.text("Consultant Information", margin, yPosition);
+
+    yPosition += 7;
+    doc.setFontSize(10);
+    doc.setTextColor(66, 66, 66);
+    doc.text(`Name: ${invoiceData.consultantName}`, margin, yPosition);
+    yPosition += 5;
+    if (invoiceData.consultantRegistrationNumber) {
+      doc.text(`Registration No: ${invoiceData.consultantRegistrationNumber}`, margin, yPosition);
+      yPosition += 5;
+    }
+    if (invoiceData.consultantStateCounsilSection) {
+      doc.text(`State Council: ${invoiceData.consultantStateCounsilSection}`, margin, yPosition);
+      yPosition += 5;
+    }
+  }
 
   // Items Table
   yPosition += 12;

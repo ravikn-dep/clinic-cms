@@ -25,6 +25,8 @@ interface PatientData {
   email?: string;
   address?: string;
   consultantName?: string;
+  consultantRegistrationNumber?: string;
+  consultantStateCounsilSection?: string;
 }
 
 interface RegisteredPatient {
@@ -263,6 +265,20 @@ export function generateOPFormHTML(
                 <div class="field-value">${escapeHtml(registeredPatient.patientId)}</div>
               </div>
             </div>
+            
+            <!-- Row 4: Registration Number, State Council Section -->
+            ${patient.consultantRegistrationNumber || patient.consultantStateCounsilSection ? `
+            <div class="row2" style="margin-top: 2mm;">
+              <div class="field">
+                <div class="field-label">Reg. No.</div>
+                <div class="field-value">${escapeHtml(patient.consultantRegistrationNumber || "___")}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">State Council</div>
+                <div class="field-value">${escapeHtml(patient.consultantStateCounsilSection || "___")}</div>
+              </div>
+            </div>
+            ` : ''}
           </div>
           
           <!-- Clinical Notes Area -->

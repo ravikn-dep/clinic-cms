@@ -704,6 +704,24 @@ export const appRouter = router({
         }
 
         const patient = await db.getPatientById(input.patientId);
+        
+        // Fetch consultant information if consultation exists
+        let consultantName: string | undefined;
+        let consultantRegistrationNumber: string | undefined;
+        let consultantStateCounsilSection: string | undefined;
+        
+        if (input.consultationId) {
+          const consultation = await db.getConsultationById(input.consultationId);
+          if (consultation && consultation.consultantId) {
+            const consultant = await db.getUserById(consultation.consultantId);
+            if (consultant) {
+              consultantName = consultant.name || undefined;
+              consultantRegistrationNumber = consultant.registrationNumber || undefined;
+              consultantStateCounsilSection = consultant.stateCounsilSection || undefined;
+            }
+          }
+        }
+        
         const invoicePdf = await invoiceGen.generateAndStoreInvoicePDF({
           billId,
           patientId: input.patientId,
@@ -716,6 +734,9 @@ export const appRouter = router({
           taxAmount,
           finalAmount,
           paymentStatus: "Pending",
+          consultantName,
+          consultantRegistrationNumber,
+          consultantStateCounsilSection,
         });
 
         await db.updateBill(billId, {
@@ -1252,6 +1273,8 @@ export const appRouter = router({
             department: u.department,
             role: u.role,
             isActive: u.isActive,
+            stateCounsilSection: u.stateCounsilSection,
+            registrationNumber: u.registrationNumber,
             createdAt: u.createdAt,
           }));
       } catch (error) {
@@ -1259,6 +1282,33 @@ export const appRouter = router({
         throw new Error("Failed to fetch consultants");
       }
     }),
+
+    getById: protectedProcedure
+      .input(z.object({ consultantId: z.number() }))
+      .query(async ({ input }) => {
+        try {
+          const consultant = await db.getUserById(input.consultantId);
+          if (!consultant || consultant.role !== 'consultant') {
+            throw new Error("Consultant not found");
+          }
+          return {
+            id: consultant.id,
+            userId: consultant.userId,
+            name: consultant.name,
+            email: consultant.email,
+            phone: consultant.phone,
+            department: consultant.department,
+            role: consultant.role,
+            isActive: consultant.isActive,
+            stateCounsilSection: consultant.stateCounsilSection,
+            registrationNumber: consultant.registrationNumber,
+            createdAt: consultant.createdAt,
+          };
+        } catch (error) {
+          console.error("[Consultants] Get by ID failed:", error);
+          throw new Error("Failed to fetch consultant");
+        }
+      }),
   }),
 
   rbac: router({

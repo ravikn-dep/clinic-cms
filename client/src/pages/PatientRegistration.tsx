@@ -24,7 +24,10 @@ const registrationSchema = z.object({
   contactNumber: z.string().min(10, "Contact number must be at least 10 digits"),
   email: z.string().optional(),
   address: z.string().optional(),
-  consultantName: z.string().optional(),
+  consultantName: z.string().min(1, "Consultant name is required"),
+  consultantId: z.number().min(1, "Consultant is required"),
+  consultantRegistrationNumber: z.string().optional(),
+  consultantStateCounsilSection: z.string().optional(),
 });
 
 type RegistrationFormData = z.infer<typeof registrationSchema>;
@@ -51,11 +54,22 @@ export default function PatientRegistration() {
 
   const registerMutation = trpc.patients.register.useMutation();
   const getFormTemplate = trpc.opForm.getTemplate.useQuery();
+  const consultantsQuery = trpc.consultants.getAll.useQuery();
   const artifactLink = trpc.files.getArtifactLink.useMutation({
     onError: (error) => {
       toast.error(error.message || "Unable to open the protected tracking asset.");
     },
   });
+
+  const handleConsultantChange = (consultantId: string) => {
+    const consultant = consultantsQuery.data?.find(c => c.id.toString() === consultantId);
+    if (consultant) {
+      setValue("consultantId", consultant.id);
+      setValue("consultantName", consultant.name || "");
+      setValue("consultantRegistrationNumber", consultant.registrationNumber || "");
+      setValue("consultantStateCounsilSection", consultant.stateCounsilSection || "");
+    }
+  };
 
   const onSubmit = async (data: RegistrationFormData) => {
     setIsSubmitting(true);
@@ -163,18 +177,28 @@ export default function PatientRegistration() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="consultantName">Consultant Name (Optional)</Label>
-                <Select onValueChange={(value) => setValue("consultantName", value)}>
-                  <SelectTrigger className="focus-visible:ring-teal-200">
+                <Label htmlFor="consultantName">Consultant Name *</Label>
+                <Select onValueChange={handleConsultantChange}>
+                  <SelectTrigger className={`focus-visible:ring-teal-200 ${
+                    errors.consultantName ? "border-red-500" : ""
+                  }`}>
                     <SelectValue placeholder="Select consultant" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Dr. Ravi N.">Dr. Ravi N.</SelectItem>
-                    <SelectItem value="Dr. Deepthi">Dr. Deepthi</SelectItem>
-                    <SelectItem value="Dr. Sharma">Dr. Sharma</SelectItem>
-                    <SelectItem value="Dr. Patel">Dr. Patel</SelectItem>
+                    {consultantsQuery.isLoading ? (
+                      <div className="p-2 text-sm text-slate-500">Loading consultants...</div>
+                    ) : consultantsQuery.data && consultantsQuery.data.length > 0 ? (
+                      consultantsQuery.data.map((consultant) => (
+                        <SelectItem key={consultant.id} value={consultant.id.toString()}>
+                          {consultant.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-2 text-sm text-slate-500">No consultants available</div>
+                    )}
                   </SelectContent>
                 </Select>
+                {errors.consultantName && <p className="text-sm text-red-500">{errors.consultantName.message}</p>}
               </div>
 
               <Button type="submit" disabled={isSubmitting} className="w-full bg-teal-600 hover:bg-teal-700">
