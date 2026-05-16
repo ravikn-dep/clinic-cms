@@ -606,3 +606,11 @@
 - [x] Make consultant name compulsory in Patient Registration (schema validation added)
 - [x] Fetch consultants from User Management (consultantsQuery integrated with handleConsultantChange)
 - [x] Test consultant registration data flow end-to-end (155 tests passing, including consultant registration tests)
+
+
+## PO Scan/Upload Fix (NEW)
+- [x] Review current PO upload/scan implementation (identified missing /api/upload endpoint)
+- [x] Fix scan/upload UI to allow file selection (file input already present, updated handler)
+- [x] Implement file upload handler for PO scans (added uploadPoImage tRPC procedure with base64 conversion and S3 storage)
+- [x] Integrate OCR extraction for uploaded images (frontend now calls uploadPoImage then extractFromImage)
+- [x] Test PO scan workflow end-to-end (155 tests passing, no TypeScript errors)

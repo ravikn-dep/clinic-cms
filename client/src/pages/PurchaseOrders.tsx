@@ -33,6 +33,7 @@ export default function PurchaseOrders() {
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
   const updatePaymentStatus = trpc.purchaseOrders.updatePaymentStatus.useMutation();
+  const uploadPOImage = trpc.purchaseOrders.uploadPoImage.useMutation();
   const extractPO = trpc.purchaseOrders.extractFromImage.useMutation();
   const approvePO = trpc.purchaseOrders.approve.useMutation({
     onSuccess: () => {
@@ -180,33 +181,43 @@ export default function PurchaseOrders() {
     if (!file) return;
     setOcrLoading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const uploadResponse = await fetch('/api/upload', { method: 'POST', body: formData });
-      if (!uploadResponse.ok) throw new Error('Upload failed');
-      const { url } = await uploadResponse.json();
-      const extractedData = await extractPO.mutateAsync({ imageUrl: url });
-      setFormData({
-        vendorName: extractedData.vendorName || "",
-        vendorContactNumber: extractedData.vendorContactNumber || "",
-        vendorEmail: "",
-        vendorGSTNumber: extractedData.vendorGstNumber || "",
-        vendorBankDetails: "",
-        vendorAddress: extractedData.vendorAddress || "",
-        expectedDeliveryDate: "",
-        notes: "",
-        items: extractedData.items?.map((item: any) => ({
-          itemName: item.name || "",
-          quantity: parseInt(item.quantity) || 1,
-          unitPrice: item.valuePerItem || "",
-        })) || [{ itemName: "", quantity: 1, unitPrice: "" }],
-      });
-      showAlert("Success", "PO data extracted successfully");
-      setShowOCRDialog(false);
-      setOcrImageFile(null);
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const base64Data = e.target?.result as string;
+          const uploadResponse = await uploadPOImage.mutateAsync({ 
+            imageData: base64Data,
+            fileName: file.name 
+          });
+          
+          const extractedData = await extractPO.mutateAsync({ imageUrl: uploadResponse.url });
+          setFormData({
+            vendorName: extractedData.vendorName || "",
+            vendorContactNumber: extractedData.vendorContactNumber || "",
+            vendorEmail: "",
+            vendorGSTNumber: extractedData.vendorGstNumber || "",
+            vendorBankDetails: "",
+            vendorAddress: extractedData.vendorAddress || "",
+            expectedDeliveryDate: "",
+            notes: "",
+            items: extractedData.items?.map((item: any) => ({
+              itemName: item.name || "",
+              quantity: parseInt(item.quantity) || 1,
+              unitPrice: item.valuePerItem || "",
+            })) || [{ itemName: "", quantity: 1, unitPrice: "" }],
+          });
+          showAlert("Success", "PO data extracted successfully");
+          setShowOCRDialog(false);
+          setOcrImageFile(null);
+        } catch (error) {
+          showAlert("Error", "Failed to extract PO data from image");
+        } finally {
+          setOcrLoading(false);
+        }
+      };
+      reader.readAsDataURL(file);
     } catch (error) {
-      showAlert("Error", "Failed to extract PO data from image");
-    } finally {
+      showAlert("Error", "Failed to process PO image");
       setOcrLoading(false);
     }
   };

@@ -1240,6 +1240,29 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    uploadPoImage: protectedProcedure
+      .input(z.object({
+        imageData: z.string(),
+        fileName: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          // Convert base64 to buffer
+          const base64Data = input.imageData.split(',')[1] || input.imageData;
+          const buffer = Buffer.from(base64Data, 'base64');
+          
+          // Upload to storage
+          const { storagePut } = await import("./storage");
+          const fileKey = `po-scans/${Date.now()}-${input.fileName}`;
+          const { url } = await storagePut(fileKey, buffer, 'image/jpeg');
+          
+          return { url, key: fileKey };
+        } catch (error) {
+          console.error("[PO Upload] Failed:", error);
+          throw new Error(`Failed to upload PO image: ${error instanceof Error ? error.message : "Unknown error"}`);
+        }
+      }),
+
     extractFromImage: protectedProcedure
       .input(z.object({
         imageUrl: z.string().url(),
