@@ -4,10 +4,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, AlertCircle, LogIn } from "lucide-react";
+import { Loader2, AlertCircle, LogIn, Shield } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+import { getLoginUrl } from "@/const";
 
 export default function DirectLogin() {
   const [credential, setCredential] = useState("");
@@ -111,9 +112,24 @@ export default function DirectLogin() {
             </Button>
           </form>
 
-          <div className="mt-6 pt-6 border-t text-center text-sm text-muted-foreground">
-            <p>Max Diagnostics</p>
-            <p className="text-xs mt-1">The Pioneers in Diagnostic Medicare</p>
+          <div className="mt-6 pt-6 border-t space-y-3">
+            <div className="text-center text-sm text-muted-foreground">
+              <p>Max Diagnostics</p>
+              <p className="text-xs mt-1">The Pioneers in Diagnostic Medicare</p>
+            </div>
+            <div className="pt-3 border-t">
+              <p className="text-xs text-muted-foreground mb-2">Admin Access</p>
+              <Button
+                asChild
+                variant="outline"
+                className="w-full text-xs"
+              >
+                <a href={getLoginUrl()}>
+                  <Shield className="mr-2 h-3 w-3" />
+                  Admin Login (Manus OAuth)
+                </a>
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

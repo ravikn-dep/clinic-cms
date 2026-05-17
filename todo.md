@@ -685,3 +685,10 @@
 - [ ] Display confidence badges in PO form (green >90%, yellow 70-90%, red <70%)
 - [ ] Highlight low-confidence fields for manual review
 - [ ] Test confidence display end-to-end
+
+
+## Role-Based Login Routing (NEW)
+- [x] Update App.tsx to implement role-based login routing (DirectLogin for staff/consultants, Manus OAuth for admin)
+- [x] Redirect unauthenticated users based on role: staff/consultants → DirectLogin, admin → Manus OAuth
+- [x] Update DirectLogin page to add admin OAuth login link
+- [x] Test login flow for both staff and admin roles (155 tests passing)

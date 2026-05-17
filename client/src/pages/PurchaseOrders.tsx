@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap } from "lucide-react";
+import { ConfidenceBadge, ConfidenceTooltip } from "@/components/ConfidenceBadge";
 
 export default function PurchaseOrders() {
   const { user } = useAuth();
@@ -29,6 +30,8 @@ export default function PurchaseOrders() {
     notes: "",
     items: [{ itemName: "", quantity: 1, unitPrice: "" }],
   });
+  const [confidenceScores, setConfidenceScores] = useState<any>(null);
+  const [showConfidenceInfo, setShowConfidenceInfo] = useState(false);
 
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
@@ -217,6 +220,7 @@ export default function PurchaseOrders() {
           console.log('[PO Extract] Starting extraction with URL:', uploadResponse.url);
           const extractedData = await extractPO.mutateAsync({ imageUrl: uploadResponse.url });
           console.log('[PO Extract] Extraction successful, data:', extractedData);
+          setConfidenceScores(extractedData.confidence || null);
           setFormData({
             vendorName: extractedData.vendorName || "",
             vendorContactNumber: extractedData.vendorContactNumber || "",
@@ -346,25 +350,52 @@ export default function PurchaseOrders() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {confidenceScores && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-blue-900">Extraction Confidence</h3>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowConfidenceInfo(!showConfidenceInfo)}
+                      className="text-xs"
+                    >
+                      {showConfidenceInfo ? 'Hide' : 'Show'} Info
+                    </Button>
+                  </div>
+                  {showConfidenceInfo && <ConfidenceTooltip />}
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label>Vendor Name *</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Vendor Name *</Label>
+                    {confidenceScores?.vendorName && <ConfidenceBadge score={confidenceScores.vendorName} showLabel={false} />}
+                  </div>
                   <Input
                     value={formData.vendorName}
                     onChange={(e) => setFormData({ ...formData, vendorName: e.target.value })}
                     placeholder="Enter vendor name"
+                    className={confidenceScores?.vendorName && confidenceScores.vendorName < 0.7 ? 'border-red-300 bg-red-50' : ''}
                   />
                 </div>
                 <div>
-                  <Label>Contact Number *</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Contact Number *</Label>
+                    {confidenceScores?.vendorContactNumber && <ConfidenceBadge score={confidenceScores.vendorContactNumber} showLabel={false} />}
+                  </div>
                   <Input
                     value={formData.vendorContactNumber}
                     onChange={(e) => setFormData({ ...formData, vendorContactNumber: e.target.value })}
                     placeholder="Enter contact number"
+                    className={confidenceScores?.vendorContactNumber && confidenceScores.vendorContactNumber < 0.7 ? 'border-red-300 bg-red-50' : ''}
                   />
                 </div>
                 <div>
-                  <Label>Email</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Email</Label>
+                  </div>
                   <Input
                     type="email"
                     value={formData.vendorEmail}
@@ -373,19 +404,27 @@ export default function PurchaseOrders() {
                   />
                 </div>
                 <div>
-                  <Label>GST Number</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>GST Number</Label>
+                    {confidenceScores?.vendorGstNumber && <ConfidenceBadge score={confidenceScores.vendorGstNumber} showLabel={false} />}
+                  </div>
                   <Input
                     value={formData.vendorGSTNumber}
                     onChange={(e) => setFormData({ ...formData, vendorGSTNumber: e.target.value })}
                     placeholder="Enter GST number"
+                    className={confidenceScores?.vendorGstNumber && confidenceScores.vendorGstNumber < 0.7 ? 'border-red-300 bg-red-50' : ''}
                   />
                 </div>
                 <div className="col-span-2">
-                  <Label>Address</Label>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>Address</Label>
+                    {confidenceScores?.vendorAddress && <ConfidenceBadge score={confidenceScores.vendorAddress} showLabel={false} />}
+                  </div>
                   <Textarea
                     value={formData.vendorAddress}
                     onChange={(e) => setFormData({ ...formData, vendorAddress: e.target.value })}
                     placeholder="Enter vendor address"
+                    className={confidenceScores?.vendorAddress && confidenceScores.vendorAddress < 0.7 ? 'border-red-300 bg-red-50' : ''}
                   />
                 </div>
                 <div>
