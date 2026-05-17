@@ -207,12 +207,16 @@ export default function PurchaseOrders() {
       reader.onload = async (e) => {
         try {
           const base64Data = e.target?.result as string;
+          console.log('[PO Upload] Starting upload with file:', file.name);
           const uploadResponse = await uploadPOImage.mutateAsync({ 
             imageData: base64Data,
             fileName: file.name 
           });
+          console.log('[PO Upload] Upload successful, URL:', uploadResponse.url);
           
+          console.log('[PO Extract] Starting extraction with URL:', uploadResponse.url);
           const extractedData = await extractPO.mutateAsync({ imageUrl: uploadResponse.url });
+          console.log('[PO Extract] Extraction successful, data:', extractedData);
           setFormData({
             vendorName: extractedData.vendorName || "",
             vendorContactNumber: extractedData.vendorContactNumber || "",
@@ -237,7 +241,9 @@ export default function PurchaseOrders() {
         } catch (error) {
           console.error("[PO Extraction] Error:", error);
           const errorMsg = error instanceof Error ? error.message : "Failed to extract PO data from image";
+          console.error("[PO Extraction] Full error:", JSON.stringify(error, null, 2));
           showAlert("Error", errorMsg);
+          setShowOCRDialog(false);
         } finally {
           setOcrLoading(false);
         }
