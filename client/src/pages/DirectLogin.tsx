@@ -10,7 +10,7 @@ import { useLocation } from "wouter";
 import { toast } from "sonner";
 
 export default function DirectLogin() {
-  const [email, setEmail] = useState("");
+  const [credential, setCredential] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [, setLocation] = useLocation();
@@ -31,8 +31,8 @@ export default function DirectLogin() {
     e.preventDefault();
     setError("");
 
-    if (!email.trim()) {
-      setError("Email is required");
+    if (!credential.trim()) {
+      setError("Email or User ID is required");
       return;
     }
 
@@ -41,7 +41,7 @@ export default function DirectLogin() {
       return;
     }
 
-    loginMutation.mutate({ email, password });
+    loginMutation.mutate({ email: credential, password });
   };
 
   return (
@@ -67,13 +67,13 @@ export default function DirectLogin() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+              <Label htmlFor="credential">Email Address or User ID</Label>
               <Input
-                id="email"
-                type="email"
-                placeholder="your.email@clinic.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                id="credential"
+                type="text"
+                placeholder="your.email@clinic.com or your-user-id"
+                value={credential}
+                onChange={(e) => setCredential(e.target.value)}
                 disabled={loginMutation.isPending}
                 className="h-10"
               />
