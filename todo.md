@@ -672,3 +672,16 @@
 - [x] Check database persistence of role changes (added role to updates object)
 - [x] Verify role is loaded on login (auth.me returns user with role)
 - [x] Test role persistence end-to-end (155 tests passing)
+
+
+## Feature Access Control Dashboard (NEW)
+- [ ] Create Feature Access Control admin page
+- [ ] Add feature toggle UI for each role (consultant, staff, user)
+- [ ] Implement backend procedures for feature permissions
+- [ ] Test feature access enforcement end-to-end
+
+## PO Extraction Confidence Display (NEW)
+- [ ] Add confidence scores to LLM extraction response
+- [ ] Display confidence badges in PO form (green >90%, yellow 70-90%, red <70%)
+- [ ] Highlight low-confidence fields for manual review
+- [ ] Test confidence display end-to-end
