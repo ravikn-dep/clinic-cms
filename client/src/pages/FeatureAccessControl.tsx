@@ -26,7 +26,7 @@ export default function FeatureAccessControl() {
   const [isSaving, setIsSaving] = useState(false);
 
   // Fetch permissions for the active role
-  const { data: fetchedPermissions } = trpc.featureAccess.getPermissions.useQuery(
+  const { data: fetchedPermissions } = trpc.rbac.getPermissions.useQuery(
     { role: activeRole },
   );
 
@@ -39,7 +39,7 @@ export default function FeatureAccessControl() {
   }, [fetchedPermissions]);
 
   // Update permissions mutation
-  const updateMutation = trpc.featureAccess.updatePermissions.useMutation({
+  const updateMutation = trpc.rbac.updatePermissions.useMutation({
     onSuccess: () => {
       // Success - permissions updated
       setIsSaving(false);
