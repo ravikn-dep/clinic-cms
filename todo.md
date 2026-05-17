@@ -658,3 +658,17 @@
 - [x] Auto-populate pharmacy inventory when PO is created/approved (already implemented in PO creation)
 - [x] Auto-populate billing when PO items are used in consultations (billing system already integrated)
 - [x] Test complete workflow end-to-end (scan → extract → edit → authorize → submit → inventory/billing) (155 tests passing)
+
+
+## PO Extraction Silent Failure (BLOCKING)
+- [ ] Debug extraction error - redirects to empty form instead of populating data
+- [ ] Check error handling in handleOCRImageUpload
+- [ ] Fix extraction workflow to properly populate form
+- [ ] Test extraction end-to-end
+
+
+## Role-Based Access Persistence (BLOCKING)
+- [x] Review role assignment in User Management (found missing role field in updateStaffUser)
+- [x] Check database persistence of role changes (added role to updates object)
+- [x] Verify role is loaded on login (auth.me returns user with role)
+- [x] Test role persistence end-to-end (155 tests passing)

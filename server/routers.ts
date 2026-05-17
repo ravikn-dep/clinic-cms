@@ -1431,6 +1431,9 @@ export const appRouter = router({
         email: z.string().email().optional(),
         phone: z.string().optional(),
         department: z.string().optional(),
+        role: z.enum(["admin", "consultant", "staff", "user"]).optional(),
+        stateCounsilSection: z.string().optional(),
+        registrationNumber: z.string().optional(),
         isActive: z.boolean().optional(),
       }))
       .mutation(async ({ input }) => {
@@ -1440,6 +1443,9 @@ export const appRouter = router({
           if (input.email) updates.email = input.email;
           if (input.phone) updates.phone = input.phone;
           if (input.department) updates.department = input.department;
+          if (input.role) updates.role = input.role;
+          if (input.stateCounsilSection) updates.stateCounsilSection = input.stateCounsilSection;
+          if (input.registrationNumber) updates.registrationNumber = input.registrationNumber;
           if (input.isActive !== undefined) updates.isActive = input.isActive;
 
           await db.updateStaffUser(input.userId, updates);
