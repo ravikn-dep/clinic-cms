@@ -681,10 +681,10 @@
 - [x] Test feature access enforcement end-to-end (155 tests passing, page loads without errors)
 
 ## PO Extraction Confidence Display (NEW)
-- [ ] Add confidence scores to LLM extraction response
-- [ ] Display confidence badges in PO form (green >90%, yellow 70-90%, red <70%)
-- [ ] Highlight low-confidence fields for manual review
-- [ ] Test confidence display end-to-end
+- [x] Add confidence scores to LLM extraction response (already in poOcr.ts)
+- [x] Display confidence badges in PO form (green >90%, yellow 70-90%, red <70%)
+- [x] Highlight low-confidence fields for manual review (red border + red background for <70%)
+- [x] Test confidence display end-to-end (155 tests passing)
 
 
 ## Role-Based Login Routing (NEW)

@@ -463,31 +463,45 @@ export default function PurchaseOrders() {
                   </Button>
                 </div>
 
-                {formData.items.map((item, index) => (
+                {formData.items.map((item, index) => {
+                  const itemConfidence = confidenceScores?.items?.[index];
+                  return (
                   <div key={index} className="flex gap-2 items-end">
                     <div className="flex-1">
-                      <Label className="text-xs">Item Name</Label>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs">Item Name</Label>
+                        {itemConfidence?.name && <ConfidenceBadge score={itemConfidence.name} showLabel={false} />}
+                      </div>
                       <Input
                         value={item.itemName}
                         onChange={(e) => handleItemChange(index, "itemName", e.target.value)}
                         placeholder="Item name"
+                        className={itemConfidence?.name && itemConfidence.name < 0.7 ? 'border-red-300 bg-red-50' : ''}
                       />
                     </div>
                     <div className="w-24">
-                      <Label className="text-xs">Quantity</Label>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs">Quantity</Label>
+                        {itemConfidence?.quantity && <ConfidenceBadge score={itemConfidence.quantity} showLabel={false} />}
+                      </div>
                       <Input
                         type="number"
                         min="1"
                         value={item.quantity}
                         onChange={(e) => handleItemChange(index, "quantity", parseInt(e.target.value) || 1)}
+                        className={itemConfidence?.quantity && itemConfidence.quantity < 0.7 ? 'border-red-300 bg-red-50' : ''}
                       />
                     </div>
                     <div className="w-32">
-                      <Label className="text-xs">Unit Price</Label>
+                      <div className="flex items-center justify-between mb-1">
+                        <Label className="text-xs">Unit Price</Label>
+                        {itemConfidence?.valuePerItem && <ConfidenceBadge score={itemConfidence.valuePerItem} showLabel={false} />}
+                      </div>
                       <Input
                         value={item.unitPrice}
                         onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
                         placeholder="0.00"
+                        className={itemConfidence?.valuePerItem && itemConfidence.valuePerItem < 0.7 ? 'border-red-300 bg-red-50' : ''}
                       />
                     </div>
                     <Button
@@ -495,12 +509,13 @@ export default function PurchaseOrders() {
                       onClick={() => handleRemoveItem(index)}
                       variant="ghost"
                       size="sm"
-                      className="text-red-600 hover:text-red-700"
+                      className="text-red-600 hover:text-red-700 mb-1"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
-                ))}
+                );
+                })}
 
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <p className="text-sm font-semibold">Total Amount: ₹{calculateTotal().toFixed(2)}</p>
