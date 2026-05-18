@@ -703,3 +703,11 @@
 - [x] Fix checkbox toggle being reset immediately after clicking (state management issue)
 - [x] Prevent auto-refetch of permissions when toggling checkboxes
 - [x] Test feature access control save functionality (155 tests passing)
+
+
+## Feature Access Control Checkbox Debug (PENDING)
+- [ ] Check browser console for errors when toggling checkbox
+- [ ] Add detailed console logging to track state changes
+- [ ] Verify if state is updating but UI not reflecting (React issue) or state not updating at all
+- [ ] Check if there's a React key issue or component re-rendering issue
+- [ ] Consider using React DevTools to inspect component state during toggle
