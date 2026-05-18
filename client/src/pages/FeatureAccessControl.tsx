@@ -23,24 +23,37 @@ const FEATURES = [
 
 export default function FeatureAccessControl() {
   const [activeRole, setActiveRole] = useState<"consultant" | "staff">("consultant");
-  const [permissions, setPermissions] = useState<Record<string, boolean>>({});
+  const [permissionsByRole, setPermissionsByRole] = useState<Record<string, Record<string, boolean>>>({
+    consultant: {},
+    staff: {},
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch permissions for the active role
-  const { data: fetchedPermissions } = trpc.featureAccess.getPermissions.useQuery(
-    { role: activeRole },
+  // Fetch permissions for consultant - disable auto-refetch
+  const { data: consultantPermissions, isLoading: consultantLoading } = trpc.featureAccess.getPermissions.useQuery(
+    { role: "consultant" },
+    { enabled: isLoading } // Only fetch on initial load
+  );
+
+  // Fetch permissions for staff - disable auto-refetch
+  const { data: staffPermissions, isLoading: staffLoading } = trpc.featureAccess.getPermissions.useQuery(
+    { role: "staff" },
+    { enabled: isLoading } // Only fetch on initial load
   );
 
   // Update permissions when fetched
   useEffect(() => {
-    if (fetchedPermissions) {
-      setPermissions(fetchedPermissions);
+    if (consultantPermissions && staffPermissions && !consultantLoading && !staffLoading) {
+      setPermissionsByRole({
+        consultant: consultantPermissions,
+        staff: staffPermissions,
+      });
       setIsLoading(false);
       setError(null);
     }
-  }, [fetchedPermissions]);
+  }, [consultantPermissions, staffPermissions, consultantLoading, staffLoading]);
 
   // Update permissions mutation
   const updateMutation = trpc.featureAccess.updatePermissions.useMutation({
@@ -60,9 +73,12 @@ export default function FeatureAccessControl() {
 
   // Handle permission toggle
   const handleToggle = (featureKey: string) => {
-    setPermissions((prev) => ({
+    setPermissionsByRole((prev) => ({
       ...prev,
-      [featureKey]: !prev[featureKey],
+      [activeRole]: {
+        ...prev[activeRole],
+        [featureKey]: !prev[activeRole][featureKey],
+      },
     }));
   };
 
@@ -73,7 +89,7 @@ export default function FeatureAccessControl() {
       setIsSaving(true);
       await updateMutation.mutateAsync({
         role: activeRole,
-        permissions,
+        permissions: permissionsByRole[activeRole],
       });
     } catch (error) {
       console.error("Error saving permissions:", error);
@@ -83,8 +99,11 @@ export default function FeatureAccessControl() {
 
   // Reset to defaults
   const handleReset = () => {
-    if (fetchedPermissions) {
-      setPermissions(fetchedPermissions);
+    if (consultantPermissions && staffPermissions) {
+      setPermissionsByRole({
+        consultant: consultantPermissions,
+        staff: staffPermissions,
+      });
       setError(null);
     }
   };
@@ -96,8 +115,11 @@ export default function FeatureAccessControl() {
       setIsSaving(false);
       setError(null);
       // Refetch permissions
-      if (fetchedPermissions) {
-        setPermissions(fetchedPermissions);
+      if (consultantPermissions && staffPermissions) {
+        setPermissionsByRole({
+          consultant: consultantPermissions,
+          staff: staffPermissions,
+        });
       }
     },
     onError: (error: any) => {
@@ -131,6 +153,8 @@ export default function FeatureAccessControl() {
       </div>
     );
   }
+
+  const currentPermissions = permissionsByRole[activeRole] || {};
 
   return (
     <div className="space-y-6 p-6">
@@ -197,7 +221,7 @@ export default function FeatureAccessControl() {
                   <div key={feature.key} className="flex items-start space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">
                     <Checkbox
                       id={`consultant-${feature.key}`}
-                      checked={permissions[feature.key] ?? false}
+                      checked={currentPermissions[feature.key] ?? false}
                       onCheckedChange={() => handleToggle(feature.key)}
                       disabled={isSaving}
                       className="mt-1"
@@ -232,7 +256,7 @@ export default function FeatureAccessControl() {
                   <div key={feature.key} className="flex items-start space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">
                     <Checkbox
                       id={`staff-${feature.key}`}
-                      checked={permissions[feature.key] ?? false}
+                      checked={currentPermissions[feature.key] ?? false}
                       onCheckedChange={() => handleToggle(feature.key)}
                       disabled={isSaving}
                       className="mt-1"

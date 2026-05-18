@@ -700,4 +700,6 @@
 - [x] Add toast notifications for success/error feedback
 - [x] Add error state display with alert component
 - [x] Disable checkboxes during save operation
+- [x] Fix checkbox toggle being reset immediately after clicking (state management issue)
+- [x] Prevent auto-refetch of permissions when toggling checkboxes
 - [x] Test feature access control save functionality (155 tests passing)
