@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,37 +23,44 @@ const FEATURES = [
 
 export default function FeatureAccessControl() {
   const [activeRole, setActiveRole] = useState<"consultant" | "staff">("consultant");
-  const [permissionsByRole, setPermissionsByRole] = useState<Record<string, Record<string, boolean>>>({
-    consultant: {},
-    staff: {},
-  });
+  const [consultantPerms, setConsultantPerms] = useState<Record<string, boolean>>({});
+  const [staffPerms, setStaffPerms] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch permissions for consultant - disable auto-refetch
-  const { data: consultantPermissions, isLoading: consultantLoading } = trpc.featureAccess.getPermissions.useQuery(
+  // Fetch permissions for consultant
+  const { data: consultantData, isLoading: consultantLoading } = trpc.featureAccess.getPermissions.useQuery(
     { role: "consultant" },
-    { enabled: isLoading } // Only fetch on initial load
   );
 
-  // Fetch permissions for staff - disable auto-refetch
-  const { data: staffPermissions, isLoading: staffLoading } = trpc.featureAccess.getPermissions.useQuery(
+  // Fetch permissions for staff
+  const { data: staffData, isLoading: staffLoading } = trpc.featureAccess.getPermissions.useQuery(
     { role: "staff" },
-    { enabled: isLoading } // Only fetch on initial load
   );
 
-  // Update permissions when fetched
+  // Initialize permissions on first load
   useEffect(() => {
-    if (consultantPermissions && staffPermissions && !consultantLoading && !staffLoading) {
-      setPermissionsByRole({
-        consultant: consultantPermissions,
-        staff: staffPermissions,
-      });
+    if (consultantData && staffData && !consultantLoading && !staffLoading) {
+      setConsultantPerms(consultantData);
+      setStaffPerms(staffData);
       setIsLoading(false);
-      setError(null);
     }
-  }, [consultantPermissions, staffPermissions, consultantLoading, staffLoading]);
+  }, [consultantData, staffData, consultantLoading, staffLoading]);
+
+  // Get current permissions based on active role
+  const currentPerms = activeRole === "consultant" ? consultantPerms : staffPerms;
+  const setCurrentPerms = activeRole === "consultant" ? setConsultantPerms : setStaffPerms;
+
+  // Handle checkbox change
+  const handleToggle = useCallback((featureKey: string) => {
+    setCurrentPerms((prev) => {
+      const newPerms = { ...prev };
+      newPerms[featureKey] = !newPerms[featureKey];
+      console.log(`Toggled ${featureKey} to ${newPerms[featureKey]}`);
+      return newPerms;
+    });
+  }, [setCurrentPerms]);
 
   // Update permissions mutation
   const updateMutation = trpc.featureAccess.updatePermissions.useMutation({
@@ -71,25 +78,15 @@ export default function FeatureAccessControl() {
     },
   });
 
-  // Handle permission toggle
-  const handleToggle = (featureKey: string) => {
-    setPermissionsByRole((prev) => ({
-      ...prev,
-      [activeRole]: {
-        ...prev[activeRole],
-        [featureKey]: !prev[activeRole][featureKey],
-      },
-    }));
-  };
-
   // Save permissions
   const handleSave = async () => {
     try {
       setError(null);
       setIsSaving(true);
+      const permsToSave = activeRole === "consultant" ? consultantPerms : staffPerms;
       await updateMutation.mutateAsync({
         role: activeRole,
-        permissions: permissionsByRole[activeRole],
+        permissions: permsToSave,
       });
     } catch (error) {
       console.error("Error saving permissions:", error);
@@ -99,13 +96,12 @@ export default function FeatureAccessControl() {
 
   // Reset to defaults
   const handleReset = () => {
-    if (consultantPermissions && staffPermissions) {
-      setPermissionsByRole({
-        consultant: consultantPermissions,
-        staff: staffPermissions,
-      });
-      setError(null);
+    if (activeRole === "consultant" && consultantData) {
+      setConsultantPerms(consultantData);
+    } else if (activeRole === "staff" && staffData) {
+      setStaffPerms(staffData);
     }
+    setError(null);
   };
 
   // Apply template mutation
@@ -114,13 +110,6 @@ export default function FeatureAccessControl() {
       toast.success("Template applied successfully!");
       setIsSaving(false);
       setError(null);
-      // Refetch permissions
-      if (consultantPermissions && staffPermissions) {
-        setPermissionsByRole({
-          consultant: consultantPermissions,
-          staff: staffPermissions,
-        });
-      }
     },
     onError: (error: any) => {
       const errorMsg = error?.message || "Failed to apply template";
@@ -153,8 +142,6 @@ export default function FeatureAccessControl() {
       </div>
     );
   }
-
-  const currentPermissions = permissionsByRole[activeRole] || {};
 
   return (
     <div className="space-y-6 p-6">
@@ -221,7 +208,7 @@ export default function FeatureAccessControl() {
                   <div key={feature.key} className="flex items-start space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">
                     <Checkbox
                       id={`consultant-${feature.key}`}
-                      checked={currentPermissions[feature.key] ?? false}
+                      checked={consultantPerms[feature.key] ?? false}
                       onCheckedChange={() => handleToggle(feature.key)}
                       disabled={isSaving}
                       className="mt-1"
@@ -256,7 +243,7 @@ export default function FeatureAccessControl() {
                   <div key={feature.key} className="flex items-start space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">
                     <Checkbox
                       id={`staff-${feature.key}`}
-                      checked={currentPermissions[feature.key] ?? false}
+                      checked={staffPerms[feature.key] ?? false}
                       onCheckedChange={() => handleToggle(feature.key)}
                       disabled={isSaving}
                       className="mt-1"
