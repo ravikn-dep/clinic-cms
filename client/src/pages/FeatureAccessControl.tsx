@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -39,28 +38,26 @@ export default function FeatureAccessControl() {
     { role: "staff" },
   );
 
-  // Initialize permissions on first load
+  // Initialize permissions on first load only
   useEffect(() => {
-    if (consultantData && staffData && !consultantLoading && !staffLoading) {
+    if (consultantData && staffData && !consultantLoading && !staffLoading && isLoading) {
       setConsultantPerms(consultantData);
       setStaffPerms(staffData);
       setIsLoading(false);
     }
-  }, [consultantData, staffData, consultantLoading, staffLoading]);
+  }, [consultantData, staffData, consultantLoading, staffLoading, isLoading]);
 
   // Get current permissions based on active role
   const currentPerms = activeRole === "consultant" ? consultantPerms : staffPerms;
   const setCurrentPerms = activeRole === "consultant" ? setConsultantPerms : setStaffPerms;
 
-  // Handle checkbox change
-  const handleToggle = useCallback((featureKey: string) => {
-    setCurrentPerms((prev) => {
-      const newPerms = { ...prev };
-      newPerms[featureKey] = !newPerms[featureKey];
-      console.log(`Toggled ${featureKey} to ${newPerms[featureKey]}`);
-      return newPerms;
-    });
-  }, [setCurrentPerms]);
+  // Handle checkbox change using native input
+  const handleToggle = (featureKey: string) => {
+    setCurrentPerms((prev) => ({
+      ...prev,
+      [featureKey]: !prev[featureKey],
+    }));
+  };
 
   // Update permissions mutation
   const updateMutation = trpc.featureAccess.updatePermissions.useMutation({
@@ -206,12 +203,13 @@ export default function FeatureAccessControl() {
               <div className="grid gap-4">
                 {FEATURES.map((feature) => (
                   <div key={feature.key} className="flex items-start space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">
-                    <Checkbox
+                    <input
+                      type="checkbox"
                       id={`consultant-${feature.key}`}
                       checked={consultantPerms[feature.key] ?? false}
-                      onCheckedChange={() => handleToggle(feature.key)}
+                      onChange={() => handleToggle(feature.key)}
                       disabled={isSaving}
-                      className="mt-1"
+                      className="mt-1 w-4 h-4 cursor-pointer"
                     />
                     <div className="flex-1">
                       <label
@@ -241,12 +239,13 @@ export default function FeatureAccessControl() {
               <div className="grid gap-4">
                 {FEATURES.map((feature) => (
                   <div key={feature.key} className="flex items-start space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">
-                    <Checkbox
+                    <input
+                      type="checkbox"
                       id={`staff-${feature.key}`}
                       checked={staffPerms[feature.key] ?? false}
-                      onCheckedChange={() => handleToggle(feature.key)}
+                      onChange={() => handleToggle(feature.key)}
                       disabled={isSaving}
-                      className="mt-1"
+                      className="mt-1 w-4 h-4 cursor-pointer"
                     />
                     <div className="flex-1">
                       <label
