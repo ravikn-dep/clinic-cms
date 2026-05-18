@@ -92,6 +92,8 @@ function Router() {
 }
 
 function App() {
+  const { user, loading } = useAuth();
+
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
@@ -100,11 +102,17 @@ function App() {
             <Route path={"/login"} component={Login} />
             <Route path={"/password-login"} component={PasswordLogin} />
             <Route path={"/qr-login"} component={QRLogin} />
-            <Route component={() => (
-              <DashboardLayout>
-                <Router />
-              </DashboardLayout>
-            )} />
+            <Route path={"/direct-login"} component={DirectLogin} />
+            <Route component={() => {
+              if (!loading && !user) {
+                return <DirectLogin />;
+              }
+              return (
+                <DashboardLayout>
+                  <Router />
+                </DashboardLayout>
+              );
+            }} />
           </Switch>
         </TooltipProvider>
       </ThemeProvider>

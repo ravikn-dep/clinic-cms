@@ -691,4 +691,5 @@
 - [x] Update App.tsx to implement role-based login routing (DirectLogin for staff/consultants, Manus OAuth for admin)
 - [x] Redirect unauthenticated users based on role: staff/consultants → DirectLogin, admin → Manus OAuth
 - [x] Update DirectLogin page to add admin OAuth login link
+- [x] Fix custom domain (app.orthodocsdeepthi.in) to show DirectLogin instead of Manus OAuth
 - [x] Test login flow for both staff and admin roles (155 tests passing)
