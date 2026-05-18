@@ -4,7 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 
 const FEATURES = [
   { key: "patient_records", label: "Patient Records", description: "View and manage patient information" },
@@ -24,6 +26,7 @@ export default function FeatureAccessControl() {
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Fetch permissions for the active role
   const { data: fetchedPermissions } = trpc.featureAccess.getPermissions.useQuery(
@@ -35,17 +38,22 @@ export default function FeatureAccessControl() {
     if (fetchedPermissions) {
       setPermissions(fetchedPermissions);
       setIsLoading(false);
+      setError(null);
     }
   }, [fetchedPermissions]);
 
   // Update permissions mutation
   const updateMutation = trpc.featureAccess.updatePermissions.useMutation({
     onSuccess: () => {
-      // Success - permissions updated
+      toast.success("Permissions saved successfully!");
       setIsSaving(false);
+      setError(null);
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      const errorMsg = error?.message || "Failed to update permissions";
       console.error("Failed to update permissions:", error);
+      toast.error(errorMsg);
+      setError(errorMsg);
       setIsSaving(false);
     },
   });
@@ -60,36 +68,52 @@ export default function FeatureAccessControl() {
 
   // Save permissions
   const handleSave = async () => {
-    setIsSaving(true);
-    await updateMutation.mutateAsync({
-      role: activeRole,
-      permissions,
-    });
+    try {
+      setError(null);
+      setIsSaving(true);
+      await updateMutation.mutateAsync({
+        role: activeRole,
+        permissions,
+      });
+    } catch (error) {
+      console.error("Error saving permissions:", error);
+      setIsSaving(false);
+    }
   };
 
   // Reset to defaults
   const handleReset = () => {
     if (fetchedPermissions) {
       setPermissions(fetchedPermissions);
+      setError(null);
     }
   };
 
   // Apply template mutation
   const applyTemplateMutation = trpc.featureAccess.applyTemplate.useMutation({
     onSuccess: () => {
+      toast.success("Template applied successfully!");
       setIsSaving(false);
-      window.location.reload();
+      setError(null);
+      // Refetch permissions
+      if (fetchedPermissions) {
+        setPermissions(fetchedPermissions);
+      }
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      const errorMsg = error?.message || "Failed to apply template";
       console.error("Failed to apply template:", error);
+      toast.error(errorMsg);
+      setError(errorMsg);
       setIsSaving(false);
     },
   });
 
   // Apply a permission template
   const handleApplyTemplate = async (template: "consultant" | "staff") => {
-    setIsSaving(true);
     try {
+      setError(null);
+      setIsSaving(true);
       await applyTemplateMutation.mutateAsync({
         role: activeRole,
         template,
@@ -117,6 +141,13 @@ export default function FeatureAccessControl() {
         </p>
       </div>
 
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
       <Card className="bg-blue-50 border-blue-200">
         <CardHeader>
           <CardTitle className="text-blue-900">Permission Templates</CardTitle>
@@ -128,15 +159,19 @@ export default function FeatureAccessControl() {
           <Button
             onClick={() => handleApplyTemplate("consultant")}
             variant="outline"
+            disabled={isSaving}
             className="border-blue-300 text-blue-700 hover:bg-blue-100"
           >
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Apply Consultant Template
           </Button>
           <Button
             onClick={() => handleApplyTemplate("staff")}
             variant="outline"
+            disabled={isSaving}
             className="border-blue-300 text-blue-700 hover:bg-blue-100"
           >
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Apply Staff Template
           </Button>
         </CardContent>
@@ -164,6 +199,7 @@ export default function FeatureAccessControl() {
                       id={`consultant-${feature.key}`}
                       checked={permissions[feature.key] ?? false}
                       onCheckedChange={() => handleToggle(feature.key)}
+                      disabled={isSaving}
                       className="mt-1"
                     />
                     <div className="flex-1">
@@ -198,6 +234,7 @@ export default function FeatureAccessControl() {
                       id={`staff-${feature.key}`}
                       checked={permissions[feature.key] ?? false}
                       onCheckedChange={() => handleToggle(feature.key)}
+                      disabled={isSaving}
                       className="mt-1"
                     />
                     <div className="flex-1">

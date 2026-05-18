@@ -694,3 +694,10 @@
 - [x] Fix custom domain (app.orthodocsdeepthi.in) to show DirectLogin instead of Manus OAuth
 - [x] Fix Login.tsx to use proper OAuth redirect instead of credential login
 - [x] Test login flow for both staff and admin roles (155 tests passing)
+
+## Feature Access Control Fix (NEW)
+- [x] Fix save button being disabled after clicking (mutation not completing)
+- [x] Add toast notifications for success/error feedback
+- [x] Add error state display with alert component
+- [x] Disable checkboxes during save operation
+- [x] Test feature access control save functionality (155 tests passing)
