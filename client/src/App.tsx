@@ -58,7 +58,6 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
-  // Note: useAuth() is called in App component, not here, to avoid unnecessary API calls
   return (
     <Switch>
       <Route path={"/"} component={Home} />
@@ -84,49 +83,49 @@ function Router() {
   );
 }
 
-function App() {
+function AuthenticatedApp() {
   const { user, loading } = useAuth();
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <DirectLogin />;
+  }
+
+  if (user?.role === "consultant") {
+    return <ConsultantDashboard />;
+  }
+
+  if (user?.role === "staff") {
+    return <StaffDashboard />;
+  }
+
+  return (
+    <DashboardLayout>
+      <Router />
+    </DashboardLayout>
+  );
+}
+
+function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
         <Switch>
-          {/* Show DirectLogin for unauthenticated users */}
-          {!user && !loading && (
-            <>
-              <Route path={"/login"} component={Login} />
-              <Route path={"/password-login"} component={PasswordLogin} />
-              <Route path={"/qr-login"} component={QRLogin} />
-              <Route component={DirectLogin} />
-            </>
-          )}
-
-          {/* Show loading state while checking auth */}
-          {loading && (
-            <Route component={() => (
-              <div className="flex items-center justify-center min-h-screen">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
-              </div>
-            )} />
-          )}
-
-          {/* Show dashboard for authenticated users */}
-          {user && (
-            <>
-              <Route path={"/login"} component={Login} />
-              <Route path={"/password-login"} component={PasswordLogin} />
-              <Route path={"/qr-login"} component={QRLogin} />
-              <Route component={() => {
-                if (user?.role === "consultant") return <ConsultantDashboard />;
-                if (user?.role === "staff") return <StaffDashboard />;
-                return (
-                  <DashboardLayout>
-                    <Router />
-                  </DashboardLayout>
-                );
-              }} />
-            </>
-          )}
+          {/* Show login pages without auth check */}
+          <Route path={"/login"} component={Login} />
+          <Route path={"/password-login"} component={PasswordLogin} />
+          <Route path={"/qr-login"} component={QRLogin} />
+          <Route path={"/direct-login"} component={DirectLogin} />
+          
+          {/* Default route - check auth and show appropriate page */}
+          <Route component={AuthenticatedApp} />
         </Switch>
       </ThemeProvider>
     </ErrorBoundary>
