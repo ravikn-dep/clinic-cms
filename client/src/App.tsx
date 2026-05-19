@@ -1,5 +1,4 @@
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch, Link, useLocation } from "wouter";
+import { Route, Switch, Link } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
@@ -59,15 +58,10 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
 }
 
 function Router() {
+  // Note: useAuth() is called in App component, not here, to avoid unnecessary API calls
   return (
     <Switch>
-      <Route path={"/"} component={() => {
-        const { user } = useAuth();
-        if (!user) return <DirectLogin />;
-        if (user?.role === "consultant") return <ConsultantDashboard />;
-        if (user?.role === "staff") return <StaffDashboard />;
-        return <Home />;
-      }} />
+      <Route path={"/"} component={Home} />
       <Route path={"/register-patient"} component={PatientRegistration} />
       <Route path={"/patients"}>{() => <ProtectedRoute feature="patient_records"><PatientRecords /></ProtectedRoute>}</Route>
       <Route path={"/scribe"}>{() => <ProtectedRoute feature="ambient_scribe"><AmbientScribe /></ProtectedRoute>}</Route>
@@ -91,47 +85,49 @@ function Router() {
 }
 
 function App() {
-  const [location] = useLocation();
-  
-  // Don't call useAuth for login pages to avoid unnecessary API calls
-  const isAuthPage = ["/login", "/password-login", "/qr-login", "/direct-login"].includes(location);
-  const { user, loading } = isAuthPage ? { user: null, loading: false } : useAuth();
+  const { user, loading } = useAuth();
 
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Switch>
-            {/* Auth pages - show before DashboardLayout */}
-            <Route path={"/login"} component={Login} />
-            <Route path={"/password-login"} component={PasswordLogin} />
-            <Route path={"/qr-login"} component={QRLogin} />
-            <Route path={"/direct-login"} component={DirectLogin} />
-            {/* Default route - show DirectLogin if not authenticated, otherwise show dashboard */}
-            <Route component={() => {
-              // Show loading state
-              if (loading) {
+        <Switch>
+          {/* Show DirectLogin for unauthenticated users */}
+          {!user && !loading && (
+            <>
+              <Route path={"/login"} component={Login} />
+              <Route path={"/password-login"} component={PasswordLogin} />
+              <Route path={"/qr-login"} component={QRLogin} />
+              <Route component={DirectLogin} />
+            </>
+          )}
+
+          {/* Show loading state while checking auth */}
+          {loading && (
+            <Route component={() => (
+              <div className="flex items-center justify-center min-h-screen">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+              </div>
+            )} />
+          )}
+
+          {/* Show dashboard for authenticated users */}
+          {user && (
+            <>
+              <Route path={"/login"} component={Login} />
+              <Route path={"/password-login"} component={PasswordLogin} />
+              <Route path={"/qr-login"} component={QRLogin} />
+              <Route component={() => {
+                if (user?.role === "consultant") return <ConsultantDashboard />;
+                if (user?.role === "staff") return <StaffDashboard />;
                 return (
-                  <div className="flex items-center justify-center min-h-screen">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
-                  </div>
+                  <DashboardLayout>
+                    <Router />
+                  </DashboardLayout>
                 );
-              }
-              
-              // Show DirectLogin if not authenticated
-              if (!user) {
-                return <DirectLogin />;
-              }
-              
-              // Show dashboard if authenticated
-              return (
-                <DashboardLayout>
-                  <Router />
-                </DashboardLayout>
-              );
-            }} />
-          </Switch>
-        </TooltipProvider>
+              }} />
+            </>
+          )}
+        </Switch>
       </ThemeProvider>
     </ErrorBoundary>
   );
