@@ -99,14 +99,28 @@ function App() {
       <ThemeProvider defaultTheme="light">
         <TooltipProvider>
           <Switch>
+            {/* Auth pages - show before DashboardLayout */}
             <Route path={"/login"} component={Login} />
             <Route path={"/password-login"} component={PasswordLogin} />
             <Route path={"/qr-login"} component={QRLogin} />
             <Route path={"/direct-login"} component={DirectLogin} />
+            {/* Default route - show DirectLogin if not authenticated, otherwise show dashboard */}
             <Route component={() => {
-              if (!loading && !user) {
+              // Show loading state
+              if (loading) {
+                return (
+                  <div className="flex items-center justify-center min-h-screen">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+                  </div>
+                );
+              }
+              
+              // Show DirectLogin if not authenticated
+              if (!user) {
                 return <DirectLogin />;
               }
+              
+              // Show dashboard if authenticated
               return (
                 <DashboardLayout>
                   <Router />
