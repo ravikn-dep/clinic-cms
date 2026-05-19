@@ -93,8 +93,9 @@ function Router() {
 function App() {
   const [location] = useLocation();
   
-  // Don't call useAuth for login pages to avoid unnecessary API calls
-  const isAuthPage = ["/login", "/password-login", "/qr-login", "/direct-login"].includes(location);
+  // Don't call useAuth for login pages or root path to avoid unnecessary API calls
+  // The root path will show DirectLogin if not authenticated
+  const isAuthPage = ["/", "/login", "/password-login", "/qr-login", "/direct-login"].includes(location);
   const { user, loading } = isAuthPage ? { user: null, loading: false } : useAuth();
 
   return (

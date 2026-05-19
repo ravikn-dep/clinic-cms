@@ -712,6 +712,8 @@
 - [x] Add proper loading state during auth check
 - [x] Fix 401 errors from useAuth() on login pages
 - [x] Skip useAuth() call for login pages to prevent OAuth API calls
+- [x] Implement credential-only login for all users (admin, staff, consultants)
+- [x] Remove Manus OAuth button from DirectLogin page
 - [x] Test DirectLogin page loads without redirection (155 tests passing)
 
 ## Feature Access Control Checkbox Debug (PENDING)
