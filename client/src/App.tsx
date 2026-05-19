@@ -1,5 +1,5 @@
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch, Link } from "wouter";
+import { Route, Switch, Link, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
@@ -92,7 +92,11 @@ function Router() {
 }
 
 function App() {
-  const { user, loading } = useAuth();
+  const [location] = useLocation();
+  
+  // Don't call useAuth for login pages to avoid unnecessary API calls
+  const isAuthPage = ["/login", "/password-login", "/qr-login", "/direct-login"].includes(location);
+  const { user, loading } = isAuthPage ? { user: null, loading: false } : useAuth();
 
   return (
     <ErrorBoundary>

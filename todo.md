@@ -705,6 +705,13 @@
 - [x] Test feature access control save functionality (155 tests passing)
 
 
+## DirectLogin Routing Fix (NEW)
+- [x] Fix DirectLogin URLs being redirected to Manus OAuth
+- [x] Ensure /direct-login route is matched before DashboardLayout
+- [x] Remove DashboardLayout from unauthenticated flow
+- [x] Add proper loading state during auth check
+- [x] Test DirectLogin page loads without redirection (155 tests passing)
+
 ## Feature Access Control Checkbox Debug (PENDING)
 - [ ] Check browser console for errors when toggling checkbox
 - [ ] Add detailed console logging to track state changes
