@@ -1,4 +1,5 @@
 import { Route, Switch, Link } from "wouter";
+import { useEffect, useState } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
@@ -114,6 +115,17 @@ function AuthenticatedApp() {
 }
 
 function App() {
+  const [showAuth, setShowAuth] = useState(false);
+
+  useEffect(() => {
+    // Delay showing auth check to allow DirectLogin to render first
+    // This prevents the OAuth redirect from happening immediately
+    const timer = setTimeout(() => {
+      setShowAuth(true);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
@@ -124,8 +136,13 @@ function App() {
           <Route path={"/qr-login"} component={QRLogin} />
           <Route path={"/direct-login"} component={DirectLogin} />
           
-          {/* Default route - check auth and show appropriate page */}
-          <Route component={AuthenticatedApp} />
+          {/* Default route - show DirectLogin first, then check auth after a delay */}
+          <Route component={() => {
+            if (!showAuth) {
+              return <DirectLogin />;
+            }
+            return <AuthenticatedApp />;
+          }} />
         </Switch>
       </ThemeProvider>
     </ErrorBoundary>
