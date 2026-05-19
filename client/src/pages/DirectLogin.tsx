@@ -117,19 +117,6 @@ export default function DirectLogin() {
               <p>Max Diagnostics</p>
               <p className="text-xs mt-1">The Pioneers in Diagnostic Medicare</p>
             </div>
-            <div className="pt-3 border-t">
-              <p className="text-xs text-muted-foreground mb-2">Admin Access</p>
-              <Button
-                asChild
-                variant="outline"
-                className="w-full text-xs"
-              >
-                <a href={getLoginUrl()}>
-                  <Shield className="mr-2 h-3 w-3" />
-                  Admin Login (Manus OAuth)
-                </a>
-              </Button>
-            </div>
           </div>
         </CardContent>
       </Card>

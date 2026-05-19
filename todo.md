@@ -710,6 +710,8 @@
 - [x] Ensure /direct-login route is matched before DashboardLayout
 - [x] Remove DashboardLayout from unauthenticated flow
 - [x] Add proper loading state during auth check
+- [x] Fix 401 errors from useAuth() on login pages
+- [x] Skip useAuth() call for login pages to prevent OAuth API calls
 - [x] Test DirectLogin page loads without redirection (155 tests passing)
 
 ## Feature Access Control Checkbox Debug (PENDING)

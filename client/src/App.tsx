@@ -61,7 +61,6 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
 function Router() {
   return (
     <Switch>
-      <Route path={"/direct-login"} component={DirectLogin} />
       <Route path={"/"} component={() => {
         const { user } = useAuth();
         if (!user) return <DirectLogin />;
