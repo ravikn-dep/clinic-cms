@@ -18,14 +18,14 @@ import {
   Users,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 
 export default function Home() {
-  const { user, isAuthenticated } = useAuth();
+  const { user } = useAuth();
   const [, navigate] = useLocation();
 
   const pollingOptions = {
-    enabled: isAuthenticated,
+    enabled: Boolean(user),
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
   };
