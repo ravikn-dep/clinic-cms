@@ -1,0 +1,8 @@
+{
+  "query": "DELETE FROM rolePermissions WHERE role = 'consultant';\n\nINSERT INTO rolePermissions (role, featureKey, isEnabled, createdAt, updatedAt) VALUES\n('consultant', 'patient_records', 1, NOW(), NOW()),\n('consultant', 'ambient_scribe', 1, NOW(), NOW()),\n('consultant', 'pharmacy', 1, NOW(), NOW()),\n('consultant', 'billing', 1, NOW(), NOW()),\n('consultant', 'appointments', 1, NOW(), NOW()),\n('consultant', 'notifications', 1, NOW(), NOW()),\n('consultant', 'purchase_orders', 0, NOW(), NOW()),\n('consultant', 'audit_trail', 0, NOW(), NOW()),\n('consultant', 'daily_export', 0, NOW(), NOW());",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute DELETE FROM rolePermissions WHERE role = 'consultant';\n\nINSERT INTO rolePermissions (role, featureKey, isEnabled, createdAt, updatedAt) VALUES\n('consultant', 'patient_records', 1, NOW(), NOW()),\n('consultant', 'ambient_scribe', 1, NOW(), NOW()),\n('consultant', 'pharmacy', 1, NOW(), NOW()),\n('consultant', 'billing', 1, NOW(), NOW()),\n('consultant', 'appointments', 1, NOW(), NOW()),\n('consultant', 'notifications', 1, NOW(), NOW()),\n('consultant', 'purchase_orders', 0, NOW(), NOW()),\n('consultant', 'audit_trail', 0, NOW(), NOW()),\n('consultant', 'daily_export', 0, NOW(), NOW());",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1364 (HY000) at line 3: Field 'permissionId' doesn't have a default value"
+  ]
+}

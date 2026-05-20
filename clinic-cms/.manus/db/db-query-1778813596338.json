@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM users WHERE email = 'admin@maxdiagnostics.com'; INSERT INTO users (email, name, role, passwordHash, openId, createdAt, lastSignedIn) VALUES ('admin@maxdiagnostics.com', 'Dr. RAVI KIRAN NAIK', 'admin', '$2b$10$JiR7sPRcXOUGut32jkgx.Ol9gQXV2MlmZJx8BWIUPCNVzcBKZFtQS', 'direct-login-admin', NOW(), NOW());",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute DELETE FROM users WHERE email = 'admin@maxdiagnostics.com'; INSERT INTO users (email, name, role, passwordHash, openId, createdAt, lastSignedIn) VALUES ('admin@maxdiagnostics.com', 'Dr. RAVI KIRAN NAIK', 'admin', '$2b$10$JiR7sPRcXOUGut32jkgx.Ol9gQXV2MlmZJx8BWIUPCNVzcBKZFtQS', 'direct-login-admin', NOW(), NOW());",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2098
+}

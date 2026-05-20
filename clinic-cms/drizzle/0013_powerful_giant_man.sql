@@ -1,0 +1,1 @@
+ALTER TABLE `purchaseOrders` ADD `authorizationNotes` text;

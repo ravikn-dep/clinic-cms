@@ -1,0 +1,104 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1777430583165,
+      "tag": "0000_narrow_ultimates",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1777430797773,
+      "tag": "0001_worried_rick_jones",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1777463412329,
+      "tag": "0002_nebulous_ego",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1777651795221,
+      "tag": "0003_dizzy_terror",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1777688090936,
+      "tag": "0004_quick_yellowjacket",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1777862610826,
+      "tag": "0005_condemned_boom_boom",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1777949478936,
+      "tag": "0006_amused_unus",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1778120869708,
+      "tag": "0007_thick_dragon_lord",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1778638440595,
+      "tag": "0008_legal_dreadnoughts",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1778726684886,
+      "tag": "0009_closed_lake",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1778727009129,
+      "tag": "0010_shocking_energizer",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1778862759881,
+      "tag": "0011_amusing_mantis",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "5",
+      "when": 1778864275303,
+      "tag": "0012_famous_imperial_guard",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1778902130841,
+      "tag": "0013_powerful_giant_man",
+      "breakpoints": true
+    }
+  ]
+}

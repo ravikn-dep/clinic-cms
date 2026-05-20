@@ -1,0 +1,9 @@
+{
+  "query": "INSERT INTO rolePermissions (permissionId, role, featureKey, isEnabled) VALUES \n('PERM-consultant-patient_records', 'consultant', 'patient_records', 1),\n('PERM-consultant-ambient_scribe', 'consultant', 'ambient_scribe', 1),\n('PERM-consultant-pharmacy', 'consultant', 'pharmacy', 1),\n('PERM-consultant-billing', 'consultant', 'billing', 1),\n('PERM-consultant-purchase_orders', 'consultant', 'purchase_orders', 0),\n('PERM-consultant-appointments', 'consultant', 'appointments', 1),\n('PERM-consultant-notifications', 'consultant', 'notifications', 1),\n('PERM-consultant-audit_trail', 'consultant', 'audit_trail', 0),\n('PERM-consultant-daily_export', 'consultant', 'daily_export', 0),\n('PERM-consultant-user_management', 'consultant', 'user_management', 0)\nON DUPLICATE KEY UPDATE isEnabled = VALUES(isEnabled);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute INSERT INTO rolePermissions (permissionId, role, featureKey, isEnabled) VALUES \n('PERM-consultant-patient_records', 'consultant', 'patient_records', 1),\n('PERM-consultant-ambient_scribe', 'consultant', 'ambient_scribe', 1),\n('PERM-consultant-pharmacy', 'consultant', 'pharmacy', 1),\n('PERM-consultant-billing', 'consultant', 'billing', 1),\n('PERM-consultant-purchase_orders', 'consultant', 'purchase_orders', 0),\n('PERM-consultant-appointments', 'consultant', 'appointments', 1),\n('PERM-consultant-notifications', 'consultant', 'notifications', 1),\n('PERM-consultant-audit_trail', 'consultant', 'audit_trail', 0),\n('PERM-consultant-daily_export', 'consultant', 'daily_export', 0),\n('PERM-consultant-user_management', 'consultant', 'user_management', 0)\nON DUPLICATE KEY UPDATE isEnabled = VALUES(isEnabled);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1781
+}

@@ -1,0 +1,14 @@
+{
+  "query": "SELECT featureKey, isEnabled FROM rolePermissions WHERE role = 'consultant' ORDER BY featureKey;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute SELECT featureKey, isEnabled FROM rolePermissions WHERE role = 'consultant' ORDER BY featureKey;",
+  "rows": [
+    {
+      "featureKey": "patient_records",
+      "isEnabled": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "featureKey\tisEnabled\npatient_records\t1\n",
+  "stderr": "",
+  "execution_time_ms": 1990
+}

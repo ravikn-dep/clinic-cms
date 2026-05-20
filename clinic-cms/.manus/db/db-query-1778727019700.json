@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `billTemplates` (\n\t`templateId` varchar(50) NOT NULL,\n\t`name` varchar(100) NOT NULL,\n\t`description` text,\n\t`itemsJson` json NOT NULL,\n\t`isActive` boolean DEFAULT true,\n\t`createdBy` int NOT NULL,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `billTemplates_templateId` PRIMARY KEY(`templateId`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute CREATE TABLE `billTemplates` (\n\t`templateId` varchar(50) NOT NULL,\n\t`name` varchar(100) NOT NULL,\n\t`description` text,\n\t`itemsJson` json NOT NULL,\n\t`isActive` boolean DEFAULT true,\n\t`createdBy` int NOT NULL,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `billTemplates_templateId` PRIMARY KEY(`templateId`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2027
+}

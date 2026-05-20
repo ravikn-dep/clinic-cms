@@ -1,0 +1,52 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "appointments"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "auditLogs"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "billItems"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "bills"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "consultantAvailability"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "consultations"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "inventory"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "notificationPreferences"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "notifications"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "patients"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "purchaseOrderItems"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "purchaseOrders"
+    },
+    {
+      "Tables_in_47itfTjNF9LgnsoJ4nN2Uu": "users"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_47itfTjNF9LgnsoJ4nN2Uu\n__drizzle_migrations\nappointments\nauditLogs\nbillItems\nbills\nconsultantAvailability\nconsultations\ninventory\nnotificationPreferences\nnotifications\npatients\npurchaseOrderItems\npurchaseOrders\nusers\n",
+  "stderr": "",
+  "execution_time_ms": 1905
+}

@@ -1,0 +1,17 @@
+{
+  "query": "SELECT id, userId, openId, name, role FROM users WHERE userId = 'CONS-001';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute SELECT id, userId, openId, name, role FROM users WHERE userId = 'CONS-001';",
+  "rows": [
+    {
+      "id": "1530026",
+      "userId": "CONS-001",
+      "openId": "local-CONS-001",
+      "name": "Dr. Deepthi S",
+      "role": "consultant"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\topenId\tname\trole\n1530026\tCONS-001\tlocal-CONS-001\tDr. Deepthi S\tconsultant\n",
+  "stderr": "",
+  "execution_time_ms": 1856
+}

@@ -1,0 +1,46 @@
+# Dependencies
+**/node_modules
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+*.dist
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+clinic-cms/.manus-logs/
+
+# Cache / coverage
+.cache/
+coverage/
+*.tsbuildinfo
+.eslintcache
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Webdev / manus artifacts
+.webdev/
+clinic-cms/client/public/__manus__/version.json

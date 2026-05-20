@@ -1,0 +1,9 @@
+{
+  "query": "ALTER TABLE `patients` MODIFY COLUMN `dateOfBirth` varchar(10);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute ALTER TABLE `patients` MODIFY COLUMN `dateOfBirth` varchar(10);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1886
+}
