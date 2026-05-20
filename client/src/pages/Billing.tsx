@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { AlertCircle, Download, FileText, Loader2, Mail, Plus, RefreshCcw, Printer, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
-import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
 
 type PaymentStatus = "Pending" | "Paid" | "Partial";

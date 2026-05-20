@@ -1,4 +1,4 @@
-import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";

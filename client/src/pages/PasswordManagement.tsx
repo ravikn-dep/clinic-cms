@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, AlertCircle, CheckCircle, Eye, EyeOff } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 export default function PasswordManagement() {
   const { user } = useAuth();

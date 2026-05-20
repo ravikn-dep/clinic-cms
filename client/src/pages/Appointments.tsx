@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { toast } from "sonner";
 
 export default function Appointments() {
