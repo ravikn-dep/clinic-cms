@@ -114,19 +114,20 @@ function AuthenticatedApp() {
 }
 
 function App() {
+  const location = typeof window !== 'undefined' ? window.location.pathname : '';
+  
+  // Show DirectLogin immediately without any auth checks
+  if (location === '/direct-login' || location === '/login' || location === '/password-login' || location === '/qr-login') {
+    if (location === '/direct-login') return <DirectLogin />;
+    if (location === '/login') return <Login />;
+    if (location === '/password-login') return <PasswordLogin />;
+    if (location === '/qr-login') return <QRLogin />;
+  }
+  
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
-        <Switch>
-          {/* Show login pages without auth check */}
-          <Route path={"/login"} component={Login} />
-          <Route path={"/password-login"} component={PasswordLogin} />
-          <Route path={"/qr-login"} component={QRLogin} />
-          <Route path={"/direct-login"} component={DirectLogin} />
-          
-          {/* Default route - use credential auth only */}
-          <Route component={AuthenticatedApp} />
-        </Switch>
+        <AuthenticatedApp />
       </ThemeProvider>
     </ErrorBoundary>
   );
