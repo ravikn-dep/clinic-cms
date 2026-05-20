@@ -1,5 +1,4 @@
 import { Route, Switch, Link } from "wouter";
-import { useEffect, useState } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
@@ -27,13 +26,13 @@ import OPFormCustomization from "./pages/OPFormCustomization";
 import Appointments from "./pages/Appointments";
 import Analytics from "./pages/Analytics";
 import NotFound from "./pages/NotFound";
-import { useAuth } from "./_core/hooks/useAuth";
+import { useCredentialAuth } from "./_core/hooks/useCredentialAuth";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 
 function AdminOnly({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
+  const { user } = useCredentialAuth();
 
   if (user?.role !== "admin") {
     return (
@@ -85,7 +84,7 @@ function Router() {
 }
 
 function AuthenticatedApp() {
-  const { user, loading } = useAuth();
+  const { user, loading } = useCredentialAuth();
 
   if (loading) {
     return (
@@ -115,17 +114,6 @@ function AuthenticatedApp() {
 }
 
 function App() {
-  const [showAuth, setShowAuth] = useState(false);
-
-  useEffect(() => {
-    // Delay showing auth check to allow DirectLogin to render first
-    // This prevents the OAuth redirect from happening immediately
-    const timer = setTimeout(() => {
-      setShowAuth(true);
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);
-
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
@@ -136,13 +124,8 @@ function App() {
           <Route path={"/qr-login"} component={QRLogin} />
           <Route path={"/direct-login"} component={DirectLogin} />
           
-          {/* Default route - show DirectLogin first, then check auth after a delay */}
-          <Route component={() => {
-            if (!showAuth) {
-              return <DirectLogin />;
-            }
-            return <AuthenticatedApp />;
-          }} />
+          {/* Default route - use credential auth only */}
+          <Route component={AuthenticatedApp} />
         </Switch>
       </ThemeProvider>
     </ErrorBoundary>
