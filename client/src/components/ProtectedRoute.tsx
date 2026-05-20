@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { FeatureKey, getFeatureLabel } from "@/lib/featureAccess";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { AlertCircle, Plus, Trash2, Eye, Save, RotateCcw, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 

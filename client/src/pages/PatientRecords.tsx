@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
 import { CalendarDays, Copy, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound, FileCheck, DollarSign } from "lucide-react";

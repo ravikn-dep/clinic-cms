@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { FeatureKey, FEATURE_TO_ROUTES, getFeatureForRoute } from "@/lib/featureAccess";
 
 export interface UseFeatureAccessResult {
