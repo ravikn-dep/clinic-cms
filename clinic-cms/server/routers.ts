@@ -1819,7 +1819,7 @@ export const appRouter = router({
                 ? (value as Record<string, unknown>)
                 : {}
             ),
-          z.record(z.string(), z.boolean())
+          z.record(z.string(), z.coerce.boolean())
         ),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -1922,7 +1922,7 @@ export const appRouter = router({
                   ? (value as Record<string, unknown>)
                   : {}
               ),
-            z.record(z.string(), z.boolean())
+            z.record(z.string(), z.coerce.boolean())
           ),
         })
       )

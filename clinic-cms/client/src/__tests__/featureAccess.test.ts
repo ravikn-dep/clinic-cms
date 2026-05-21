@@ -1,5 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { FEATURES, FEATURE_KEYS, getFeatureLabel, getFeatureDescription, FEATURE_TO_ROUTES, getFeatureForRoute, getProtectedRoutes } from "@/lib/featureAccess";
+import {
+  FEATURES,
+  FEATURE_KEYS,
+  getFeatureLabel,
+  getFeatureDescription,
+  FEATURE_TO_ROUTES,
+  getFeatureForRoute,
+  getProtectedRoutes,
+  normalizePermissionRecord,
+  toPermissionBoolean,
+} from "@/lib/featureAccess";
 
 describe("Feature Access Constants", () => {
   it("should define all expected features", () => {
@@ -91,5 +101,23 @@ describe("Feature Access Constants", () => {
       expect(Array.isArray(FEATURE_TO_ROUTES[feature.key])).toBe(true);
       expect(FEATURE_TO_ROUTES[feature.key].length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("Permission boolean normalization", () => {
+  it("coerces MySQL tinyint 0/1 to booleans", () => {
+    expect(toPermissionBoolean(1)).toBe(true);
+    expect(toPermissionBoolean(0)).toBe(false);
+    expect(toPermissionBoolean("1")).toBe(true);
+    expect(toPermissionBoolean("0")).toBe(false);
+  });
+
+  it("normalizes permission records before API save", () => {
+    const raw = { patient_records: 1, pharmacy: 0, billing: true };
+    expect(normalizePermissionRecord(raw)).toEqual({
+      patient_records: true,
+      pharmacy: false,
+      billing: true,
+    });
   });
 });

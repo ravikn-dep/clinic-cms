@@ -722,13 +722,14 @@ export async function setFeaturePermissions(role: "consultant" | "staff", permis
 
   await db.delete(rolePermissions).where(eq(rolePermissions.role, role));
 
+  const { toPermissionBoolean } = await import("@shared/rbac");
   for (const [featureKey, isEnabled] of Object.entries(permissions)) {
     const permissionId = `PERM-${Date.now()}-${Math.random()}`;
     await db.insert(rolePermissions).values({
       permissionId,
       role,
       featureKey,
-      isEnabled,
+      isEnabled: toPermissionBoolean(isEnabled),
     } as any);
   }
 }
@@ -737,7 +738,8 @@ export async function checkFeatureAccess(role: "admin" | "consultant" | "staff",
   if (role === "admin") return true;
 
   const permissions = await getFeaturePermissions(role);
-  return permissions[featureKey] === true;
+  const { toPermissionBoolean } = await import("@shared/rbac");
+  return toPermissionBoolean(permissions[featureKey]);
 }
 
 // ============ USER-SPECIFIC FEATURE PERMISSIONS ============
@@ -1247,7 +1249,8 @@ export async function authenticateUser(
     return null;
   }
 
-  if (user.isActive === false) {
+  const { toPermissionBoolean } = await import("@shared/rbac");
+  if (user.isActive !== undefined && user.isActive !== null && !toPermissionBoolean(user.isActive)) {
     throw new Error("User account is inactive");
   }
 
