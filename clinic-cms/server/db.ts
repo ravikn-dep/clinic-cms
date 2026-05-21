@@ -1,4 +1,4 @@
-import { count, desc, eq, like, lte, inArray, sql, and } from "drizzle-orm";
+import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, InsertUserPermission, users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions, userPermissions, vendors } from "../drizzle/schema";
 import { ENV } from './_core/env';
@@ -117,11 +117,19 @@ export async function getPatientById(patientId: string) {
   return result.length > 0 ? result[0] : null;
 }
 
-export async function getAllPatients() {
+export async function getAllPatients(includeArchived = false) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  return db.select().from(patients).orderBy(desc(patients.createdAt));
+
+  if (includeArchived) {
+    return db.select().from(patients).orderBy(desc(patients.createdAt));
+  }
+
+  return db
+    .select()
+    .from(patients)
+    .where(eq(patients.isArchived, false))
+    .orderBy(desc(patients.createdAt));
 }
 
 export async function countPatientsByPatientIdPrefix(patientIdPrefix: string) {
@@ -136,13 +144,94 @@ export async function countPatientsByPatientIdPrefix(patientIdPrefix: string) {
   return Number(result[0]?.value ?? 0);
 }
 
-export async function searchPatients(query: string) {
+export async function searchPatients(query: string, includeArchived = false) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  // Simplified search - in production, use full-text search
-  // For now, return all patients and filter on client side
-  return db.select().from(patients).limit(50);
+
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return getAllPatients(includeArchived);
+  }
+
+  const pattern = `%${trimmed}%`;
+  const conditions = [
+    or(
+      like(patients.firstName, pattern),
+      like(patients.lastName, pattern),
+      like(patients.patientId, pattern),
+      like(patients.contactNumber, pattern),
+      like(patients.email, pattern)
+    ),
+  ];
+
+  if (!includeArchived) {
+    conditions.push(eq(patients.isArchived, false));
+  }
+
+  return db
+    .select()
+    .from(patients)
+    .where(and(...conditions))
+    .orderBy(desc(patients.createdAt))
+    .limit(100);
+}
+
+export async function updatePatient(
+  patientId: string,
+  updates: {
+    firstName?: string;
+    lastName?: string;
+    dateOfBirth?: string | null;
+    gender?: string | null;
+    contactNumber?: string;
+    email?: string | null;
+    address?: string | null;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await getPatientById(patientId);
+  if (!existing) {
+    throw new Error("Patient not found");
+  }
+
+  const patch: Record<string, unknown> = { updatedAt: new Date() };
+  if (updates.firstName !== undefined) patch.firstName = updates.firstName;
+  if (updates.lastName !== undefined) patch.lastName = updates.lastName;
+  if (updates.dateOfBirth !== undefined) patch.dateOfBirth = updates.dateOfBirth;
+  if (updates.gender !== undefined) patch.gender = updates.gender;
+  if (updates.contactNumber !== undefined) patch.contactNumber = updates.contactNumber;
+  if (updates.email !== undefined) patch.email = updates.email;
+  if (updates.address !== undefined) patch.address = updates.address;
+
+  await db
+    .update(patients)
+    .set(patch as typeof patients.$inferInsert)
+    .where(eq(patients.patientId, patientId));
+
+  return getPatientById(patientId);
+}
+
+export async function setPatientArchived(patientId: string, isArchived: boolean) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await getPatientById(patientId);
+  if (!existing) {
+    throw new Error("Patient not found");
+  }
+
+  await db
+    .update(patients)
+    .set({
+      isArchived,
+      archivedAt: isArchived ? new Date() : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(patients.patientId, patientId));
+
+  return getPatientById(patientId);
 }
 
 // ============ CONSULTATION QUERIES ============
@@ -373,6 +462,51 @@ export async function getBillItemsByBillId(billId: string) {
   if (!db) throw new Error("Database not available");
   
   return db.select().from(billItems).where(eq(billItems.billId, billId));
+}
+
+export async function getBillingSummary() {
+  const all = await getAllBills();
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  let totalRevenue = 0;
+  let pendingAmount = 0;
+  let partialAmount = 0;
+  let paidAmount = 0;
+  let todayRevenue = 0;
+  let pendingCount = 0;
+  let paidCount = 0;
+
+  for (const bill of all) {
+    const amount = Number.parseFloat(String(bill.finalAmount ?? 0)) || 0;
+    totalRevenue += amount;
+
+    if (bill.paymentStatus === "Pending") {
+      pendingAmount += amount;
+      pendingCount += 1;
+    } else if (bill.paymentStatus === "Partial") {
+      partialAmount += amount;
+    } else if (bill.paymentStatus === "Paid") {
+      paidAmount += amount;
+      paidCount += 1;
+    }
+
+    const created = new Date(bill.createdAt);
+    if (created >= startOfToday) {
+      todayRevenue += amount;
+    }
+  }
+
+  return {
+    invoiceCount: all.length,
+    totalRevenue,
+    pendingAmount,
+    partialAmount,
+    paidAmount,
+    todayRevenue,
+    pendingCount,
+    paidCount,
+  };
 }
 
 // ============ AUDIT LOG QUERIES ============
@@ -871,7 +1005,40 @@ export async function rescheduleAppointment(appointmentId: string, newDate: stri
     .where(eq(appointments.appointmentId, appointmentId));
 }
 
-export async function checkAppointmentConflict(consultantId: number, date: string, time: string, duration: number = 30) {
+export async function updateAppointment(
+  appointmentId: string,
+  updates: {
+    patientId?: string;
+    consultantId?: number;
+    appointmentDate?: string;
+    appointmentTime?: string;
+    duration?: number;
+    notes?: string | null;
+    status?: "Scheduled" | "Completed" | "Cancelled" | "No-show" | "Rescheduled";
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const payload: Record<string, unknown> = { updatedAt: new Date() };
+  if (updates.patientId !== undefined) payload.patientId = updates.patientId;
+  if (updates.consultantId !== undefined) payload.consultantId = updates.consultantId;
+  if (updates.appointmentDate !== undefined) payload.appointmentDate = updates.appointmentDate;
+  if (updates.appointmentTime !== undefined) payload.appointmentTime = updates.appointmentTime;
+  if (updates.duration !== undefined) payload.duration = updates.duration;
+  if (updates.notes !== undefined) payload.notes = updates.notes;
+  if (updates.status !== undefined) payload.status = updates.status;
+
+  await db.update(appointments).set(payload).where(eq(appointments.appointmentId, appointmentId));
+}
+
+export async function checkAppointmentConflict(
+  consultantId: number,
+  date: string,
+  time: string,
+  duration: number = 30,
+  excludeAppointmentId?: string
+) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
@@ -888,6 +1055,9 @@ export async function checkAppointmentConflict(consultantId: number, date: strin
   const appointmentEnd = appointmentStart + duration;
 
   for (const apt of existingAppointments as any[]) {
+    if (excludeAppointmentId && apt.appointmentId === excludeAppointmentId) {
+      continue;
+    }
     const [aptHours, aptMinutes] = apt.appointmentTime.split(":").map(Number);
     const aptStart = aptHours * 60 + aptMinutes;
     const aptEnd = aptStart + (apt.duration ?? 30);
@@ -1007,6 +1177,8 @@ export async function setUserPassword(userId: number, password: string): Promise
     .where(eq(users.id, userId));
 }
 
+const ADMIN_LOGIN_ALIASES = new Set(["admin@max", "admin", "administrator"]);
+
 export async function findUserByCredential(credential: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1014,13 +1186,19 @@ export async function findUserByCredential(credential: string) {
   const trimmed = credential.trim();
   if (!trimmed) return null;
 
-  const byEmail = await db.select().from(users).where(eq(users.email, trimmed)).limit(1);
+  const lower = trimmed.toLowerCase();
+
+  const byEmail = await db
+    .select()
+    .from(users)
+    .where(sql`LOWER(${users.email}) = ${lower}`)
+    .limit(1);
   if (byEmail.length > 0) return byEmail[0];
 
   const byUsername = await db
     .select()
     .from(users)
-    .where(eq(users.username, trimmed.toLowerCase()))
+    .where(eq(users.username, lower))
     .limit(1);
   if (byUsername.length > 0) return byUsername[0];
 
@@ -1032,7 +1210,27 @@ export async function findUserByCredential(credential: string) {
   if (byUserIdUpper.length > 0) return byUserIdUpper[0];
 
   const byUserIdExact = await db.select().from(users).where(eq(users.userId, trimmed)).limit(1);
-  return byUserIdExact.length > 0 ? byUserIdExact[0] : null;
+  if (byUserIdExact.length > 0) return byUserIdExact[0];
+
+  // Documented default admin@max may not match stored username (e.g. ravikn + Microsoft email).
+  if (ADMIN_LOGIN_ALIASES.has(lower)) {
+    const admins = await db
+      .select()
+      .from(users)
+      .where(and(eq(users.role, "admin"), eq(users.isActive, true)));
+
+    const withPassword = admins.filter((u) => Boolean(u.passwordHash));
+    if (withPassword.length === 0) return null;
+
+    const preferred = withPassword.find((u) => u.username?.toLowerCase() === "admin@max");
+    if (preferred) return preferred;
+
+    if (withPassword.length === 1) return withPassword[0];
+
+    return withPassword.sort((a, b) => (a.id ?? 0) - (b.id ?? 0))[0];
+  }
+
+  return null;
 }
 
 export async function authenticateUser(
@@ -1058,11 +1256,10 @@ export async function authenticateUser(
     return null;
   }
 
-  if (user.userId) {
-    await updateStaffUser(user.userId, { lastSignedIn: new Date() });
-  } else {
-    await db.update(users).set({ lastSignedIn: new Date() }).where(eq(users.id, user.id));
-  }
+  await db
+    .update(users)
+    .set({ lastSignedIn: new Date() })
+    .where(eq(users.id, user.id));
 
   return {
     id: user.id as number,

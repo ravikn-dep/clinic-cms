@@ -38,12 +38,24 @@ async function startServer() {
   }
 
   const app = express();
+  // Manus / reverse proxies terminate TLS — required for secure session cookies.
+  app.set("trust proxy", 1);
+
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   
   registerStorageProxy(app);
+
+  app.get("/api/health", (_req, res) => {
+    res.json({
+      ok: true,
+      service: "clinic-cms",
+      nodeEnv: process.env.NODE_ENV ?? "development",
+    });
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
@@ -73,8 +85,9 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  server.listen(port, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${port}/`);
+    console.log(`API health check: http://localhost:${port}/api/health`);
   });
 }
 

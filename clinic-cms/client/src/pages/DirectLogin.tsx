@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,11 +13,39 @@ export default function DirectLogin() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [serverOk, setServerOk] = useState<boolean | null>(null);
+
+  const meQuery = trpc.auth.me.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (meQuery.data) {
+      window.location.replace("/");
+    }
+  }, [meQuery.data]);
+
+  useEffect(() => {
+    const healthUrl = `${window.location.origin}/api/health`;
+    fetch(healthUrl, { credentials: "include" })
+      .then(async (res) => {
+        const ct = res.headers.get("content-type") ?? "";
+        if (!ct.includes("application/json")) {
+          setServerOk(false);
+          return;
+        }
+        const body = await res.json();
+        setServerOk(Boolean(body?.ok));
+      })
+      .catch(() => setServerOk(false));
+  }, []);
 
   const loginMutation = trpc.auth.loginWithPassword.useMutation({
-    onSuccess: () => {
+    onSuccess: async () => {
       toast.success("Login successful!");
-      window.location.href = "/";
+      await meQuery.refetch();
+      window.location.replace("/");
     },
     onError: (err) => {
       const message = err.message || "Login failed. Please try again.";
@@ -66,6 +94,19 @@ export default function DirectLogin() {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {serverOk === false && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Backend is not responding. In Manus terminal run:{" "}
+                  <code className="text-xs">cd clinic-cms; pnpm dev</code>
+                  , then open{" "}
+                  <code className="text-xs break-all">{window.location.origin}/api/health</code>{" "}
+                  (must show JSON, not HTML).
+                </AlertDescription>
+              </Alert>
+            )}
+
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -86,7 +127,8 @@ export default function DirectLogin() {
                 className="h-10"
               />
               <p className="text-xs text-muted-foreground">
-                Use your assigned username, User ID (CONS-001), or email
+                Admin: <span className="font-mono">admin@max</span> / <span className="font-mono">admin123</span>
+                {" "}— or your username, email, or User ID (CONS-001)
               </p>
             </div>
 

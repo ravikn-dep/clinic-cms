@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState, useEffect } from "react";
+import { FormEvent, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +9,10 @@ import { toast } from "sonner";
 import { AlertCircle, Download, FileText, Loader2, Mail, Plus, RefreshCcw, Printer, X } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useCredentialAuth } from "@/_core/hooks/useCredentialAuth";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { BillDetailDialog } from "@/components/BillDetailDialog";
+import { formatMoney, parseCurrency, openInvoiceUrl, downloadFromUrl } from "@/lib/billingUtils";
 import { useLocation } from "wouter";
 
 type PaymentStatus = "Pending" | "Paid" | "Partial";
@@ -47,8 +50,6 @@ const initialBillForm: BillFormState = {
   taxAmount: "0",
 };
 
-const parseCurrency = (value: unknown) => Number.parseFloat(String(value ?? "0")) || 0;
-
 type PatientDetails = {
   patientId: string;
   firstName: string;
@@ -71,13 +72,18 @@ type ConsultationNotes = {
   treatmentPlan: string | null;
 };
 
+const SERVICE_ITEM_TYPES = ["Consultation", "Medicine", "Procedure", "Lab", "Service"] as const;
+
 export default function Billing() {
   const [showNewBill, setShowNewBill] = useState(false);
   const [form, setForm] = useState<BillFormState>(initialBillForm);
   const [patientDetails, setPatientDetails] = useState<PatientDetails | null>(null);
   const [consultationNotes, setConsultationNotes] = useState<ConsultationNotes | null>(null);
-  const { user } = useAuth();
+  const [viewBillId, setViewBillId] = useState<string | null>(null);
+  const { user } = useCredentialAuth();
+  const { hasAccess } = useFeatureAccess();
   const isAdmin = user?.role === "admin";
+  const canManageBilling = hasAccess("billing");
   const utils = trpc.useUtils();
   const [location] = useLocation();
 
@@ -129,8 +135,20 @@ export default function Billing() {
   }, [consultationNotesQuery.data, consultationNotesQuery.isError]);
 
   const billsQuery = trpc.bills.getAll.useQuery(undefined, {
+    enabled: canManageBilling,
     refetchOnWindowFocus: false,
+    refetchInterval: 30_000,
   });
+
+  const summaryQuery = trpc.bills.getSummary.useQuery(undefined, {
+    enabled: canManageBilling,
+    refetchInterval: 30_000,
+  });
+
+  const activePatientsQuery = trpc.patients.getAll.useQuery(
+    { includeArchived: false },
+    { enabled: canManageBilling && showNewBill }
+  );
 
   const createBill = trpc.bills.create.useMutation({
     onSuccess: (bill) => {
@@ -138,6 +156,7 @@ export default function Billing() {
       setForm(initialBillForm);
       setShowNewBill(false);
       utils.bills.getAll.invalidate();
+      utils.bills.getSummary.invalidate();
     },
     onError: (error) => {
       toast.error(error.message || "Unable to create invoice.");
@@ -168,6 +187,7 @@ export default function Billing() {
     onSuccess: () => {
       toast.success("Payment status updated.");
       utils.bills.getAll.invalidate();
+      utils.bills.getSummary.invalidate();
     },
     onError: (error) => {
       toast.error(error.message || "Unable to update payment status.");
@@ -185,28 +205,22 @@ export default function Billing() {
   });
 
   const getInvoiceLink = trpc.files.getArtifactLink.useMutation({
-    onSuccess: (artifact) => {
-      window.open(artifact.url, "_blank", "noopener,noreferrer");
-    },
     onError: (error) => {
       toast.error(error.message || "Unable to open invoice PDF.");
     },
   });
 
   const bills = billsQuery.data ?? [];
-
-  const summary = useMemo(() => {
-    return bills.reduce(
-      (acc, bill) => {
-        const amount = parseCurrency(bill.finalAmount);
-        acc.totalRevenue += amount;
-        if (bill.paymentStatus === "Pending") acc.pendingAmount += amount;
-        if (bill.paymentStatus === "Partial") acc.partialAmount += amount;
-        return acc;
-      },
-      { totalRevenue: 0, pendingAmount: 0, partialAmount: 0 }
-    );
-  }, [bills]);
+  const summary = summaryQuery.data ?? {
+    invoiceCount: 0,
+    totalRevenue: 0,
+    pendingAmount: 0,
+    partialAmount: 0,
+    paidAmount: 0,
+    todayRevenue: 0,
+    pendingCount: 0,
+    paidCount: 0,
+  };
 
   const totalAmount = form.items.reduce((sum, item) => {
     return sum + parseCurrency(item.quantity) * parseCurrency(item.unitPrice);
@@ -343,19 +357,46 @@ export default function Billing() {
     }
   };
 
-  const openInvoicePdf = (bill: (typeof bills)[number]) => {
+  const fetchInvoiceUrl = async (bill: (typeof bills)[number]) => {
     if (!bill.invoicePdfKey && !bill.invoicePdfUrl) {
-      toast.error("No invoice PDF is available for this bill yet.");
-      return;
+      throw new Error("No invoice PDF is available for this bill yet.");
     }
-
-    getInvoiceLink.mutate({
+    const artifact = await getInvoiceLink.mutateAsync({
       key: bill.invoicePdfKey ?? undefined,
       url: bill.invoicePdfUrl ?? undefined,
       patientId: bill.patientId,
       recordId: bill.billId,
       artifactType: "invoice_pdf",
     });
+    return artifact.url;
+  };
+
+  const openInvoicePdf = async (bill: (typeof bills)[number]) => {
+    try {
+      const url = await fetchInvoiceUrl(bill);
+      await openInvoiceUrl(url, "view");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to open invoice.");
+    }
+  };
+
+  const printInvoice = async (bill: (typeof bills)[number]) => {
+    try {
+      const url = await fetchInvoiceUrl(bill);
+      await openInvoiceUrl(url, "print");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to print invoice.");
+    }
+  };
+
+  const downloadInvoice = async (bill: (typeof bills)[number]) => {
+    try {
+      const url = await fetchInvoiceUrl(bill);
+      await downloadFromUrl(url, `Invoice_${bill.billId}.pdf`);
+      toast.success("Invoice downloaded.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to download invoice.");
+    }
   };
 
   const handleSendReceipt = (bill: (typeof bills)[number]) => {
@@ -368,10 +409,6 @@ export default function Billing() {
       return;
     }
     sendReceipt.mutate({ billId: bill.billId, method: "Email" });
-  };
-
-  const downloadBillPdf = (bill: (typeof bills)[number]) => {
-    openInvoicePdf(bill);
   };
 
   const printReceipt = async (bill: (typeof bills)[number]) => {
@@ -435,6 +472,52 @@ export default function Billing() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <Card className="friendly-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total billed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">{formatMoney(summary.totalRevenue)}</p>
+            <p className="text-xs text-muted-foreground mt-1">{summary.invoiceCount} invoice(s)</p>
+          </CardContent>
+        </Card>
+        <Card className="friendly-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Today</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-teal-700">{formatMoney(summary.todayRevenue)}</p>
+          </CardContent>
+        </Card>
+        <Card className="friendly-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-amber-600">{formatMoney(summary.pendingAmount)}</p>
+            <p className="text-xs text-muted-foreground mt-1">{summary.pendingCount} unpaid</p>
+          </CardContent>
+        </Card>
+        <Card className="friendly-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Partial</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-blue-600">{formatMoney(summary.partialAmount)}</p>
+          </CardContent>
+        </Card>
+        <Card className="friendly-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Collected</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-green-600">{formatMoney(summary.paidAmount)}</p>
+            <p className="text-xs text-muted-foreground mt-1">{summary.paidCount} paid</p>
+          </CardContent>
+        </Card>
+      </div>
+
       {showNewBill && (
         <Card className="friendly-card">
           <CardHeader>
@@ -445,8 +528,28 @@ export default function Billing() {
             <form className="space-y-6" onSubmit={handleCreateBill}>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="patientId">Patient ID *</Label>
-                  <Input id="patientId" value={form.patientId} onChange={(event) => setField("patientId", event.target.value)} placeholder="PAT-ABC12345" className="transition-colors focus-visible:ring-teal-200" />
+                  <Label htmlFor="patientId">Patient *</Label>
+                  <Select
+                    value={form.patientId}
+                    onValueChange={(value) => setField("patientId", value)}
+                  >
+                    <SelectTrigger id="patientId">
+                      <SelectValue placeholder="Select patient" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(activePatientsQuery.data ?? []).map((patient) => (
+                        <SelectItem key={patient.patientId} value={patient.patientId}>
+                          {patient.firstName} {patient.lastName} ({patient.patientId})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    value={form.patientId}
+                    onChange={(event) => setField("patientId", event.target.value)}
+                    placeholder="Or enter patient ID manually"
+                    className="transition-colors focus-visible:ring-teal-200"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="consultationId">Consultation ID</Label>
@@ -577,9 +680,11 @@ export default function Billing() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Consultation">Consultation</SelectItem>
-                            <SelectItem value="Medicine">Medicine</SelectItem>
-                            <SelectItem value="Procedure">Procedure</SelectItem>
+                            {SERVICE_ITEM_TYPES.map((type) => (
+                              <SelectItem key={type} value={type}>
+                                {type}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -711,29 +816,56 @@ export default function Billing() {
                       </td>
                       <td className="py-3 px-4 text-xs">{bill.createdAt ? new Date(bill.createdAt).toLocaleDateString() : "-"}</td>
                       <td className="py-3 px-4">
-                        <div className="flex gap-2">
-                          {isAdmin ? (
-                            <Button variant="ghost" size="sm" onClick={() => exportBillingCsv.mutate()} disabled={exportBillingCsv.isPending} aria-label="Export billing CSV" className="transition-all hover:-translate-y-0.5 hover:text-teal-700">
-                              {exportBillingCsv.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                            </Button>
-                          ) : null}
-                          <Button variant="outline" size="sm" onClick={() => openInvoicePdf(bill)} disabled={getInvoiceLink.isPending} className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50">
-                            {getInvoiceLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                            View PDF
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setViewBillId(bill.billId)}
+                          >
+                            Details
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => downloadBillPdf(bill)} disabled={exportBillingCsv.isPending} className="friendly-action border-emerald-200 bg-white/85 text-emerald-800 hover:bg-emerald-50" title="Download bill as PDF">
-                            {exportBillingCsv.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                            Download
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openInvoicePdf(bill)}
+                            disabled={getInvoiceLink.isPending}
+                            className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50"
+                          >
+                            {getInvoiceLink.isPending ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <FileText className="h-4 w-4" />
+                            )}
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => printInvoice(bill)}
+                            disabled={getInvoiceLink.isPending}
+                            title="Print invoice"
+                          >
+                            <Printer className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadInvoice(bill)}
+                            disabled={getInvoiceLink.isPending}
+                            title="Download invoice PDF"
+                          >
+                            <Download className="h-4 w-4" />
                           </Button>
                           {bill.paymentStatus === "Paid" && (
-                            <>
-                              <Button variant="outline" size="sm" onClick={() => printReceipt(bill)} disabled={getInvoiceLink.isPending || generateReceipt.isPending} className="friendly-action border-green-200 bg-white/85 text-green-800 hover:bg-green-50 transition-all hover:-translate-y-0.5" title="Print payment receipt">
-                                {generateReceipt.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
-                              </Button>
-                              <Button variant="outline" size="sm" onClick={() => handleSendReceipt(bill)} disabled={sendReceipt.isPending} className="friendly-action border-blue-200 bg-white/85 text-blue-800 hover:bg-blue-50 transition-all hover:-translate-y-0.5" title="Send receipt via email">
-                                {sendReceipt.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
-                              </Button>
-                            </>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleSendReceipt(bill)}
+                              disabled={sendReceipt.isPending}
+                              title="Send receipt via email"
+                            >
+                              <Mail className="h-4 w-4" />
+                            </Button>
                           )}
                         </div>
                       </td>
@@ -746,34 +878,13 @@ export default function Billing() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="friendly-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">₹{summary.totalRevenue.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="friendly-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pending Amount</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-amber-600">₹{summary.pendingAmount.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-
-        <Card className="friendly-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Partial Payments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-600">₹{summary.partialAmount.toFixed(2)}</div>
-          </CardContent>
-        </Card>
-      </div>
+      <BillDetailDialog
+        billId={viewBillId}
+        open={Boolean(viewBillId)}
+        onOpenChange={(open) => {
+          if (!open) setViewBillId(null);
+        }}
+      />
     </div>
   );
 }

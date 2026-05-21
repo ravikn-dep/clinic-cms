@@ -170,15 +170,14 @@ export default defineConfig({
   },
   server: {
     host: true,
-    allowedHosts: [
-      ".manuspre.computer",
-      ".manus.computer",
-      ".manus-asia.computer",
-      ".manuscomputer.ai",
-      ".manusvm.computer",
-      "localhost",
-      "127.0.0.1",
-    ],
+    proxy: {
+      "/api": {
+        target: `http://127.0.0.1:${process.env.PORT || "3000"}`,
+        changeOrigin: true,
+      },
+    },
+    // Manus preview tunnels use hosts like *.sg1.manus.computer — allow all in dev.
+    allowedHosts: true,
     fs: {
       strict: true,
       deny: ["**/.*"],

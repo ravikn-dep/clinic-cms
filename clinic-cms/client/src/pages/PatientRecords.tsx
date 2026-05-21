@@ -1,15 +1,46 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useCredentialAuth } from "@/_core/hooks/useCredentialAuth";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { PatientEditDialog, type PatientRecord } from "@/components/PatientEditDialog";
 import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
-import { CalendarDays, Copy, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound, FileCheck, DollarSign } from "lucide-react";
+import {
+  Archive,
+  ArchiveRestore,
+  CalendarDays,
+  Copy,
+  Download,
+  ExternalLink,
+  FileAudio,
+  FileText,
+  Loader2,
+  Pencil,
+  Plus,
+  Printer,
+  Receipt,
+  Search,
+  UserRound,
+  DollarSign,
+} from "lucide-react";
 import { toast } from "sonner";
-import { generateOPFormHTML, type UserInfo } from "@/lib/opFormGenerator";
+import { generateOPFormHTML } from "@/lib/opFormGenerator";
 import { useLocation } from "wouter";
 
 function formatDate(value: unknown) {
@@ -31,12 +62,33 @@ function statusVariant(status: string | null | undefined) {
 
 export default function PatientRecords() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [includeArchived, setIncludeArchived] = useState(false);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const { user } = useAuth();
+  const [editPatient, setEditPatient] = useState<PatientRecord | null>(null);
+  const [archiveTarget, setArchiveTarget] = useState<PatientRecord | null>(null);
+  const { user } = useCredentialAuth();
+  const { hasAccess } = useFeatureAccess();
   const isAdmin = user?.role === "admin";
+  const canManagePatients = hasAccess("patient_records");
   const [, setLocation] = useLocation();
 
-  const patientsQuery = trpc.patients.getAll.useQuery();
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const listQuery = trpc.patients.getAll.useQuery(
+    { includeArchived },
+    { enabled: debouncedSearch.length === 0 }
+  );
+
+  const searchQueryApi = trpc.patients.search.useQuery(
+    { query: debouncedSearch, includeArchived },
+    { enabled: debouncedSearch.length > 0 }
+  );
+
+  const patientsQuery = debouncedSearch.length > 0 ? searchQueryApi : listQuery;
   const getFormTemplate = trpc.opForm.getTemplate.useQuery();
   const selectedPatientQuery = trpc.patients.getById.useQuery(
     { patientId: selectedPatientId || "" },
@@ -67,21 +119,36 @@ export default function PatientRecords() {
     },
   });
 
-  const patients = patientsQuery.data || [];
+  const utils = trpc.useUtils();
 
-  const filteredPatients = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-    if (!normalizedQuery) return patients;
-    return patients.filter((patient) =>
-      patient.firstName.toLowerCase().includes(normalizedQuery) ||
-      patient.lastName.toLowerCase().includes(normalizedQuery) ||
-      patient.patientId.toLowerCase().includes(normalizedQuery) ||
-      patient.contactNumber.toLowerCase().includes(normalizedQuery) ||
-      (patient.email || "").toLowerCase().includes(normalizedQuery)
-    );
-  }, [patients, searchQuery]);
+  const archiveMutation = trpc.patients.archive.useMutation({
+    onSuccess: async () => {
+      toast.success("Patient archived");
+      setArchiveTarget(null);
+      setSelectedPatientId(null);
+      await utils.patients.getAll.invalidate();
+      await utils.patients.search.invalidate();
+    },
+    onError: (err) => toast.error(err.message || "Failed to archive patient"),
+  });
 
-  const selectedPatient = selectedPatientQuery.data || patients.find((patient) => patient.patientId === selectedPatientId);
+  const restoreMutation = trpc.patients.restore.useMutation({
+    onSuccess: async (result) => {
+      toast.success("Patient restored");
+      await utils.patients.getAll.invalidate();
+      await utils.patients.search.invalidate();
+      if (result.patient) {
+        setSelectedPatientId(result.patient.patientId);
+      }
+    },
+    onError: (err) => toast.error(err.message || "Failed to restore patient"),
+  });
+
+  const displayPatients = patientsQuery.data || [];
+
+  const selectedPatient =
+    selectedPatientQuery.data ||
+    displayPatients.find((patient) => patient.patientId === selectedPatientId);
   const consultations = consultationsQuery.data || [];
   const bills = billsQuery.data || [];
 
@@ -149,26 +216,37 @@ export default function PatientRecords() {
     <div className="friendly-page space-y-8">
       <div className="friendly-hero flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-teal-950">Patient Records</h1>
-          <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">Search, review, and export patient history for external reporting.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-teal-950">Patient Management</h1>
+          <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">
+            Search, register, edit, and archive patients. All changes are recorded in the audit trail.
+          </p>
         </div>
-        {isAdmin ? (
-          <Button
-            variant="outline"
-            onClick={() => exportPatientsCsv.mutate()}
-            disabled={exportPatientsCsv.isPending}
-            className="friendly-action"
-          >
-            {exportPatientsCsv.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 h-4 w-4" />
-            )}
-            Export Patients CSV
-          </Button>
-        ) : (
-          <Badge variant="outline" className="px-3 py-2 text-muted-foreground">Admin-only export</Badge>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {canManagePatients && (
+            <Button
+              onClick={() => setLocation("/register-patient")}
+              className="friendly-action bg-teal-600 text-white hover:bg-teal-700"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Add patient
+            </Button>
+          )}
+          {isAdmin ? (
+            <Button
+              variant="outline"
+              onClick={() => exportPatientsCsv.mutate()}
+              disabled={exportPatientsCsv.isPending}
+              className="friendly-action"
+            >
+              {exportPatientsCsv.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              Export CSV
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <Card className="friendly-card">
@@ -176,9 +254,9 @@ export default function PatientRecords() {
           <CardTitle>Search Patients</CardTitle>
           <CardDescription>Find patients by name, patient ID, contact number, or email.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name, patient ID, contact number, or email..."
@@ -187,6 +265,18 @@ export default function PatientRecords() {
                 className="pl-10 transition-colors focus-visible:ring-teal-200"
               />
             </div>
+            {isAdmin && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="include-archived"
+                  checked={includeArchived}
+                  onCheckedChange={(checked) => setIncludeArchived(checked === true)}
+                />
+                <Label htmlFor="include-archived" className="text-sm font-normal cursor-pointer">
+                  Show archived
+                </Label>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -195,7 +285,7 @@ export default function PatientRecords() {
         <Card className="friendly-card">
           <CardHeader>
             <CardTitle>Patient List</CardTitle>
-            <CardDescription>{filteredPatients.length} patient(s) found</CardDescription>
+            <CardDescription>{displayPatients.length} patient(s) found</CardDescription>
           </CardHeader>
           <CardContent>
             {patientsQuery.isError ? (
@@ -209,9 +299,19 @@ export default function PatientRecords() {
               <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading patient records...
               </div>
-            ) : filteredPatients.length === 0 ? (
+            ) : displayPatients.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-muted-foreground">No patients found.</p>
+                {canManagePatients && (
+                  <Button
+                    className="mt-4"
+                    variant="outline"
+                    onClick={() => setLocation("/register-patient")}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Register first patient
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
@@ -221,24 +321,59 @@ export default function PatientRecords() {
                       <th className="text-left py-3 px-4 font-semibold">Patient ID</th>
                       <th className="text-left py-3 px-4 font-semibold">Name</th>
                       <th className="text-left py-3 px-4 font-semibold">Contact</th>
+                      <th className="text-left py-3 px-4 font-semibold">Status</th>
                       <th className="text-left py-3 px-4 font-semibold">Registered</th>
                       <th className="text-left py-3 px-4 font-semibold">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredPatients.map((patient) => (
-                      <tr key={patient.patientId} className={`border-b transition-colors hover:bg-accent/70 ${selectedPatientId === patient.patientId ? "border-l-4 border-l-primary bg-primary/10" : ""}`}>
+                    {displayPatients.map((patient) => (
+                      <tr
+                        key={patient.patientId}
+                        className={`border-b transition-colors hover:bg-accent/70 ${selectedPatientId === patient.patientId ? "border-l-4 border-l-primary bg-primary/10" : ""} ${patient.isArchived ? "opacity-70" : ""}`}
+                      >
                         <td className="py-3 px-4 font-mono text-xs">{patient.patientId}</td>
                         <td className="py-3 px-4">
-                          <div className="font-medium">{patient.firstName} {patient.lastName}</div>
-                          <div className="text-xs text-muted-foreground">{patient.email || "No email recorded"}</div>
+                          <div className="font-medium">
+                            {patient.firstName} {patient.lastName}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {patient.email || "No email recorded"}
+                          </div>
                         </td>
                         <td className="py-3 px-4">{patient.contactNumber}</td>
-                        <td className="py-3 px-4 text-xs text-muted-foreground">{formatDate(patient.createdAt)}</td>
                         <td className="py-3 px-4">
-                          <Button variant="outline" size="sm" onClick={() => setSelectedPatientId(patient.patientId)} className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50">
-                            View Profile
-                          </Button>
+                          {patient.isArchived ? (
+                            <Badge variant="secondary">Archived</Badge>
+                          ) : (
+                            <Badge variant="outline" className="border-teal-200 text-teal-800">
+                              Active
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-xs text-muted-foreground">
+                          {formatDate(patient.createdAt)}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setSelectedPatientId(patient.patientId)}
+                              className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50"
+                            >
+                              View
+                            </Button>
+                            {canManagePatients && !patient.isArchived && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditPatient(patient as PatientRecord)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -277,7 +412,17 @@ export default function PatientRecords() {
                       <h2 className="text-xl font-semibold">{selectedPatient.firstName} {selectedPatient.lastName}</h2>
                       <p className="font-mono text-xs text-muted-foreground">{selectedPatient.patientId}</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      {canManagePatients && !selectedPatient.isArchived && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditPatient(selectedPatient as PatientRecord)}
+                        >
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit
+                        </Button>
+                      )}
                       <Button
                         variant="outline"
                         size="sm"
@@ -287,7 +432,38 @@ export default function PatientRecords() {
                         <Printer className="mr-2 h-4 w-4" />
                         Print OP Form
                       </Button>
-                      <Badge variant="outline">Registered {formatDate(selectedPatient.createdAt)}</Badge>
+                      {selectedPatient.isArchived ? (
+                        isAdmin && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              restoreMutation.mutate({ patientId: selectedPatient.patientId })
+                            }
+                            disabled={restoreMutation.isPending}
+                          >
+                            <ArchiveRestore className="mr-2 h-4 w-4" />
+                            Restore
+                          </Button>
+                        )
+                      ) : (
+                        canManagePatients && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-amber-700 border-amber-300 hover:bg-amber-50"
+                            onClick={() => setArchiveTarget(selectedPatient as PatientRecord)}
+                          >
+                            <Archive className="mr-2 h-4 w-4" />
+                            Archive
+                          </Button>
+                        )
+                      )}
+                      {selectedPatient.isArchived ? (
+                        <Badge variant="secondary">Archived</Badge>
+                      ) : (
+                        <Badge variant="outline">Registered {formatDate(selectedPatient.createdAt)}</Badge>
+                      )}
                     </div>
                   </div>
                   <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
@@ -425,6 +601,46 @@ export default function PatientRecords() {
           </CardContent>
         </Card>
       </div>
+
+      <PatientEditDialog
+        patient={editPatient}
+        open={Boolean(editPatient)}
+        onOpenChange={(open) => {
+          if (!open) setEditPatient(null);
+        }}
+        onSaved={() => {
+          patientsQuery.refetch();
+          if (editPatient) {
+            selectedPatientQuery.refetch();
+          }
+        }}
+      />
+
+      <AlertDialog open={Boolean(archiveTarget)} onOpenChange={(open) => !open && setArchiveTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive patient?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {archiveTarget
+                ? `${archiveTarget.firstName} ${archiveTarget.lastName} (${archiveTarget.patientId}) will be hidden from active lists. Consultation and billing history are preserved. Administrators can restore archived patients.`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 hover:bg-amber-700"
+              onClick={() => {
+                if (archiveTarget) {
+                  archiveMutation.mutate({ patientId: archiveTarget.patientId });
+                }
+              }}
+            >
+              Archive patient
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

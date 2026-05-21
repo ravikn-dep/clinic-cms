@@ -53,6 +53,8 @@ export const patients = mysqlTable("patients", {
   barcodeImageKey: text("barcodeImageKey"),
   qrcodeImageUrl: text("qrcodeImageUrl"),
   qrcodeImageKey: text("qrcodeImageKey"),
+  isArchived: boolean("isArchived").default(false).notNull(),
+  archivedAt: timestamp("archivedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

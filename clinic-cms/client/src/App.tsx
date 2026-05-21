@@ -26,7 +26,9 @@ import { useCredentialAuth } from "./_core/hooks/useCredentialAuth";
 import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import { ServerConnectionHelp } from "./components/ServerConnectionHelp";
 import { LOGIN_PATH } from "./const";
+import { TRPCClientError } from "@trpc/client";
 
 function AdminOnly({ children }: { children: React.ReactNode }) {
   const { user } = useCredentialAuth();
@@ -86,20 +88,55 @@ function Router() {
   );
 }
 
+function getAuthErrorMessage(error: unknown): string | null {
+  if (!error) return null;
+  if (error instanceof TRPCClientError) {
+    return error.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Unknown error loading session.";
+}
+
 function AuthenticatedApp() {
-  const { user, loading } = useCredentialAuth();
+  const { user, loading, error } = useCredentialAuth();
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-teal-600" />
+        <p className="text-sm text-muted-foreground">Loading clinic workspace...</p>
       </div>
     );
   }
 
+  const authError = getAuthErrorMessage(error);
+  if (authError) {
+    const isApiHtml = authError.includes("HTML instead of JSON");
+    const isNetwork =
+      authError.includes("Failed to fetch") || authError.includes("Network");
+
+    return (
+      <ServerConnectionHelp
+        message={
+          isApiHtml || isNetwork
+            ? authError
+            : `${authError} Try signing in again after the server is running.`
+        }
+      />
+    );
+  }
+
   if (!user) {
-    window.location.href = LOGIN_PATH;
-    return null;
+    if (typeof window !== "undefined" && window.location.pathname !== LOGIN_PATH) {
+      window.location.replace(LOGIN_PATH);
+    }
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-sm text-muted-foreground">Redirecting to sign in...</p>
+      </div>
+    );
   }
 
   return (

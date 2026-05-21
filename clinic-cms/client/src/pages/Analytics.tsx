@@ -17,7 +17,7 @@ export default function Analytics() {
 
   // Calculate analytics data
   const analyticsData = useMemo(() => {
-    const appointments = appointmentsQuery.data || [];
+    const appointments = appointmentsQuery.data?.appointments ?? [];
     const bills = billsQuery.data || [];
     const patients = patientsQuery.data || [];
 

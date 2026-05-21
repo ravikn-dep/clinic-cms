@@ -17,6 +17,12 @@ import { notifyOwner } from "./_core/notification";
 import { resolveArtifactStorageKey } from "./artifactAccess";
 import { hashPassword, verifyPassword, generateRandomPassword } from "./_core/auth";
 import { getDefaultPermissions } from "@shared/rbac";
+import {
+  canManageAppointment,
+  canViewAppointment,
+  canViewAllAppointments,
+  resolveConsultantIdForCreate,
+} from "./appointmentAccess";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -57,16 +63,28 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         try {
+          if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16) {
+            throw new Error(
+              "JWT_SECRET is not configured. Set JWT_SECRET in .env (at least 16 characters) to enable login."
+            );
+          }
+
           const user = await db.authenticateUser(input.username.trim(), input.password);
 
           if (!user) {
-            throw new Error("Invalid username or password");
+            throw new Error(
+              "Invalid username or password. For admin access use admin@max (after running pnpm seed:admin) or your assigned username."
+            );
           }
 
           const fullUser = await db.getUserById(user.id);
-          let openId = fullUser?.openId;
+          if (!fullUser) {
+            throw new Error("User record not found after authentication");
+          }
+
+          let openId = fullUser.openId;
           if (!openId || openId.startsWith("CONS-") || openId.startsWith("STAFF-")) {
-            openId = fullUser?.userId ? `local-${fullUser.userId}` : `local-user-${user.id}`;
+            openId = fullUser.userId ? `local-${fullUser.userId}` : `local-user-${user.id}`;
             await db.updateUserOpenId(user.id, openId);
           }
 
@@ -93,23 +111,9 @@ export const appRouter = router({
         } catch (error) {
           console.error("[Auth] Password login failed:", error);
           if (error instanceof Error) {
-            if (error.message === "User account is inactive") {
-              throw error;
-            }
-            if (error.message === "Database not available") {
-              throw new Error(
-                "Database not connected. Check DATABASE_URL in clinic-cms/.env and ensure MySQL is running."
-              );
-            }
-            if (error.message === "Invalid username or password") {
-              throw error;
-            }
+            throw error;
           }
-          throw new Error(
-            process.env.NODE_ENV === "development" && error instanceof Error
-              ? `Login failed: ${error.message}`
-              : "Login failed"
-          );
+          throw new Error("Login failed");
         }
       }),
 
@@ -210,6 +214,7 @@ export const appRouter = router({
           barcodeImageKey: barcodeUpload.key,
           qrcodeImageUrl: qrUpload.url,
           qrcodeImageKey: qrUpload.key,
+          isArchived: false,
         });
 
         // Log audit trail
@@ -247,12 +252,14 @@ export const appRouter = router({
         };
       }),
 
-    getAll: protectedProcedure.query(async () => {
-      return db.getAllPatients();
-    }),
+    getAll: protectedProcedure
+      .input(z.object({ includeArchived: z.boolean().optional() }).optional())
+      .query(async ({ input }) => {
+        return db.getAllPatients(input?.includeArchived ?? false);
+      }),
 
     exportCsv: adminProcedure.mutation(async ({ ctx }) => {
-      const rows = await db.getAllPatients();
+      const rows = await db.getAllPatients(true);
       const csv = toCsv(rows, [
         { header: "Patient ID", value: (row) => row.patientId },
         { header: "First Name", value: (row) => row.firstName },
@@ -262,6 +269,7 @@ export const appRouter = router({
         { header: "Contact Number", value: (row) => row.contactNumber },
         { header: "Email", value: (row) => row.email },
         { header: "Address", value: (row) => row.address },
+        { header: "Archived", value: (row) => row.isArchived },
         { header: "Barcode Data", value: (row) => row.barcodeData },
         { header: "Registered At", value: (row) => row.createdAt },
         { header: "Updated At", value: (row) => row.updatedAt },
@@ -297,19 +305,126 @@ export const appRouter = router({
       }),
 
     search: protectedProcedure
-      .input(z.object({ query: z.string() }))
+      .input(
+        z.object({
+          query: z.string(),
+          includeArchived: z.boolean().optional(),
+        })
+      )
       .query(async ({ input, ctx }) => {
-        const results = await db.searchPatients(input.query);
+        const results = await db.searchPatients(
+          input.query,
+          input.includeArchived ?? false
+        );
         await db.createAuditLog({
           logId: utils.generateAuditLogId(),
           userId: ctx.user.id.toString(),
           actionType: "PHI_ACCESS",
           tableName: "patients",
           recordId: "patient-search",
-          newValue: JSON.stringify({ query: input.query, resultCount: results.length }),
+          newValue: JSON.stringify({
+            query: input.query,
+            resultCount: results.length,
+            includeArchived: input.includeArchived ?? false,
+          }),
           timestamp: new Date(),
         });
         return results;
+      }),
+
+    update: protectedProcedure
+      .input(
+        z.object({
+          patientId: z.string().min(1),
+          firstName: z.string().min(1).optional(),
+          lastName: z.string().min(1).optional(),
+          dateOfBirth: z.string().optional().nullable(),
+          gender: z.enum(["Male", "Female", "Other"]).optional().nullable(),
+          contactNumber: z.string().min(10).optional(),
+          email: z.string().email().optional().nullable().or(z.literal("")),
+          address: z.string().optional().nullable(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const existing = await db.getPatientById(input.patientId);
+        if (!existing) {
+          throw new Error("Patient not found");
+        }
+
+        const patch: Parameters<typeof db.updatePatient>[1] = {};
+        if (input.firstName !== undefined) patch.firstName = input.firstName;
+        if (input.lastName !== undefined) patch.lastName = input.lastName;
+        if (input.dateOfBirth !== undefined) patch.dateOfBirth = input.dateOfBirth;
+        if (input.gender !== undefined) patch.gender = input.gender;
+        if (input.contactNumber !== undefined) patch.contactNumber = input.contactNumber;
+        if (input.email !== undefined) patch.email = input.email === "" ? null : input.email;
+        if (input.address !== undefined) patch.address = input.address;
+
+        const updated = await db.updatePatient(input.patientId, patch);
+
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "UPDATE",
+          tableName: "patients",
+          recordId: input.patientId,
+          oldValue: JSON.stringify(existing),
+          newValue: JSON.stringify(updated),
+          timestamp: new Date(),
+        });
+
+        return updated;
+      }),
+
+    archive: protectedProcedure
+      .input(z.object({ patientId: z.string().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const existing = await db.getPatientById(input.patientId);
+        if (!existing) {
+          throw new Error("Patient not found");
+        }
+        if (existing.isArchived) {
+          return existing;
+        }
+
+        const archived = await db.setPatientArchived(input.patientId, true);
+
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "ARCHIVE",
+          tableName: "patients",
+          recordId: input.patientId,
+          oldValue: JSON.stringify(existing),
+          newValue: JSON.stringify(archived),
+          timestamp: new Date(),
+        });
+
+        return { success: true, patient: archived };
+      }),
+
+    restore: adminProcedure
+      .input(z.object({ patientId: z.string().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const existing = await db.getPatientById(input.patientId);
+        if (!existing) {
+          throw new Error("Patient not found");
+        }
+
+        const restored = await db.setPatientArchived(input.patientId, false);
+
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "RESTORE",
+          tableName: "patients",
+          recordId: input.patientId,
+          oldValue: JSON.stringify(existing),
+          newValue: JSON.stringify(restored),
+          timestamp: new Date(),
+        });
+
+        return { success: true, patient: restored };
       }),
 
     getDetailsForBilling: protectedProcedure
@@ -799,13 +914,19 @@ export const appRouter = router({
       return Promise.all(
         bills.map(async (bill) => {
           const patient = await db.getPatientById(bill.patientId);
+          const items = await db.getBillItemsByBillId(bill.billId);
           return {
             ...bill,
             patientName: patient ? `${patient.firstName} ${patient.lastName}` : "Unknown Patient",
             patientContact: patient?.contactNumber || "",
+            itemCount: items.length,
           };
         })
       );
+    }),
+
+    getSummary: protectedProcedure.query(async () => {
+      return db.getBillingSummary();
     }),
 
     getById: protectedProcedure
@@ -1424,6 +1545,7 @@ export const appRouter = router({
         return staffUsers.map(u => ({
           id: u.id,
           userId: u.userId,
+          username: u.username,
           name: u.name,
           email: u.email,
           phone: u.phone,
@@ -1433,6 +1555,7 @@ export const appRouter = router({
           stateCounsilSection: u.stateCounsilSection,
           registrationNumber: u.registrationNumber,
           createdAt: u.createdAt,
+          lastSignedIn: u.lastSignedIn,
         }));
       } catch (error) {
         console.error("[RBAC] List staff users failed:", error);
@@ -1444,31 +1567,138 @@ export const appRouter = router({
       .input(z.object({
         userId: z.string(),
         name: z.string().min(2).optional(),
-        email: z.string().email().optional(),
+        email: z.union([z.string().email(), z.literal("")]).optional(),
         phone: z.string().optional(),
         department: z.string().optional(),
-        role: z.enum(["admin", "consultant", "staff", "user"]).optional(),
+        role: z.enum(["consultant", "staff"]).optional(),
         stateCounsilSection: z.string().optional(),
         registrationNumber: z.string().optional(),
-        isActive: z.boolean().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
-          const updates: Record<string, any> = {};
-          if (input.name) updates.name = input.name;
-          if (input.email) updates.email = input.email;
-          if (input.phone) updates.phone = input.phone;
-          if (input.department) updates.department = input.department;
-          if (input.role) updates.role = input.role;
-          if (input.stateCounsilSection) updates.stateCounsilSection = input.stateCounsilSection;
-          if (input.registrationNumber) updates.registrationNumber = input.registrationNumber;
-          if (input.isActive !== undefined) updates.isActive = input.isActive;
+          const existing = await db.getStaffUserById(input.userId);
+          if (!existing) {
+            throw new Error("User not found");
+          }
+          if (existing.role !== "consultant" && existing.role !== "staff") {
+            throw new Error("Only doctor and staff accounts can be updated here");
+          }
+          if (existing.id === ctx.user.id && input.role && input.role !== existing.role) {
+            throw new Error("You cannot change your own role");
+          }
+
+          const updates: Record<string, unknown> = {};
+          if (input.name !== undefined) updates.name = input.name;
+          if (input.email !== undefined) updates.email = input.email || null;
+          if (input.phone !== undefined) updates.phone = input.phone || null;
+          if (input.department !== undefined) updates.department = input.department || null;
+          if (input.role !== undefined) updates.role = input.role;
+          if (input.stateCounsilSection !== undefined) {
+            updates.stateCounsilSection = input.stateCounsilSection || null;
+          }
+          if (input.registrationNumber !== undefined) {
+            updates.registrationNumber = input.registrationNumber || null;
+          }
 
           await db.updateStaffUser(input.userId, updates);
+
+          await db.createAuditLog({
+            logId: utils.generateAuditLogId(),
+            userId: ctx.user.id.toString(),
+            actionType: "UPDATE",
+            tableName: "users",
+            recordId: input.userId,
+            newValue: JSON.stringify(updates),
+            timestamp: new Date(),
+          });
+
           return { success: true };
         } catch (error) {
           console.error("[RBAC] Update staff user failed:", error);
-          throw new Error("Failed to update staff user");
+          throw new Error(
+            error instanceof Error ? error.message : "Failed to update staff user"
+          );
+        }
+      }),
+
+    resetStaffPassword: adminProcedure
+      .input(z.object({
+        userId: z.string(),
+        password: z.string().min(6).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const staff = await db.getStaffUserById(input.userId);
+          if (!staff) {
+            throw new Error("User not found");
+          }
+          if (staff.role !== "consultant" && staff.role !== "staff") {
+            throw new Error("Can only reset passwords for doctor and staff accounts");
+          }
+
+          const newPassword = input.password ?? utils.generateTemporaryPassword();
+          const passwordHash = await utils.hashPassword(newPassword);
+          await db.updateUserPassword(staff.id, passwordHash);
+
+          await db.createAuditLog({
+            logId: utils.generateAuditLogId(),
+            userId: ctx.user.id.toString(),
+            actionType: "PASSWORD_RESET",
+            tableName: "users",
+            recordId: input.userId,
+            newValue: JSON.stringify({ resetByAdmin: true }),
+            timestamp: new Date(),
+          });
+
+          return {
+            success: true,
+            username: staff.username ?? staff.userId?.toLowerCase(),
+            tempPassword: input.password ? undefined : newPassword,
+          };
+        } catch (error) {
+          console.error("[RBAC] Reset staff password failed:", error);
+          throw new Error(
+            error instanceof Error ? error.message : "Failed to reset password"
+          );
+        }
+      }),
+
+    setStaffActive: adminProcedure
+      .input(z.object({
+        userId: z.string(),
+        isActive: z.boolean(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const staff = await db.getStaffUserById(input.userId);
+          if (!staff) {
+            throw new Error("User not found");
+          }
+          if (staff.role !== "consultant" && staff.role !== "staff") {
+            throw new Error("Only doctor and staff accounts can be deactivated here");
+          }
+          if (staff.id === ctx.user.id) {
+            throw new Error("You cannot deactivate your own account");
+          }
+
+          await db.updateUserStatus(staff.id, input.isActive);
+
+          await db.createAuditLog({
+            logId: utils.generateAuditLogId(),
+            userId: ctx.user.id.toString(),
+            actionType: input.isActive ? "ACTIVATE_USER" : "DEACTIVATE_USER",
+            tableName: "users",
+            recordId: input.userId,
+            newValue: JSON.stringify({ isActive: input.isActive }),
+            timestamp: new Date(),
+          });
+
+          return { success: true, isActive: input.isActive };
+        } catch (error) {
+          console.error("[RBAC] Set staff active failed:", error);
+          throw new Error(
+            error instanceof Error ? error.message : "Failed to update account status"
+          );
         }
       }),
 
@@ -1870,114 +2100,241 @@ export const appRouter = router({
   }),
 
   appointments: router({
-    // Get all appointments for a consultant or all appointments for admin
     list: protectedProcedure
       .input(z.object({
         consultantId: z.number().optional(),
         patientId: z.string().optional(),
-        status: z.enum(["Scheduled", "Completed", "Cancelled", "No-show"]).optional(),
+        status: z.enum(["Scheduled", "Completed", "Cancelled", "No-show", "Rescheduled"]).optional(),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
+        todayOnly: z.boolean().optional(),
       }))
       .query(async ({ input, ctx }) => {
         try {
-          let appointments: any[] = [];
+          let rows: Awaited<ReturnType<typeof db.getAllAppointments>> = [];
 
           if (input.patientId) {
-            appointments = await db.getAppointmentsByPatient(input.patientId);
-          } else if (input.consultantId) {
-            appointments = await db.getAppointmentsByConsultant(input.consultantId);
-          } else if (ctx.user.role === "admin" || ctx.user.role === "staff") {
-            appointments = await db.getAllAppointments();
+            rows = await db.getAppointmentsByPatient(input.patientId);
+          } else if (input.consultantId !== undefined) {
+            if (ctx.user.role === "consultant" && input.consultantId !== ctx.user.id) {
+              throw new Error("You can only view your own appointments");
+            }
+            rows = await db.getAppointmentsByConsultant(input.consultantId);
+          } else if (canViewAllAppointments(ctx.user.role)) {
+            rows = await db.getAllAppointments();
           } else if (ctx.user.role === "consultant") {
-            appointments = await db.getAppointmentsByConsultant(ctx.user.id);
+            rows = await db.getAppointmentsByConsultant(ctx.user.id);
+          }
+
+          if (input.todayOnly) {
+            const today = new Date().toISOString().slice(0, 10);
+            rows = rows.filter((a) => a.appointmentDate === today);
           }
 
           if (input.status) {
-            appointments = appointments.filter((a: any) => a.status === input.status);
+            rows = rows.filter((a) => a.status === input.status);
           }
-          
+
           if (input.dateFrom) {
-            appointments = appointments.filter((a: any) => a.appointmentDate >= input.dateFrom!);
+            rows = rows.filter((a) => a.appointmentDate >= input.dateFrom!);
           }
-          
+
           if (input.dateTo) {
-            appointments = appointments.filter((a: any) => a.appointmentDate <= input.dateTo!);
+            rows = rows.filter((a) => a.appointmentDate <= input.dateTo!);
           }
-          
-          return appointments;
+
+          const enriched = await Promise.all(
+            rows.map(async (apt) => {
+              const patient = await db.getPatientById(apt.patientId);
+              const consultant = await db.getUserById(apt.consultantId);
+              return {
+                ...apt,
+                patientName: patient
+                  ? `${patient.firstName} ${patient.lastName}`.trim()
+                  : apt.patientId,
+                consultantName: consultant?.name ?? `Doctor #${apt.consultantId}`,
+                canManage: canManageAppointment(ctx.user, apt),
+              };
+            })
+          );
+
+          return {
+            appointments: enriched,
+            viewScope: canViewAllAppointments(ctx.user.role) ? "all" : "own",
+          };
         } catch (error) {
           console.error("[Appointments] List failed:", error);
-          throw new Error("Failed to fetch appointments");
+          throw new Error(
+            error instanceof Error ? error.message : "Failed to fetch appointments"
+          );
         }
       }),
 
-    // Create a new appointment
+    getById: protectedProcedure
+      .input(z.object({ appointmentId: z.string() }))
+      .query(async ({ input, ctx }) => {
+        const appointment = await db.getAppointmentById(input.appointmentId);
+        if (!appointment) {
+          throw new Error("Appointment not found");
+        }
+        if (!canViewAppointment(ctx.user, appointment)) {
+          throw new Error("You do not have permission to view this appointment");
+        }
+        const patient = await db.getPatientById(appointment.patientId);
+        const consultant = await db.getUserById(appointment.consultantId);
+        return {
+          ...appointment,
+          patientName: patient
+            ? `${patient.firstName} ${patient.lastName}`.trim()
+            : appointment.patientId,
+          consultantName: consultant?.name ?? `Doctor #${appointment.consultantId}`,
+          canManage: canManageAppointment(ctx.user, appointment),
+        };
+      }),
+
     create: protectedProcedure
       .input(z.object({
         patientId: z.string(),
         consultantId: z.number(),
         appointmentDate: z.string(),
         appointmentTime: z.string(),
-        reason: z.string().optional(),
         notes: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
-          // Check for conflicts
+          const consultantId = resolveConsultantIdForCreate(ctx.user, input.consultantId);
+          const patient = await db.getPatientById(input.patientId);
+          if (!patient) {
+            throw new Error("Patient not found");
+          }
+
           const conflict = await db.checkAppointmentConflict(
-            input.consultantId,
+            consultantId,
             input.appointmentDate,
             input.appointmentTime
           );
-          
+
           if (conflict) {
             throw new Error("Time slot already booked");
           }
-          
-          const appointment = await db.createAppointment({
+
+          const appointmentId = await db.createAppointment({
             patientId: input.patientId,
-            consultantId: input.consultantId,
+            consultantId,
             appointmentDate: input.appointmentDate,
             appointmentTime: input.appointmentTime,
             notes: input.notes,
           });
-          
-          return appointment;
+
+          return { appointmentId, success: true };
         } catch (error) {
           console.error("[Appointments] Create failed:", error);
           throw new Error(error instanceof Error ? error.message : "Failed to create appointment");
         }
       }),
 
-    // Reschedule an appointment
+    update: protectedProcedure
+      .input(z.object({
+        appointmentId: z.string(),
+        patientId: z.string().optional(),
+        consultantId: z.number().optional(),
+        appointmentDate: z.string().optional(),
+        appointmentTime: z.string().optional(),
+        notes: z.string().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const appointment = await db.getAppointmentById(input.appointmentId);
+          if (!appointment) {
+            throw new Error("Appointment not found");
+          }
+          if (!canManageAppointment(ctx.user, appointment)) {
+            throw new Error("You do not have permission to edit this appointment");
+          }
+          if (appointment.status === "Cancelled" || appointment.status === "Completed") {
+            throw new Error("Cannot edit a completed or cancelled appointment");
+          }
+
+          const nextConsultantId =
+            ctx.user.role === "consultant"
+              ? appointment.consultantId
+              : input.consultantId ?? appointment.consultantId;
+          const nextDate = input.appointmentDate ?? appointment.appointmentDate;
+          const nextTime = input.appointmentTime ?? appointment.appointmentTime;
+
+          if (input.patientId) {
+            const patient = await db.getPatientById(input.patientId);
+            if (!patient) {
+              throw new Error("Patient not found");
+            }
+          }
+
+          const dateOrTimeChanged =
+            nextDate !== appointment.appointmentDate ||
+            nextTime !== appointment.appointmentTime ||
+            nextConsultantId !== appointment.consultantId;
+
+          if (dateOrTimeChanged) {
+            const conflict = await db.checkAppointmentConflict(
+              nextConsultantId,
+              nextDate,
+              nextTime,
+              appointment.duration ?? 30,
+              input.appointmentId
+            );
+            if (conflict) {
+              throw new Error("Time slot already booked");
+            }
+          }
+
+          await db.updateAppointment(input.appointmentId, {
+            patientId: input.patientId,
+            consultantId: nextConsultantId,
+            appointmentDate: nextDate,
+            appointmentTime: nextTime,
+            notes: input.notes,
+            status: "Scheduled",
+          });
+
+          return { success: true };
+        } catch (error) {
+          console.error("[Appointments] Update failed:", error);
+          throw new Error(error instanceof Error ? error.message : "Failed to update appointment");
+        }
+      }),
+
     reschedule: protectedProcedure
       .input(z.object({
         appointmentId: z.string(),
         newDate: z.string(),
         newTime: z.string(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
           const appointment = await db.getAppointmentById(input.appointmentId);
           if (!appointment) throw new Error("Appointment not found");
-          
+          if (!canManageAppointment(ctx.user, appointment)) {
+            throw new Error("You do not have permission to reschedule this appointment");
+          }
+
           const conflict = await db.checkAppointmentConflict(
             appointment.consultantId,
             input.newDate,
-            input.newTime
+            input.newTime,
+            appointment.duration ?? 30,
+            input.appointmentId
           );
-          
+
           if (conflict) {
             throw new Error("New time slot already booked");
           }
-          
-          await db.rescheduleAppointment(
-            input.appointmentId,
-            input.newDate,
-            input.newTime
-          );
-          
+
+          await db.updateAppointment(input.appointmentId, {
+            appointmentDate: input.newDate,
+            appointmentTime: input.newTime,
+            status: "Scheduled",
+          });
+
           return { success: true };
         } catch (error) {
           console.error("[Appointments] Reschedule failed:", error);
@@ -1985,56 +2342,76 @@ export const appRouter = router({
         }
       }),
 
-    // Cancel an appointment
     cancel: protectedProcedure
       .input(z.object({
         appointmentId: z.string(),
         reason: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
+          const appointment = await db.getAppointmentById(input.appointmentId);
+          if (!appointment) {
+            throw new Error("Appointment not found");
+          }
+          if (!canManageAppointment(ctx.user, appointment)) {
+            throw new Error("You do not have permission to cancel this appointment");
+          }
           await db.cancelAppointment(input.appointmentId);
+          if (input.reason?.trim()) {
+            const existingNotes = appointment.notes?.trim();
+            const cancelNote = `Cancelled: ${input.reason.trim()}`;
+            await db.updateAppointment(input.appointmentId, {
+              notes: existingNotes ? `${existingNotes}\n${cancelNote}` : cancelNote,
+            });
+          }
           return { success: true };
         } catch (error) {
           console.error("[Appointments] Cancel failed:", error);
-          throw new Error("Failed to cancel appointment");
+          throw new Error(error instanceof Error ? error.message : "Failed to cancel appointment");
         }
       }),
 
-    // Mark appointment as no-show
     markNoShow: protectedProcedure
       .input(z.object({
         appointmentId: z.string(),
         notes: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
+          const appointment = await db.getAppointmentById(input.appointmentId);
+          if (!appointment) throw new Error("Appointment not found");
+          if (!canManageAppointment(ctx.user, appointment)) {
+            throw new Error("You do not have permission to update this appointment");
+          }
           await db.updateAppointmentStatus(input.appointmentId, "No-show");
           return { success: true };
         } catch (error) {
           console.error("[Appointments] Mark no-show failed:", error);
-          throw new Error("Failed to mark appointment as no-show");
+          throw new Error(error instanceof Error ? error.message : "Failed to mark appointment as no-show");
         }
       }),
 
-    // Complete an appointment
     complete: protectedProcedure
       .input(z.object({
         appointmentId: z.string(),
         notes: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
+          const appointment = await db.getAppointmentById(input.appointmentId);
+          if (!appointment) throw new Error("Appointment not found");
+          if (!canManageAppointment(ctx.user, appointment)) {
+            throw new Error("You do not have permission to update this appointment");
+          }
           await db.updateAppointmentStatus(input.appointmentId, "Completed");
           return { success: true };
         } catch (error) {
           console.error("[Appointments] Complete failed:", error);
-          throw new Error("Failed to complete appointment");
+          throw new Error(error instanceof Error ? error.message : "Failed to complete appointment");
         }
       }),
 
-    // Get available slots for a consultant on a specific date
-    getAvailableSlots: publicProcedure
+    getAvailableSlots: protectedProcedure
       .input(z.object({
         consultantId: z.number(),
         date: z.string(),

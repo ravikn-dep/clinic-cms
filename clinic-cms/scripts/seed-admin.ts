@@ -17,27 +17,29 @@ async function main() {
   const db = drizzle(url);
   const passwordHash = await bcrypt.hash(PASSWORD, 10);
 
-  const existing = await db
+  const byUsername = await db
     .select()
     .from(users)
     .where(eq(users.username, USERNAME))
     .limit(1);
 
-  if (existing.length > 0) {
+  const admins = await db.select().from(users).where(eq(users.role, "admin"));
+  const target = byUsername[0] ?? admins.sort((a, b) => (a.id ?? 0) - (b.id ?? 0))[0];
+
+  if (target) {
     await db
       .update(users)
       .set({
         passwordHash,
         role: "admin",
         isActive: true,
-        email: EMAIL,
-        name: "Admin",
-        loginMethod: "direct",
+        username: target.username ?? USERNAME,
+        loginMethod: target.loginMethod ?? "direct",
       })
-      .where(eq(users.id, existing[0].id));
+      .where(eq(users.id, target.id));
 
-    console.log(`Updated existing admin user (id=${existing[0].id}).`);
-    console.log(`Login with username: ${USERNAME}`);
+    console.log(`Updated admin user (id=${target.id}, username=${target.username ?? USERNAME}).`);
+    console.log(`Login with: ${USERNAME} or ${target.username ?? USERNAME}`);
     console.log(`Password: ${PASSWORD}`);
     return;
   }

@@ -3,7 +3,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { parseAppointmentDate } from "@/lib/appointmentDate";
 import { useCredentialAuth } from "@/_core/hooks/useCredentialAuth";
 import {
   AlertCircle,
@@ -20,7 +19,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { format, isToday } from "date-fns";
+import { format } from "date-fns";
 import { useLocation } from "wouter";
 import { useMemo } from "react";
 
@@ -54,12 +53,17 @@ export default function Home() {
   const appointmentsQuery = trpc.appointments.list.useQuery(
     {
       consultantId: user?.role === "consultant" ? user.id : undefined,
+      todayOnly: true,
     },
     {
       ...pollingOptions,
       enabled: pollingOptions.enabled && hasAccess("appointments"),
     }
   );
+  const billingSummaryQuery = trpc.bills.getSummary.useQuery(undefined, {
+    ...pollingOptions,
+    enabled: pollingOptions.enabled && hasAccess("billing"),
+  });
 
   const patients = patientsQuery.data || [];
   const inventoryItems = inventoryQuery.data || [];
@@ -68,17 +72,17 @@ export default function Home() {
   const pendingPOs = purchaseOrders.filter((po) => po.paymentStatus === "Pending").length;
 
   const todayAppointments = useMemo(() => {
-    const list = appointmentsQuery.data || [];
-    return list.filter((apt: { appointmentDate: string }) =>
-      isToday(parseAppointmentDate(apt.appointmentDate))
-    );
+    return appointmentsQuery.data?.appointments ?? [];
   }, [appointmentsQuery.data]);
+
+  const billingSummary = billingSummaryQuery.data;
 
   const hasDashboardError =
     (hasAccess("patient_records") && patientsQuery.isError) ||
     (hasAccess("pharmacy") && (inventoryQuery.isError || lowStockQuery.isError)) ||
     (hasAccess("purchase_orders") && purchaseOrdersQuery.isError) ||
-    (hasAccess("appointments") && appointmentsQuery.isError);
+    (hasAccess("appointments") && appointmentsQuery.isError) ||
+    (hasAccess("billing") && billingSummaryQuery.isError);
 
   const todayLabel = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -123,9 +127,29 @@ export default function Home() {
       helper: "Awaiting vendor payment",
       tone: "from-rose-50 to-pink-50 text-rose-700 border-rose-100",
     },
+    hasAccess("billing") && {
+      label: "Pending billing",
+      value: billingSummaryQuery.isLoading
+        ? null
+        : billingSummary?.pendingCount ?? 0,
+      icon: Receipt,
+      helper: billingSummaryQuery.isLoading
+        ? "Loading..."
+        : `₹${(billingSummary?.pendingAmount ?? 0).toLocaleString("en-IN")} outstanding`,
+      tone: "from-sky-50 to-blue-50 text-sky-700 border-sky-100",
+    },
+    hasAccess("billing") && {
+      label: "Collected today",
+      value: billingSummaryQuery.isLoading
+        ? null
+        : `₹${(billingSummary?.todayRevenue ?? 0).toLocaleString("en-IN")}`,
+      icon: Receipt,
+      helper: `${billingSummary?.invoiceCount ?? 0} total invoices`,
+      tone: "from-indigo-50 to-violet-50 text-indigo-700 border-indigo-100",
+    },
   ].filter(Boolean) as Array<{
     label: string;
-    value: number | null;
+    value: number | string | null;
     icon: typeof Users;
     helper: string;
     tone: string;
@@ -292,7 +316,7 @@ export default function Home() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {todayAppointments.slice(0, 5).map((apt: { appointmentId: string; patientId: string; appointmentTime: string; status: string }, idx: number) => (
+                  {todayAppointments.slice(0, 5).map((apt, idx: number) => (
                     <div
                       key={apt.appointmentId}
                       className="flex flex-col gap-3 rounded-3xl border border-white/80 bg-white/78 p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
@@ -303,9 +327,9 @@ export default function Home() {
                         </Badge>
                         <div>
                           <p className="font-semibold text-teal-950">
-                            {apt.appointmentTime} — Patient {apt.patientId}
+                            {apt.appointmentTime} — {apt.patientName ?? apt.patientId}
                           </p>
-                          <p className="text-sm text-muted-foreground">{apt.status}</p>
+                          <p className="text-sm text-muted-foreground">{apt.status ?? "Scheduled"}</p>
                         </div>
                       </div>
                       <Button

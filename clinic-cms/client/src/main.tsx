@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { getTrpcUrl } from "@/lib/trpcUrl";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
@@ -16,11 +17,15 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (typeof window === "undefined") return;
 
   const isUnauthorized = error.message === UNAUTHED_ERR_MSG;
+  const isHtmlApi = error.message.includes("HTML instead of JSON");
 
-  if (!isUnauthorized) return;
+  if (!isUnauthorized && !isHtmlApi) return;
 
-  // Redirect to DirectLogin (credential-based login)
-  window.location.href = LOGIN_PATH;
+  if (typeof window !== "undefined" && window.location.pathname === LOGIN_PATH) {
+    return;
+  }
+
+  window.location.replace(LOGIN_PATH);
 };
 
 queryClient.getQueryCache().subscribe(event => {
@@ -42,13 +47,24 @@ queryClient.getMutationCache().subscribe(event => {
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
-      url: "/api/trpc",
+      url: getTrpcUrl(),
       transformer: superjson,
-      fetch(input, init) {
-        return globalThis.fetch(input, {
+      async fetch(input, init) {
+        const response = await globalThis.fetch(input, {
           ...(init ?? {}),
           credentials: "include",
         });
+
+        const contentType = response.headers.get("content-type") ?? "";
+        if (contentType.includes("text/html")) {
+          throw new TRPCClientError(
+            "API returned HTML instead of JSON. On Manus, ensure the Node server is running (`pnpm dev` or `pnpm start`), not static files only. Check " +
+              getTrpcUrl() +
+              " in the browser Network tab."
+          );
+        }
+
+        return response;
       },
     }),
   ],

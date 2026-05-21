@@ -1,4 +1,4 @@
-import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
+import { useCredentialAuth } from "@/_core/hooks/useCredentialAuth";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -90,7 +90,7 @@ function DashboardLayoutContent({
   children,
   setSidebarWidth,
 }: DashboardLayoutContentProps) {
-  const { user, logout } = useAuth();
+  const { user, logout } = useCredentialAuth();
   const { hasAccess } = useFeatureAccess();
   const [location, setLocation] = useLocation();
   const { state, toggleSidebar } = useSidebar();

@@ -1,398 +1,405 @@
-import { useState, useMemo } from "react";
-import { format, isSameDay, addDays, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek } from "date-fns";
-import { parseAppointmentDate } from "@/lib/appointmentDate";
+import { FormEvent, useMemo, useState } from "react";
+import {
+  addDays,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
+import { getTodayDateString, parseAppointmentDate } from "@/lib/appointmentDate";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus } from "lucide-react";
+import {
+  Calendar,
+  Clock,
+  Edit2,
+  Loader2,
+  Plus,
+  RefreshCcw,
+  User,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useCredentialAuth } from "@/_core/hooks/useCredentialAuth";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { getRoleLabel } from "@/lib/featureAccess";
 import { toast } from "sonner";
+
+type ViewTab = "today" | "browse" | "calendar";
+
+type AppointmentRow = {
+  appointmentId: string;
+  patientId: string;
+  patientName?: string;
+  consultantId: number;
+  consultantName?: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  duration: number | null;
+  status: string | null;
+  notes: string | null;
+  canManage: boolean;
+};
+
+type AppointmentForm = {
+  patientId: string;
+  consultantId: number;
+  appointmentDate: string;
+  appointmentTime: string;
+  notes: string;
+};
+
+const emptyForm = (): AppointmentForm => ({
+  patientId: "",
+  consultantId: 0,
+  appointmentDate: getTodayDateString(),
+  appointmentTime: "10:00",
+  notes: "",
+});
 
 export default function Appointments() {
   const { user } = useCredentialAuth();
-  const consultantsQuery = trpc.consultants.getAll.useQuery();
+  const { hasAccess } = useFeatureAccess();
+  const utils = trpc.useUtils();
+
+  const isDoctor = user?.role === "consultant";
+  const isStaffOrAdmin = user?.role === "admin" || user?.role === "staff";
+  const canManage = hasAccess("appointments");
+
+  const [viewTab, setViewTab] = useState<ViewTab>("today");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [isBookingOpen, setIsBookingOpen] = useState(false);
-  const [bookingData, setBookingData] = useState({
-    patientId: "",
-    consultantId: 1,
-    appointmentDate: format(new Date(), "yyyy-MM-dd"),
-    appointmentTime: "10:00",
-    notes: "",
+  const [filterConsultantId, setFilterConsultantId] = useState<string>("all");
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<AppointmentRow | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<AppointmentRow | null>(null);
+  const [form, setForm] = useState<AppointmentForm>(emptyForm());
+
+  const consultantsQuery = trpc.consultants.getAll.useQuery(undefined, {
+    enabled: canManage,
+  });
+  const patientsQuery = trpc.patients.getAll.useQuery(
+    { includeArchived: false },
+    { enabled: canManage && formOpen }
+  );
+
+  const listInput = useMemo(() => {
+    const base: {
+      consultantId?: number;
+      status?: "Scheduled" | "Completed" | "Cancelled" | "No-show" | "Rescheduled";
+      todayOnly?: boolean;
+    } = {};
+
+    if (isDoctor) {
+      base.consultantId = user?.id;
+    } else if (filterConsultantId !== "all") {
+      base.consultantId = Number.parseInt(filterConsultantId, 10);
+    }
+
+    if (filterStatus !== "all") {
+      base.status = filterStatus as typeof base.status;
+    }
+
+    if (viewTab === "today") {
+      base.todayOnly = true;
+    }
+
+    return base;
+  }, [isDoctor, user?.id, filterConsultantId, filterStatus, viewTab]);
+
+  const appointmentsQuery = trpc.appointments.list.useQuery(listInput, {
+    enabled: canManage,
+    refetchInterval: 30_000,
   });
 
-  // Fetch appointments
-  const appointmentsQuery = trpc.appointments.list.useQuery({
-    consultantId: user?.role === "consultant" ? user?.id : undefined,
-    patientId: undefined,
-    status: filterStatus !== "all" ? (filterStatus as any) : undefined,
-  });
+  const availableSlotsQuery = trpc.appointments.getAvailableSlots.useQuery(
+    {
+      consultantId: form.consultantId || (consultantsQuery.data?.[0]?.id ?? 0),
+      date: form.appointmentDate,
+    },
+    {
+      enabled:
+        formOpen &&
+        form.consultantId > 0 &&
+        form.appointmentDate.length > 0 &&
+        canManage,
+    }
+  );
 
-  // Fetch available slots
-  const availableSlotsQuery = trpc.appointments.getAvailableSlots.useQuery({
-    consultantId: bookingData.consultantId,
-    date: bookingData.appointmentDate,
-  });
-
-  // Create appointment mutation
   const createMutation = trpc.appointments.create.useMutation({
     onSuccess: () => {
-      toast.success("Appointment booked successfully");
-      setIsBookingOpen(false);
-      setBookingData({
-        patientId: "",
-        consultantId: 1,
-        appointmentDate: format(new Date(), "yyyy-MM-dd"),
-        appointmentTime: "10:00",
-        notes: "",
-      });
-      appointmentsQuery.refetch();
+      toast.success("Appointment created.");
+      closeForm();
+      utils.appointments.list.invalidate();
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to book appointment");
-    },
+    onError: (error) => toast.error(error.message || "Failed to create appointment."),
   });
 
-  // Cancel appointment mutation
+  const updateMutation = trpc.appointments.update.useMutation({
+    onSuccess: () => {
+      toast.success("Appointment updated.");
+      closeForm();
+      utils.appointments.list.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Failed to update appointment."),
+  });
+
   const cancelMutation = trpc.appointments.cancel.useMutation({
     onSuccess: () => {
-      toast.success("Appointment cancelled");
-      appointmentsQuery.refetch();
+      toast.success("Appointment cancelled.");
+      setCancelTarget(null);
+      utils.appointments.list.invalidate();
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to cancel appointment");
-    },
+    onError: (error) => toast.error(error.message || "Failed to cancel appointment."),
   });
 
-  // Mark no-show mutation
-  const noShowMutation = trpc.appointments.markNoShow.useMutation({
-    onSuccess: () => {
-      toast.success("Appointment marked as no-show");
-      appointmentsQuery.refetch();
-    },
-    onError: (error) => {
-      toast.error(error.message || "Failed to mark no-show");
-    },
-  });
-
-  // Complete appointment mutation
   const completeMutation = trpc.appointments.complete.useMutation({
     onSuccess: () => {
-      toast.success("Appointment completed");
-      appointmentsQuery.refetch();
+      toast.success("Appointment marked completed.");
+      utils.appointments.list.invalidate();
     },
-    onError: (error) => {
-      toast.error(error.message || "Failed to complete appointment");
-    },
+    onError: (error) => toast.error(error.message || "Failed to complete appointment."),
   });
 
-  // Filter appointments by date if in list view
+  const noShowMutation = trpc.appointments.markNoShow.useMutation({
+    onSuccess: () => {
+      toast.success("Marked as no-show.");
+      utils.appointments.list.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Failed to mark no-show."),
+  });
+
+  const appointments = appointmentsQuery.data?.appointments ?? [];
+  const viewScope = appointmentsQuery.data?.viewScope ?? "own";
+
   const filteredAppointments = useMemo(() => {
-    if (!appointmentsQuery.data) return [];
-    
-    if (viewMode === "list") {
-      return appointmentsQuery.data.filter((apt: { appointmentDate: string }) =>
+    if (viewTab === "browse") {
+      return appointments.filter((apt) =>
         isSameDay(parseAppointmentDate(apt.appointmentDate), selectedDate)
       );
     }
-    
-    return appointmentsQuery.data;
-  }, [appointmentsQuery.data, selectedDate, viewMode]);
+    return appointments;
+  }, [appointments, selectedDate, viewTab]);
 
-  // Calendar grid
   const calendarDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(selectedDate));
     const end = endOfWeek(endOfMonth(selectedDate));
     return eachDayOfInterval({ start, end });
   }, [selectedDate]);
 
-  const getStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { color: string; icon: any }> = {
-      "Scheduled": { color: "bg-blue-100 text-blue-800", icon: Clock },
-      "Completed": { color: "bg-green-100 text-green-800", icon: CheckCircle },
-      "Cancelled": { color: "bg-gray-100 text-gray-800", icon: XCircle },
-      "No-show": { color: "bg-red-100 text-red-800", icon: AlertCircle },
-      "Rescheduled": { color: "bg-yellow-100 text-yellow-800", icon: Clock },
+  const closeForm = () => {
+    setFormOpen(false);
+    setEditingAppointment(null);
+    setForm(emptyForm());
+  };
+
+  const openCreateForm = () => {
+    const firstConsultant = consultantsQuery.data?.[0]?.id ?? 0;
+    setEditingAppointment(null);
+    setForm({
+      ...emptyForm(),
+      consultantId: isDoctor ? (user?.id ?? 0) : firstConsultant,
+    });
+    setFormOpen(true);
+  };
+
+  const openEditForm = (apt: AppointmentRow) => {
+    setEditingAppointment(apt);
+    setForm({
+      patientId: apt.patientId,
+      consultantId: apt.consultantId,
+      appointmentDate: apt.appointmentDate,
+      appointmentTime: apt.appointmentTime,
+      notes: apt.notes ?? "",
+    });
+    setFormOpen(true);
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!form.patientId.trim()) {
+      toast.error("Select a patient.");
+      return;
+    }
+    if (!form.consultantId) {
+      toast.error("Select a doctor.");
+      return;
+    }
+
+    if (editingAppointment) {
+      updateMutation.mutate({
+        appointmentId: editingAppointment.appointmentId,
+        patientId: form.patientId,
+        consultantId: isDoctor ? undefined : form.consultantId,
+        appointmentDate: form.appointmentDate,
+        appointmentTime: form.appointmentTime,
+        notes: form.notes.trim() || undefined,
+      });
+    } else {
+      createMutation.mutate({
+        patientId: form.patientId,
+        consultantId: form.consultantId,
+        appointmentDate: form.appointmentDate,
+        appointmentTime: form.appointmentTime,
+        notes: form.notes.trim() || undefined,
+      });
+    }
+  };
+
+  const getStatusBadge = (status: string | null) => {
+    const label = status ?? "Scheduled";
+    const config: Record<string, string> = {
+      Scheduled: "bg-blue-50 text-blue-700 border-blue-200",
+      Completed: "bg-green-50 text-green-700 border-green-200",
+      Cancelled: "bg-slate-100 text-slate-600 border-slate-200",
+      "No-show": "bg-red-50 text-red-700 border-red-200",
+      Rescheduled: "bg-amber-50 text-amber-700 border-amber-200",
     };
-
-    const config = statusConfig[status] || statusConfig["Scheduled"];
-    const Icon = config.icon;
-
     return (
-      <Badge className={config.color}>
-        <Icon className="w-3 h-3 mr-1" />
-        {status}
+      <Badge variant="outline" className={config[label] ?? config.Scheduled}>
+        {label}
       </Badge>
     );
   };
 
-  const handleBookAppointment = async () => {
-    if (!bookingData.patientId || !bookingData.appointmentDate || !bookingData.appointmentTime) {
-      toast.error("Please fill in all required fields");
-      return;
-    }
+  const isEditableStatus = (status: string | null) =>
+    status === "Scheduled" || status === "Rescheduled" || status === null;
 
-    await createMutation.mutateAsync({
-      patientId: bookingData.patientId,
-      consultantId: bookingData.consultantId,
-      appointmentDate: bookingData.appointmentDate,
-      appointmentTime: bookingData.appointmentTime,
-      notes: bookingData.notes,
-    });
-  };
+  if (!canManage) {
+    return (
+      <div className="friendly-page">
+        <Card className="max-w-lg border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-amber-900">Appointments access required</CardTitle>
+            <CardDescription className="text-amber-800">
+              Your role does not have permission to view appointments. Ask an administrator to
+              enable the Appointments feature for your account.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="friendly-page space-y-8">
+      <div className="friendly-hero flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Appointments</h1>
-          <p className="text-slate-600 mt-1">Schedule, view, and manage patient appointments</p>
+          <h1 className="text-3xl font-bold tracking-tight text-teal-950">Appointments</h1>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
+            {viewScope === "all"
+              ? "View and manage all clinic appointments (staff/admin view)."
+              : `View and manage your schedule (${getRoleLabel(user?.role)} view).`}
+          </p>
         </div>
-        <Dialog open={isBookingOpen} onOpenChange={setIsBookingOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-teal-600 hover:bg-teal-700">
-              <Plus className="w-4 h-4 mr-2" />
-              Book Appointment
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Book New Appointment</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="patientId">Patient ID</Label>
-                <Input
-                  id="patientId"
-                  placeholder="Enter patient ID"
-                  value={bookingData.patientId}
-                  onChange={(e) => setBookingData({ ...bookingData, patientId: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="consultantId">Consultant</Label>
-                <Select value={String(bookingData.consultantId)} onValueChange={(v) => setBookingData({ ...bookingData, consultantId: parseInt(v) })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(consultantsQuery.data ?? []).map((consultant: { id: number; name?: string | null }) => (
-                      <SelectItem key={consultant.id} value={String(consultant.id)}>
-                        {consultant.name ?? `Consultant ${consultant.id}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="appointmentDate">Date</Label>
-                <Input
-                  id="appointmentDate"
-                  type="date"
-                  value={bookingData.appointmentDate}
-                  onChange={(e) => setBookingData({ ...bookingData, appointmentDate: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="appointmentTime">Time</Label>
-                {availableSlotsQuery.isLoading ? (
-                  <div className="text-sm text-slate-500">Loading available slots...</div>
-                ) : availableSlotsQuery.data && availableSlotsQuery.data.length > 0 ? (
-                  <Select value={bookingData.appointmentTime} onValueChange={(v) => setBookingData({ ...bookingData, appointmentTime: v })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableSlotsQuery.data.map((slot: string) => (
-                        <SelectItem key={slot} value={slot}>
-                          {slot}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className="text-sm text-red-600">No available slots for this date</div>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="notes">Notes (Optional)</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Add any notes or special requests"
-                  value={bookingData.notes}
-                  onChange={(e) => setBookingData({ ...bookingData, notes: e.target.value })}
-                  rows={3}
-                />
-              </div>
-
-              <Button
-                onClick={handleBookAppointment}
-                disabled={createMutation.isPending}
-                className="w-full bg-teal-600 hover:bg-teal-700"
-              >
-                {createMutation.isPending ? "Booking..." : "Book Appointment"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button
+            onClick={openCreateForm}
+            className="friendly-action bg-teal-600 hover:bg-teal-700 text-white"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New appointment
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => appointmentsQuery.refetch()}
+            disabled={appointmentsQuery.isFetching}
+            className="friendly-action"
+          >
+            <RefreshCcw
+              className={`mr-2 h-4 w-4 ${appointmentsQuery.isFetching ? "animate-spin" : ""}`}
+            />
+            Refresh
+          </Button>
+        </div>
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="flex gap-2">
-          <Button
-            variant={viewMode === "list" ? "default" : "outline"}
-            onClick={() => setViewMode("list")}
-            className={viewMode === "list" ? "bg-teal-600 hover:bg-teal-700" : ""}
-          >
-            List View
-          </Button>
-          <Button
-            variant={viewMode === "calendar" ? "default" : "outline"}
-            onClick={() => setViewMode("calendar")}
-            className={viewMode === "calendar" ? "bg-teal-600 hover:bg-teal-700" : ""}
-          >
-            Calendar View
-          </Button>
+          {(["today", "browse", "calendar"] as ViewTab[]).map((tab) => (
+            <Button
+              key={tab}
+              variant={viewTab === tab ? "default" : "outline"}
+              onClick={() => setViewTab(tab)}
+              className={viewTab === tab ? "bg-teal-600 hover:bg-teal-700" : ""}
+            >
+              {tab === "today" ? "Today" : tab === "browse" ? "By date" : "Calendar"}
+            </Button>
+          ))}
         </div>
 
         <Select value={filterStatus} onValueChange={setFilterStatus}>
           <SelectTrigger className="w-40">
-            <SelectValue />
+            <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="Scheduled">Scheduled</SelectItem>
+            <SelectItem value="Rescheduled">Rescheduled</SelectItem>
             <SelectItem value="Completed">Completed</SelectItem>
             <SelectItem value="Cancelled">Cancelled</SelectItem>
             <SelectItem value="No-show">No-show</SelectItem>
           </SelectContent>
         </Select>
+
+        {isStaffOrAdmin && (
+          <Select value={filterConsultantId} onValueChange={setFilterConsultantId}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Doctor" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All doctors</SelectItem>
+              {(consultantsQuery.data ?? []).map((c: { id: number; name?: string | null }) => (
+                <SelectItem key={c.id} value={String(c.id)}>
+                  {c.name ?? `Doctor ${c.id}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
-      {/* Content */}
-      {viewMode === "list" ? (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 text-sm text-slate-600">
-            <Calendar className="w-4 h-4" />
-            <span>{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
-          </div>
-
-          {appointmentsQuery.isError ? (
-            <Card className="border-red-200 bg-red-50">
-              <CardContent className="pt-6 text-center text-red-700">
-                <AlertCircle className="w-8 h-8 mx-auto mb-2" />
-                <p>Failed to load appointments. Check database connection and try again.</p>
-                <Button variant="outline" className="mt-4" onClick={() => appointmentsQuery.refetch()}>
-                  Retry
-                </Button>
-              </CardContent>
-            </Card>
-          ) : appointmentsQuery.isLoading ? (
-            <div className="text-center py-8 text-slate-500">Loading appointments...</div>
-          ) : filteredAppointments.length === 0 ? (
-            <Card className="bg-slate-50">
-              <CardContent className="pt-6 text-center text-slate-500">
-                <AlertCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>No appointments scheduled for this date</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {filteredAppointments.map((apt: any) => (
-                <Card key={apt.appointmentId} className="hover:shadow-md transition-shadow">
-                  <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <Clock className="w-4 h-4 text-teal-600" />
-                          <span className="font-semibold text-slate-900">{apt.appointmentTime}</span>
-                          <span className="text-slate-500">({apt.duration} min)</span>
-                        </div>
-                        <div className="flex items-center gap-3 mb-2">
-                          <User className="w-4 h-4 text-slate-400" />
-                          <span className="text-slate-700">Patient: {apt.patientId}</span>
-                        </div>
-                        {apt.notes && (
-                          <p className="text-sm text-slate-600 mt-2">{apt.notes}</p>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        {getStatusBadge(apt.status)}
-                        {apt.status === "Scheduled" && (
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => completeMutation.mutate({ appointmentId: apt.appointmentId })}
-                              disabled={completeMutation.isPending}
-                            >
-                              Complete
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => noShowMutation.mutate({ appointmentId: apt.appointmentId })}
-                              disabled={noShowMutation.isPending}
-                            >
-                              No-show
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => cancelMutation.mutate({ appointmentId: apt.appointmentId })}
-                              disabled={cancelMutation.isPending}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : (
-        <Card>
+      {viewTab === "calendar" ? (
+        <Card className="friendly-card">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
               <span>{format(selectedDate, "MMMM yyyy")}</span>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedDate(addDays(selectedDate, -1))}
-                >
+                <Button variant="outline" size="sm" onClick={() => setSelectedDate(addDays(selectedDate, -30))}>
                   ←
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedDate(new Date())}
-                >
+                <Button variant="outline" size="sm" onClick={() => setSelectedDate(new Date())}>
                   Today
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedDate(addDays(selectedDate, 1))}
-                >
+                <Button variant="outline" size="sm" onClick={() => setSelectedDate(addDays(selectedDate, 30))}>
                   →
                 </Button>
               </div>
@@ -401,41 +408,322 @@ export default function Appointments() {
           <CardContent>
             <div className="grid grid-cols-7 gap-2">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                <div key={day} className="text-center font-semibold text-slate-600 py-2">
+                <div key={day} className="py-2 text-center text-sm font-semibold text-muted-foreground">
                   {day}
                 </div>
               ))}
               {calendarDays.map((day) => {
-                const dayAppointments = appointmentsQuery.data?.filter((apt: any) =>
-                  isSameDay(parseAppointmentDate(apt.appointmentDate), day)
-                ) || [];
-                const isCurrentMonth = day.getMonth() === selectedDate.getMonth();
-
+                const dayCount =
+                  appointments.filter((apt) =>
+                    isSameDay(parseAppointmentDate(apt.appointmentDate), day)
+                  ).length ?? 0;
+                const inMonth = day.getMonth() === selectedDate.getMonth();
                 return (
-                  <div
+                  <button
                     key={day.toISOString()}
-                    onClick={() => setSelectedDate(day)}
-                    className={`p-2 rounded border cursor-pointer transition-colors ${
-                      isSameDay(day, selectedDate)
-                        ? "bg-teal-100 border-teal-600"
-                        : isCurrentMonth
-                        ? "bg-white border-slate-200 hover:bg-slate-50"
-                        : "bg-slate-50 border-slate-200 text-slate-400"
+                    type="button"
+                    onClick={() => {
+                      setSelectedDate(day);
+                      setViewTab("browse");
+                    }}
+                    className={`rounded border p-2 text-left transition-colors ${
+                      isSameDay(day, new Date())
+                        ? "border-teal-500 bg-teal-50"
+                        : inMonth
+                          ? "border-slate-200 bg-white hover:bg-slate-50"
+                          : "border-slate-100 bg-slate-50 text-slate-400"
                     }`}
                   >
                     <div className="text-sm font-semibold">{day.getDate()}</div>
-                    {dayAppointments.length > 0 && (
-                      <div className="text-xs text-teal-600 mt-1">
-                        {dayAppointments.length} apt{dayAppointments.length > 1 ? "s" : ""}
+                    {dayCount > 0 && (
+                      <div className="mt-1 text-xs text-teal-700">
+                        {dayCount} apt{dayCount > 1 ? "s" : ""}
                       </div>
                     )}
-                  </div>
+                  </button>
                 );
               })}
             </div>
           </CardContent>
         </Card>
+      ) : (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Calendar className="h-4 w-4" />
+            <span>
+              {viewTab === "today"
+                ? format(new Date(), "EEEE, MMMM d, yyyy")
+                : format(selectedDate, "EEEE, MMMM d, yyyy")}
+            </span>
+            {viewTab === "browse" && (
+              <Input
+                type="date"
+                className="ml-2 w-40 h-8"
+                value={format(selectedDate, "yyyy-MM-dd")}
+                onChange={(e) => setSelectedDate(parseAppointmentDate(e.target.value))}
+              />
+            )}
+          </div>
+
+          {appointmentsQuery.isError ? (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="pt-6 text-center text-red-700">
+                <AlertCircle className="mx-auto mb-2 h-8 w-8" />
+                <p>{appointmentsQuery.error.message}</p>
+                <Button variant="outline" className="mt-4" onClick={() => appointmentsQuery.refetch()}>
+                  Retry
+                </Button>
+              </CardContent>
+            </Card>
+          ) : appointmentsQuery.isLoading ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Loading appointments...
+            </div>
+          ) : filteredAppointments.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="py-12 text-center text-muted-foreground">
+                <Calendar className="mx-auto mb-2 h-8 w-8 opacity-50" />
+                <p className="font-medium">No appointments found</p>
+                <p className="text-sm mt-1">
+                  {viewTab === "today"
+                    ? "Nothing scheduled for today yet."
+                    : "No appointments on this date."}
+                </p>
+                <Button className="mt-4 bg-teal-600 hover:bg-teal-700" onClick={openCreateForm}>
+                  Book appointment
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-4">
+              {filteredAppointments.map((apt) => (
+                <Card key={apt.appointmentId} className="friendly-card">
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Clock className="h-4 w-4 text-teal-600" />
+                          <span className="font-semibold text-lg">{apt.appointmentTime}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {apt.duration ?? 30} min
+                          </span>
+                          {getStatusBadge(apt.status)}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span>
+                            {apt.patientName ?? apt.patientId}
+                            <span className="text-muted-foreground"> ({apt.patientId})</span>
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Doctor: {apt.consultantName ?? apt.consultantId}
+                        </p>
+                        {apt.notes && (
+                          <p className="text-sm text-slate-600 border-l-2 border-teal-200 pl-3">
+                            {apt.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      {apt.canManage && isEditableStatus(apt.status) && (
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => openEditForm(apt)}>
+                            <Edit2 className="mr-1 h-3 w-3" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => completeMutation.mutate({ appointmentId: apt.appointmentId })}
+                            disabled={completeMutation.isPending}
+                          >
+                            <CheckCircle className="mr-1 h-3 w-3" />
+                            Complete
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => noShowMutation.mutate({ appointmentId: apt.appointmentId })}
+                            disabled={noShowMutation.isPending}
+                          >
+                            No-show
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => setCancelTarget(apt)}
+                          >
+                            <XCircle className="mr-1 h-3 w-3" />
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       )}
+
+      <Dialog open={formOpen} onOpenChange={(open) => !open && closeForm()}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {editingAppointment ? "Edit appointment" : "New appointment"}
+            </DialogTitle>
+            <DialogDescription>
+              {isDoctor
+                ? "Appointments are booked on your schedule."
+                : "Select patient, doctor, date, and time."}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Patient *</Label>
+              <Select
+                value={form.patientId}
+                onValueChange={(v) => setForm({ ...form, patientId: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select patient" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(patientsQuery.data ?? []).map(
+                    (p: { patientId: string; firstName: string; lastName: string }) => (
+                      <SelectItem key={p.patientId} value={p.patientId}>
+                        {p.firstName} {p.lastName} ({p.patientId})
+                      </SelectItem>
+                    )
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {!isDoctor && (
+              <div className="space-y-2">
+                <Label>Doctor *</Label>
+                <Select
+                  value={String(form.consultantId)}
+                  onValueChange={(v) =>
+                    setForm({ ...form, consultantId: Number.parseInt(v, 10) })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select doctor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(consultantsQuery.data ?? []).map(
+                      (c: { id: number; name?: string | null }) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.name ?? `Doctor ${c.id}`}
+                        </SelectItem>
+                      )
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="aptDate">Date *</Label>
+              <Input
+                id="aptDate"
+                type="date"
+                value={form.appointmentDate}
+                onChange={(e) => setForm({ ...form, appointmentDate: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Time *</Label>
+              {availableSlotsQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">Loading slots...</p>
+              ) : (availableSlotsQuery.data?.length ?? 0) > 0 ? (
+                <Select
+                  value={form.appointmentTime}
+                  onValueChange={(v) => setForm({ ...form, appointmentTime: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSlotsQuery.data!.map((slot: string) => (
+                      <SelectItem key={slot} value={slot}>
+                        {slot}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  type="time"
+                  value={form.appointmentTime}
+                  onChange={(e) => setForm({ ...form, appointmentTime: e.target.value })}
+                  required
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes</Label>
+              <Textarea
+                id="notes"
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                rows={3}
+              />
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={closeForm}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-teal-600 hover:bg-teal-700"
+                disabled={createMutation.isPending || updateMutation.isPending}
+              >
+                {(createMutation.isPending || updateMutation.isPending) && (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                )}
+                {editingAppointment ? "Save changes" : "Create appointment"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={Boolean(cancelTarget)} onOpenChange={(open) => !open && setCancelTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel appointment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cancel the appointment for {cancelTarget?.patientName ?? cancelTarget?.patientId} at{" "}
+              {cancelTarget?.appointmentTime}?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep appointment</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                if (cancelTarget) {
+                  cancelMutation.mutate({ appointmentId: cancelTarget.appointmentId });
+                }
+              }}
+              disabled={cancelMutation.isPending}
+            >
+              Cancel appointment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
