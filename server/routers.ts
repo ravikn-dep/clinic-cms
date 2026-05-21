@@ -1580,8 +1580,9 @@ export const appRouter = router({
             },
           };
         } catch (error) {
-          console.error("[RBAC] Credential login failed:", error);
-          throw new Error("Login failed. Please check your credentials.");
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          console.error("[RBAC] Credential login failed:", errorMessage, error);
+          throw new Error(`Login failed: ${errorMessage}`);
         }
       }),
   }),
