@@ -714,9 +714,10 @@
 - [x] Skip useAuth() call for login pages to prevent OAuth API calls
 - [x] Test DirectLogin page loads without redirection (155 tests passing)
 
-## Feature Access Control Checkbox Debug (PENDING)
-- [ ] Check browser console for errors when toggling checkbox
-- [ ] Add detailed console logging to track state changes
-- [ ] Verify if state is updating but UI not reflecting (React issue) or state not updating at all
-- [ ] Check if there's a React key issue or component re-rendering issue
-- [ ] Consider using React DevTools to inspect component state during toggle
+## Feature Access Control Checkbox Debug (COMPLETED)
+- [x] Check browser console for errors when toggling checkbox
+- [x] Add detailed console logging to track state changes
+- [x] Verify if state is updating but UI not reflecting (React issue) or state not updating at all
+- [x] Check if there's a React key issue or component re-rendering issue
+- [x] Consider using React DevTools to inspect component state during toggle
+- [x] Implemented native HTML checkboxes instead of shadcn/ui (resolved state reset issue)
