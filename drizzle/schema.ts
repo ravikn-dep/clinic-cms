@@ -1,4 +1,4 @@
-import { mysqlTable, mysqlSchema, AnyMySqlColumn, varchar, int, mysqlEnum, text, timestamp, json, decimal, index } from "drizzle-orm/mysql-core"
+import { mysqlTable, mysqlSchema, AnyMySqlColumn, varchar, int, mysqlEnum, text, timestamp, json, decimal, index, tinyint } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
 
 export const appointments = mysqlTable("appointments", {
