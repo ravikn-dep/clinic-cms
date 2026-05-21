@@ -67,11 +67,10 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider
-      style={
-        {
+      style=
+        {{
           "--sidebar-width": `${sidebarWidth}px`,
-        } as CSSProperties
-      }
+        } as CSSProperties}
     >
       <DashboardLayoutContent setSidebarWidth={setSidebarWidth}>
         {children}
@@ -131,54 +130,59 @@ function DashboardLayoutContent({
 
   return (
     <>
-      <Sidebar className="border-r border-border" collapsible="icon">
-        <SidebarHeader className="border-b border-border">
-          <div className="flex items-center gap-2 px-2">
-            <div className="rounded-full border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-medium text-teal-800">
-              Clinic CMS
+      <Sidebar className="border-r border-border/60 bg-gradient-to-b from-slate-50 to-white" collapsible="icon">
+        <SidebarHeader className="border-b border-border/40 bg-gradient-to-r from-teal-50 to-cyan-50 px-4 py-4">
+          <div className="flex items-center gap-3 px-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-teal-600 to-cyan-600 text-white font-bold text-lg shadow-md">
+              C
+            </div>
+            <div className="hidden group-data-[collapsible=icon]:hidden">
+              <p className="font-bold text-teal-900 text-sm">Clinic CMS</p>
+              <p className="text-xs text-teal-600">Management System</p>
             </div>
           </div>
         </SidebarHeader>
-        <SidebarContent>
-          <SidebarMenu>
+        <SidebarContent className="px-2 py-4">
+          <SidebarMenu className="gap-1">
             {visibleMenuItems.map((item) => (
               <SidebarMenuItem key={item.path}>
                 <SidebarMenuButton
                   asChild
                   isActive={location === item.path}
                   onClick={() => setLocation(item.path)}
-                  className="cursor-pointer"
+                  className="cursor-pointer rounded-lg transition-all duration-200 hover:bg-teal-100/50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-teal-500 data-[active=true]:to-cyan-500 data-[active=true]:text-white data-[active=true]:shadow-md"
                 >
-                  <a href={item.path}>
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.label}</span>
+                  <a href={item.path} className="flex items-center gap-3">
+                    <item.icon className="h-5 w-5 flex-shrink-0" />
+                    <span className="text-sm font-medium">{item.label}</span>
                   </a>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}
           </SidebarMenu>
         </SidebarContent>
-        <SidebarFooter className="border-t border-border">
+        <SidebarFooter className="border-t border-border/40 bg-gradient-to-r from-slate-50 to-teal-50/30 px-2 py-4">
           <div className="flex items-center justify-between gap-2 px-2">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback>{user?.name?.[0]?.toUpperCase()}</AvatarFallback>
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <Avatar className="h-9 w-9 border-2 border-teal-200 shadow-sm">
+                <AvatarFallback className="bg-gradient-to-br from-teal-500 to-cyan-500 text-white font-bold">{user?.name?.[0]?.toUpperCase()}</AvatarFallback>
               </Avatar>
               {!isCollapsed && (
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{user?.name}</p>
-                  <p className="text-xs text-muted-foreground truncate capitalize">{user?.role}</p>
+                  <p className="text-sm font-semibold truncate text-slate-900">{user?.name}</p>
+                  <p className="text-xs text-teal-600 truncate capitalize font-medium">{user?.role}</p>
                 </div>
               )}
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
-                  <LogOut className="h-4 w-4" />
+                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-teal-100/50 rounded-lg transition-colors">
+                  <LogOut className="h-4 w-4 text-teal-700" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => logout()}>
+              <DropdownMenuContent align="end" className="rounded-lg shadow-lg">
+                <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
+                  <LogOut className="h-4 w-4 mr-2" />
                   Logout
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -188,11 +192,12 @@ function DashboardLayoutContent({
       </Sidebar>
 
       <SidebarInset>
-        <div className="flex flex-1 flex-col">
-          <div className="flex items-center justify-between border-b border-border bg-white px-6 py-4">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger />
-              <PanelLeft className="h-4 w-4 text-muted-foreground" />
+        <div className="flex flex-1 flex-col bg-gradient-to-b from-slate-50/50 to-white">
+          <div className="flex items-center justify-between border-b border-border/40 bg-white/80 backdrop-blur-sm px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-10 shadow-sm">
+            <div className="flex items-center gap-3">
+              <SidebarTrigger className="rounded-lg hover:bg-teal-100/50 transition-colors" />
+              <div className="hidden sm:block h-6 w-px bg-border/40" />
+              <h2 className="text-sm sm:text-base font-semibold text-slate-900 hidden sm:block">Clinic Management System</h2>
             </div>
           </div>
           <main className="flex-1 overflow-auto">

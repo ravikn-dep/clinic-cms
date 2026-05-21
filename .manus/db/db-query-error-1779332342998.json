@@ -1,0 +1,8 @@
+{
+  "query": "INSERT INTO users (openId, name, email, loginMethod, role, userId, username, passwordHash, isActive, createdAt, updatedAt, lastSignedIn) VALUES ('admin-test-001', 'Test Admin', 'admin@clinic.local', 'credential', 'admin', 'ADMIN001', 'admin', '$2b$10$1p6DCB8ld3zIh1M1bM6rruqsduZaCnBPatOsJWQnPR650z75H/sa2', true, NOW(), NOW(), NOW());",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute INSERT INTO users (openId, name, email, loginMethod, role, userId, username, passwordHash, isActive, createdAt, updatedAt, lastSignedIn) VALUES ('admin-test-001', 'Test Admin', 'admin@clinic.local', 'credential', 'admin', 'ADMIN001', 'admin', '$2b$10$1p6DCB8ld3zIh1M1bM6rruqsduZaCnBPatOsJWQnPR650z75H/sa2', true, NOW(), NOW(), NOW());",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'openId' in 'field list'"
+  ]
+}

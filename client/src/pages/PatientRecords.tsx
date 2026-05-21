@@ -171,12 +171,12 @@ export default function PatientRecords() {
         )}
       </div>
 
-      <Card className="friendly-card">
-        <CardHeader>
-          <CardTitle>Search Patients</CardTitle>
-          <CardDescription>Find patients by name, patient ID, contact number, or email.</CardDescription>
+      <Card className="friendly-card border-0 shadow-md overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-teal-100 pb-4">
+          <CardTitle className="text-teal-950">Search Patients</CardTitle>
+          <CardDescription className="text-teal-700 mt-1">Find patients by name, patient ID, contact number, or email.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-5">
           <div className="flex gap-2">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -184,7 +184,7 @@ export default function PatientRecords() {
                 placeholder="Search by name, patient ID, contact number, or email..."
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="pl-10 transition-colors focus-visible:ring-teal-200"
+                className="pl-10 transition-colors focus-visible:ring-teal-200 rounded-lg border-teal-100 hover:border-teal-200"
               />
             </div>
           </div>
@@ -192,10 +192,10 @@ export default function PatientRecords() {
       </Card>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)]">
-        <Card className="friendly-card">
-          <CardHeader>
-            <CardTitle>Patient List</CardTitle>
-            <CardDescription>{filteredPatients.length} patient(s) found</CardDescription>
+        <Card className="friendly-card border-0 shadow-md overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-teal-100 pb-4">
+            <CardTitle className="text-teal-950">Patient List</CardTitle>
+            <CardDescription className="text-teal-700 mt-1">{filteredPatients.length} patient(s) found</CardDescription>
           </CardHeader>
           <CardContent>
             {patientsQuery.isLoading ? (
@@ -207,29 +207,29 @@ export default function PatientRecords() {
                 <p className="text-muted-foreground">No patients found.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
+              <div className="overflow-x-auto rounded-lg border border-teal-100/50 bg-white shadow-sm">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/70 text-muted-foreground">
-                    <tr className="border-b">
-                      <th className="text-left py-3 px-4 font-semibold">Patient ID</th>
-                      <th className="text-left py-3 px-4 font-semibold">Name</th>
-                      <th className="text-left py-3 px-4 font-semibold">Contact</th>
-                      <th className="text-left py-3 px-4 font-semibold">Registered</th>
-                      <th className="text-left py-3 px-4 font-semibold">Actions</th>
+                  <thead className="bg-gradient-to-r from-teal-50 to-cyan-50 text-teal-900">
+                    <tr className="border-b border-teal-100">
+                      <th className="text-left py-3 px-4 font-semibold text-xs uppercase tracking-wide">Patient ID</th>
+                      <th className="text-left py-3 px-4 font-semibold text-xs uppercase tracking-wide">Name</th>
+                      <th className="text-left py-3 px-4 font-semibold text-xs uppercase tracking-wide">Contact</th>
+                      <th className="text-left py-3 px-4 font-semibold text-xs uppercase tracking-wide">Registered</th>
+                      <th className="text-left py-3 px-4 font-semibold text-xs uppercase tracking-wide">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredPatients.map((patient) => (
-                      <tr key={patient.patientId} className={`border-b transition-colors hover:bg-accent/70 ${selectedPatientId === patient.patientId ? "border-l-4 border-l-primary bg-primary/10" : ""}`}>
-                        <td className="py-3 px-4 font-mono text-xs">{patient.patientId}</td>
+                      <tr key={patient.patientId} className={`border-b border-teal-50 transition-all duration-200 hover:bg-teal-50/50 ${selectedPatientId === patient.patientId ? "border-l-4 border-l-teal-500 bg-teal-50/80" : ""}`}>
+                        <td className="py-3 px-4 font-mono text-xs text-teal-700 font-semibold">{patient.patientId}</td>
                         <td className="py-3 px-4">
-                          <div className="font-medium">{patient.firstName} {patient.lastName}</div>
-                          <div className="text-xs text-muted-foreground">{patient.email || "No email recorded"}</div>
+                          <div className="font-semibold text-slate-900">{patient.firstName} {patient.lastName}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">{patient.email || "No email recorded"}</div>
                         </td>
-                        <td className="py-3 px-4">{patient.contactNumber}</td>
+                        <td className="py-3 px-4 text-sm text-slate-700">{patient.contactNumber}</td>
                         <td className="py-3 px-4 text-xs text-muted-foreground">{formatDate(patient.createdAt)}</td>
                         <td className="py-3 px-4">
-                          <Button variant="outline" size="sm" onClick={() => setSelectedPatientId(patient.patientId)} className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50">
+                          <Button variant="outline" size="sm" onClick={() => setSelectedPatientId(patient.patientId)} className="friendly-action border-teal-200 bg-white hover:bg-teal-50 text-teal-800 rounded-lg transition-all">
                             View Profile
                           </Button>
                         </td>
@@ -242,12 +242,12 @@ export default function PatientRecords() {
           </CardContent>
         </Card>
 
-        <Card className="min-h-[520px] border-slate-200 shadow-sm transition-shadow hover:shadow-md">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserRound className="h-5 w-5 text-primary" /> Patient Profile
+        <Card className="min-h-[520px] border-0 shadow-md overflow-hidden transition-shadow hover:shadow-lg">
+          <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-teal-100 pb-4">
+            <CardTitle className="flex items-center gap-2 text-teal-950">
+              <UserRound className="h-5 w-5 text-teal-600" /> Patient Profile
             </CardTitle>
-            <CardDescription>Visit history, billing records, and stored file references.</CardDescription>
+            <CardDescription className="text-teal-700 mt-1">Visit history, billing records, and stored file references.</CardDescription>
           </CardHeader>
           <CardContent>
             {!selectedPatientId ? (

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { toast } from "sonner";
 
 export default function Appointments() {
@@ -150,14 +150,14 @@ export default function Appointments() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Appointments</h1>
-          <p className="text-slate-600 mt-1">Schedule, view, and manage patient appointments</p>
+          <h1 className="text-3xl font-bold text-teal-950">Appointments</h1>
+          <p className="text-teal-700 mt-1">Schedule, view, and manage patient appointments</p>
         </div>
         <Dialog open={isBookingOpen} onOpenChange={setIsBookingOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-teal-600 hover:bg-teal-700">
+            <Button className="bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg transition-all rounded-lg">
               <Plus className="w-4 h-4 mr-2" />
               Book Appointment
             </Button>
@@ -247,7 +247,7 @@ export default function Appointments() {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex gap-2">
           <Button
             variant={viewMode === "list" ? "default" : "outline"}

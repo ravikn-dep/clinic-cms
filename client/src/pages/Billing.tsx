@@ -416,18 +416,18 @@ export default function Billing() {
       <div className="friendly-hero flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-teal-950">Billing</h1>
-          <p className="mt-2 max-w-2xl leading-6 text-muted-foreground">Generate invoices, track payments, and export billing history.</p>
+          <p className="mt-2 max-w-2xl leading-6 text-teal-700">Generate invoices, track payments, and export billing history.</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button 
             onClick={() => setShowNewBill((value) => !value)} 
-            className="friendly-action bg-teal-600 hover:bg-teal-700 text-white font-semibold shadow-md"
+            className="friendly-action bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 text-white font-semibold shadow-md hover:shadow-lg transition-all rounded-lg"
             size="lg"
           >
             <Plus className="mr-2 h-5 w-5" />
             Raise New Bill
           </Button>
-          <Button variant="outline" onClick={() => billsQuery.refetch()} disabled={billsQuery.isFetching} className="friendly-action">
+          <Button variant="outline" onClick={() => billsQuery.refetch()} disabled={billsQuery.isFetching} className="friendly-action border-teal-200 hover:bg-teal-50 rounded-lg transition-all">
             <RefreshCcw className={`mr-2 h-4 w-4 ${billsQuery.isFetching ? "animate-spin" : ""}`} />
             Refresh
           </Button>
@@ -436,7 +436,7 @@ export default function Billing() {
               variant="outline"
               onClick={() => exportBillingCsv.mutate()}
               disabled={exportBillingCsv.isPending || bills.length === 0}
-              className="friendly-action"
+              className="friendly-action border-teal-200 hover:bg-teal-50 rounded-lg transition-all"
             >
               {exportBillingCsv.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
               Export Billing CSV
@@ -446,10 +446,10 @@ export default function Billing() {
       </div>
 
       {showNewBill && (
-        <Card className="friendly-card">
-          <CardHeader>
-            <CardTitle>Create New Invoice</CardTitle>
-            <CardDescription>Generate a bill for consultation, procedure, or medicine charges.</CardDescription>
+        <Card className="friendly-card border-0 shadow-md overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-teal-100 pb-4">
+            <CardTitle className="text-teal-950">Create New Invoice</CardTitle>
+            <CardDescription className="text-teal-700 mt-1">Generate a bill for consultation, procedure, or medicine charges.</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="space-y-6" onSubmit={handleCreateBill}>
@@ -644,10 +644,10 @@ export default function Billing() {
         </Card>
       )}
 
-      <Card className="friendly-card">
-        <CardHeader>
-          <CardTitle>Recent Invoices</CardTitle>
-          <CardDescription>
+      <Card className="friendly-card border-0 shadow-md overflow-hidden">
+        <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-teal-100 pb-4">
+          <CardTitle className="text-teal-950">Recent Invoices</CardTitle>
+          <CardDescription className="text-teal-700 mt-1">
             {billsQuery.isLoading ? "Loading billing history..." : `${bills.length} invoice(s) total`}
           </CardDescription>
         </CardHeader>
