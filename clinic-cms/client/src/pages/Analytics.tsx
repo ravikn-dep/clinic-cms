@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { format, subDays, parseISO } from "date-fns";
+import { parseAppointmentDate } from "@/lib/appointmentDate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -10,14 +11,9 @@ import { trpc } from "@/lib/trpc";
 export default function Analytics() {
   const [timeRange, setTimeRange] = useState<"week" | "month" | "year">("month");
 
-  // Fetch appointments data
   const appointmentsQuery = trpc.appointments.list.useQuery({});
-
-  // Fetch billing data - using a dummy query since billing.list doesn't exist
-  const billsQuery = { data: [], isLoading: false };
-
-  // Fetch patients data
-  const patientsQuery = { data: [], isLoading: false };
+  const billsQuery = trpc.bills.getAll.useQuery();
+  const patientsQuery = trpc.patients.getAll.useQuery();
 
   // Calculate analytics data
   const analyticsData = useMemo(() => {
@@ -33,13 +29,14 @@ export default function Analytics() {
     const startDate = subDays(now, daysBack);
 
     // Filter data by date range
-    const filteredAppointments = appointments.filter((apt: any) => {
-      const aptDate = parseISO(apt.appointmentDate);
+    const filteredAppointments = appointments.filter((apt: { appointmentDate: string }) => {
+      const aptDate = parseAppointmentDate(apt.appointmentDate);
       return aptDate >= startDate;
     });
 
-    const filteredBills = bills.filter((bill: any) => {
-      const billDate = parseISO(bill.createdAt);
+    const filteredBills = bills.filter((bill: { createdAt?: string | Date }) => {
+      if (!bill.createdAt) return false;
+      const billDate = typeof bill.createdAt === "string" ? parseISO(bill.createdAt) : bill.createdAt;
       return billDate >= startDate;
     });
 
@@ -60,8 +57,8 @@ export default function Analytics() {
 
     // Daily appointment trend
     const dailyTrend: Record<string, number> = {};
-    filteredAppointments.forEach((apt: any) => {
-      const date = format(parseISO(apt.appointmentDate), "MMM dd");
+    filteredAppointments.forEach((apt: { appointmentDate: string }) => {
+      const date = format(parseAppointmentDate(apt.appointmentDate), "MMM dd");
       dailyTrend[date] = (dailyTrend[date] || 0) + 1;
     });
 
@@ -117,9 +114,13 @@ export default function Analytics() {
       revenueData,
       consultantData,
     };
-  }, [appointmentsQuery.data, timeRange]);
+  }, [appointmentsQuery.data, billsQuery.data, patientsQuery.data, timeRange]);
 
-  const isLoading = appointmentsQuery.isLoading;
+  const isLoading =
+    appointmentsQuery.isLoading || billsQuery.isLoading || patientsQuery.isLoading;
+
+  const hasError =
+    appointmentsQuery.isError || billsQuery.isError || patientsQuery.isError;
 
   if (isLoading) {
     return (
@@ -128,6 +129,21 @@ export default function Analytics() {
           <div className="inline-flex h-12 w-12 animate-spin rounded-full border-4 border-teal-200 border-t-teal-600"></div>
           <p className="mt-4 text-muted-foreground">Loading analytics...</p>
         </div>
+      </div>
+    );
+  }
+
+  if (hasError) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh] p-6">
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle>Unable to load analytics</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Check that the database is running and you are signed in as an administrator.
+          </CardContent>
+        </Card>
       </div>
     );
   }

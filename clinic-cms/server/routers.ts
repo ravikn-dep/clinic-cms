@@ -16,6 +16,7 @@ import { csvResponse, makeCsvFilename, toCsv } from "./csvExport";
 import { notifyOwner } from "./_core/notification";
 import { resolveArtifactStorageKey } from "./artifactAccess";
 import { hashPassword, verifyPassword, generateRandomPassword } from "./_core/auth";
+import { getDefaultPermissions } from "@shared/rbac";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -1369,6 +1370,8 @@ export const appRouter = router({
         email: z.string().email().optional(),
         phone: z.string().optional(),
         department: z.string().optional(),
+        stateCounsilSection: z.string().optional(),
+        registrationNumber: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
@@ -1385,6 +1388,8 @@ export const appRouter = router({
             email: input.email,
             phone: input.phone,
             department: input.department,
+            stateCounsilSection: input.stateCounsilSection,
+            registrationNumber: input.registrationNumber,
             role: input.role,
             userId,
             username,
@@ -1425,6 +1430,8 @@ export const appRouter = router({
           department: u.department,
           role: u.role,
           isActive: u.isActive,
+          stateCounsilSection: u.stateCounsilSection,
+          registrationNumber: u.registrationNumber,
           createdAt: u.createdAt,
         }));
       } catch (error) {
@@ -1607,14 +1614,118 @@ export const appRouter = router({
         return perms[input.featureKey] ?? false;
       }),
 
-    // Get current user's feature permissions (for non-admin users)
+    // Get current user's effective feature permissions (role + per-user overrides)
     getMyPermissions: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role === "consultant" || ctx.user.role === "staff") {
-        const stored = await db.getFeaturePermissions(ctx.user.role);
-        return stored || getDefaultPermissions(ctx.user.role);
+        return db.getEffectivePermissionsForUser(ctx.user.id, ctx.user.role);
       }
       return {};
     }),
+
+    // List consultant/staff users for per-user assignment
+    listAssignableUsers: adminProcedure.query(async () => {
+      const staffUsers = await db.getAllStaffUsers();
+      return staffUsers.map((u) => ({
+        id: u.id,
+        userId: u.userId,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        isActive: u.isActive,
+      }));
+    }),
+
+    // Get role baseline, user overrides, and effective permissions for one user
+    getUserPermissions: adminProcedure
+      .input(z.object({ userId: z.number() }))
+      .query(async ({ input }) => {
+        const user = await db.getUserByNumericId(input.userId);
+        if (!user) {
+          throw new Error("User not found");
+        }
+        if (user.role !== "consultant" && user.role !== "staff") {
+          throw new Error("Feature access can only be assigned to doctors and staff");
+        }
+
+        const role = user.role as "consultant" | "staff";
+        const rolePermissions = await db.getFeaturePermissions(role);
+        const userOverrides = await db.getRawUserPermissionOverrides(input.userId);
+        const effective = await db.getEffectivePermissionsForUser(input.userId, role);
+
+        return {
+          user: {
+            id: user.id,
+            userId: user.userId,
+            name: user.name,
+            role: user.role,
+          },
+          rolePermissions,
+          userOverrides,
+          effective,
+          hasCustomOverrides: Object.keys(userOverrides).length > 0,
+        };
+      }),
+
+    // Assign features to a specific user (overrides role defaults where different)
+    updateUserPermissions: adminProcedure
+      .input(
+        z.object({
+          userId: z.number(),
+          permissions: z.record(z.string(), z.boolean()),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const user = await db.getUserByNumericId(input.userId);
+        if (!user) {
+          throw new Error("User not found");
+        }
+        if (user.role !== "consultant" && user.role !== "staff") {
+          throw new Error("Feature access can only be assigned to doctors and staff");
+        }
+
+        const role = user.role as "consultant" | "staff";
+        const oldOverrides = await db.getRawUserPermissionOverrides(input.userId);
+        await db.setUserFeaturePermissions(input.userId, role, input.permissions);
+
+        await db.createAuditLog({
+          logId: nanoid(),
+          userId: String(ctx.user.id),
+          actionType: "UPDATE_USER_FEATURE_ACCESS",
+          tableName: "userPermissions",
+          recordId: String(input.userId),
+          oldValue: JSON.stringify(oldOverrides),
+          newValue: JSON.stringify(input.permissions),
+          timestamp: new Date(),
+        });
+
+        return { success: true };
+      }),
+
+    // Remove per-user overrides so the user inherits role permissions only
+    clearUserPermissions: adminProcedure
+      .input(z.object({ userId: z.number() }))
+      .mutation(async ({ input, ctx }) => {
+        const user = await db.getUserByNumericId(input.userId);
+        if (!user) {
+          throw new Error("User not found");
+        }
+
+        const oldOverrides = await db.getRawUserPermissionOverrides(input.userId);
+        await db.clearUserFeaturePermissions(input.userId);
+
+        await db.createAuditLog({
+          logId: nanoid(),
+          userId: String(ctx.user.id),
+          actionType: "CLEAR_USER_FEATURE_ACCESS",
+          tableName: "userPermissions",
+          recordId: String(input.userId),
+          oldValue: JSON.stringify(oldOverrides),
+          newValue: "",
+          timestamp: new Date(),
+        });
+
+        return { success: true };
+      }),
 
     getTemplates: protectedProcedure.query(async () => {
       return {
@@ -1771,13 +1882,17 @@ export const appRouter = router({
       .query(async ({ input, ctx }) => {
         try {
           let appointments: any[] = [];
-          
+
           if (input.patientId) {
             appointments = await db.getAppointmentsByPatient(input.patientId);
           } else if (input.consultantId) {
             appointments = await db.getAppointmentsByConsultant(input.consultantId);
+          } else if (ctx.user.role === "admin" || ctx.user.role === "staff") {
+            appointments = await db.getAllAppointments();
+          } else if (ctx.user.role === "consultant") {
+            appointments = await db.getAppointmentsByConsultant(ctx.user.id);
           }
-          
+
           if (input.status) {
             appointments = appointments.filter((a: any) => a.status === input.status);
           }
@@ -2000,36 +2115,5 @@ export const appRouter = router({
   }),
 
 });
-
-// Default feature permissions by role
-function getDefaultPermissions(role: "consultant" | "staff"): Record<string, boolean> {
-  const defaults: Record<string, Record<string, boolean>> = {
-    consultant: {
-      patient_records: true,
-      ambient_scribe: true,
-      pharmacy: true,
-      billing: true,
-      purchase_orders: false,
-      appointments: true,
-      notifications: true,
-      audit_trail: false,
-      daily_export: false,
-      user_management: false,
-    },
-    staff: {
-      patient_records: true,
-      ambient_scribe: false,
-      pharmacy: true,
-      billing: false,
-      purchase_orders: true,
-      appointments: false,
-      notifications: true,
-      audit_trail: false,
-      daily_export: false,
-      user_management: false,
-    },
-  };
-  return defaults[role] || {};
-}
 
 export type AppRouter = typeof appRouter;

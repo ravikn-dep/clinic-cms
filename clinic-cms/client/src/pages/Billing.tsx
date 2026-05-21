@@ -371,17 +371,7 @@ export default function Billing() {
   };
 
   const downloadBillPdf = (bill: (typeof bills)[number]) => {
-    if (!bill.invoicePdfUrl) {
-      toast.error("Invoice PDF is not available for this bill.");
-      return;
-    }
-    const link = document.createElement("a");
-    link.href = bill.invoicePdfUrl;
-    link.download = `Bill_${bill.billId}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast.success("Bill PDF downloaded successfully.");
+    openInvoicePdf(bill);
   };
 
   const printReceipt = async (bill: (typeof bills)[number]) => {

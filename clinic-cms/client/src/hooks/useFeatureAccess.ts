@@ -1,99 +1,83 @@
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
-import { FeatureKey, FEATURE_TO_ROUTES, getFeatureForRoute } from "@/lib/featureAccess";
+import {
+  FeatureKey,
+  FEATURE_TO_ROUTES,
+  ADMIN_ONLY_ROUTES,
+  getFeatureForRoute,
+  FEATURE_KEYS,
+} from "@/lib/featureAccess";
 
 export interface UseFeatureAccessResult {
-  /** Check if a specific feature is accessible */
   hasAccess: (feature: FeatureKey) => boolean;
-  /** Check if a route is accessible */
   canAccessRoute: (path: string) => boolean;
-  /** Get all accessible features for the current user */
   accessibleFeatures: FeatureKey[];
-  /** Get all accessible routes for the current user */
   accessibleRoutes: string[];
-  /** Whether permissions are still loading */
   isLoading: boolean;
-  /** Any error loading permissions */
   error: Error | null;
 }
 
-/**
- * Hook to check feature access permissions for the current user
- * Admins have access to all features
- * Consultants and staff have access based on configured permissions
- */
 export function useFeatureAccess(): UseFeatureAccessResult {
   const { user, loading: authLoading } = useAuth();
 
-  // For admins, all features are accessible
-  if (user?.role === "admin") {
-    return {
-      hasAccess: () => true,
-      canAccessRoute: () => true,
-      accessibleFeatures: [],
-      accessibleRoutes: [],
-      isLoading: authLoading,
-      error: null,
-    };
-  }
+  const { data: effectivePermissions, isLoading: permissionsLoading, error } =
+    trpc.featureAccess.getMyPermissions.useQuery(undefined, {
+      enabled: !!user && (user.role === "consultant" || user.role === "staff"),
+    });
 
-  // For consultants and staff, fetch their permissions using getMyPermissions
-  const { data: fullPermissions, isLoading: fullPermissionsLoading, error } = trpc.featureAccess.getMyPermissions.useQuery(
-    undefined,
-    { enabled: !!user && (user.role === "consultant" || user.role === "staff") }
-  );
+  return useMemo(() => {
+    const isLoading =
+      authLoading || (!!user && user.role !== "admin" && permissionsLoading);
 
-  const result = useMemo(() => {
-    const isLoading = authLoading || fullPermissionsLoading;
+    if (!user) {
+      return {
+        hasAccess: () => false,
+        canAccessRoute: () => false,
+        accessibleFeatures: [],
+        accessibleRoutes: [],
+        isLoading: authLoading,
+        error: null,
+      };
+    }
 
-    if (!user || user.role === "admin") {
+    if (user.role === "admin") {
       return {
         hasAccess: () => true,
         canAccessRoute: () => true,
         accessibleFeatures: [],
         accessibleRoutes: [],
-        isLoading,
+        isLoading: authLoading,
         error: null,
       };
     }
 
-    const perms = fullPermissions || {};
+    const perms: Record<string, boolean> = effectivePermissions ?? {};
 
     return {
-      hasAccess: (feature: FeatureKey) => {
-        return perms[feature] === true;
-      },
+      hasAccess: (feature: FeatureKey) => perms[feature] === true,
       canAccessRoute: (path: string) => {
+        if (path === "/" || path === "/password-management") return true;
+        if (ADMIN_ONLY_ROUTES.includes(path)) return false;
         const feature = getFeatureForRoute(path);
-        if (!feature) return true; // Routes without feature mapping are always accessible
+        if (!feature) return true;
         return perms[feature] === true;
       },
-      accessibleFeatures: Object.entries(perms)
-        .filter(([_, allowed]) => allowed === true)
-        .map(([key]) => key as FeatureKey),
-      accessibleRoutes: Object.entries(perms)
-        .filter(([_, allowed]) => allowed === true)
-        .flatMap(([key]) => FEATURE_TO_ROUTES[key as FeatureKey] || []),
+      accessibleFeatures: FEATURE_KEYS.filter((key) => perms[key] === true),
+      accessibleRoutes: FEATURE_KEYS.filter((key) => perms[key] === true).flatMap(
+        (key) => FEATURE_TO_ROUTES[key] || []
+      ),
       isLoading,
       error: error as Error | null,
     };
-  }, [user, authLoading, fullPermissions, fullPermissionsLoading, error]);
-
-  return result;
+  }, [user, authLoading, effectivePermissions, permissionsLoading, error]);
 }
 
-/**
- * Hook to check if a specific feature is accessible
- */
 export function useCanAccessFeature(feature: FeatureKey): boolean {
   const { hasAccess } = useFeatureAccess();
   return hasAccess(feature);
 }
 
-/**
- * Hook to check if a specific route is accessible
- */
 export function useCanAccessRoute(path: string): boolean {
   const { canAccessRoute } = useFeatureAccess();
   return canAccessRoute(path);

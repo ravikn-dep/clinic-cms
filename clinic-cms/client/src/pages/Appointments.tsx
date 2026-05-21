@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { format, parseISO, isSameDay, addDays, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek } from "date-fns";
+import { format, isSameDay, addDays, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek } from "date-fns";
+import { parseAppointmentDate } from "@/lib/appointmentDate";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useCredentialAuth } from "@/_core/hooks/useCredentialAuth";
 import { toast } from "sonner";
 
 export default function Appointments() {
-  const { user } = useAuth();
+  const { user } = useCredentialAuth();
+  const consultantsQuery = trpc.consultants.getAll.useQuery();
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -97,8 +99,8 @@ export default function Appointments() {
     if (!appointmentsQuery.data) return [];
     
     if (viewMode === "list") {
-      return appointmentsQuery.data.filter((apt: any) => 
-        isSameDay(parseISO(apt.appointmentDate), selectedDate)
+      return appointmentsQuery.data.filter((apt: { appointmentDate: string }) =>
+        isSameDay(parseAppointmentDate(apt.appointmentDate), selectedDate)
       );
     }
     
@@ -184,9 +186,11 @@ export default function Appointments() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1">Consultant 1</SelectItem>
-                    <SelectItem value="2">Consultant 2</SelectItem>
-                    <SelectItem value="3">Consultant 3</SelectItem>
+                    {(consultantsQuery.data ?? []).map((consultant: { id: number; name?: string | null }) => (
+                      <SelectItem key={consultant.id} value={String(consultant.id)}>
+                        {consultant.name ?? `Consultant ${consultant.id}`}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -287,7 +291,17 @@ export default function Appointments() {
             <span>{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
           </div>
 
-          {appointmentsQuery.isLoading ? (
+          {appointmentsQuery.isError ? (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="pt-6 text-center text-red-700">
+                <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+                <p>Failed to load appointments. Check database connection and try again.</p>
+                <Button variant="outline" className="mt-4" onClick={() => appointmentsQuery.refetch()}>
+                  Retry
+                </Button>
+              </CardContent>
+            </Card>
+          ) : appointmentsQuery.isLoading ? (
             <div className="text-center py-8 text-slate-500">Loading appointments...</div>
           ) : filteredAppointments.length === 0 ? (
             <Card className="bg-slate-50">
@@ -393,7 +407,7 @@ export default function Appointments() {
               ))}
               {calendarDays.map((day) => {
                 const dayAppointments = appointmentsQuery.data?.filter((apt: any) =>
-                  isSameDay(parseISO(apt.appointmentDate), day)
+                  isSameDay(parseAppointmentDate(apt.appointmentDate), day)
                 ) || [];
                 const isCurrentMonth = day.getMonth() === selectedDate.getMonth();
 

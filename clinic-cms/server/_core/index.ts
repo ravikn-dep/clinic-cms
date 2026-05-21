@@ -53,10 +53,11 @@ async function startServer() {
     })
   );
   // Add route handler for direct login before Vite/static files
-  app.get("/direct-login", (req, res, next) => {
-    // Serve the app for direct login route
-    next();
-  });
+  for (const loginPath of ["/login", "/direct-login"]) {
+    app.get(loginPath, (_req, res, next) => {
+      next();
+    });
+  }
   
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {

@@ -4,11 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, AlertCircle, CheckCircle, Eye, EyeOff } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
-
 export default function PasswordManagement() {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"set" | "change">("set");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -16,85 +12,88 @@ export default function PasswordManagement() {
   const [changeConfirmPassword, setChangeConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [setError, setSetError] = useState("");
+  const [setSuccess, setSetSuccess] = useState("");
+  const [changeError, setChangeError] = useState("");
+  const [changeSuccess, setChangeSuccess] = useState("");
+  const [isSetLoading, setIsSetLoading] = useState(false);
+  const [isChangeLoading, setIsChangeLoading] = useState(false);
 
   const setPasswordMutation = trpc.auth.setPassword.useMutation({
     onSuccess: () => {
-      setIsLoading(false);
-      setSuccess("Password set successfully!");
+      setIsSetLoading(false);
+      setSetSuccess("Password set successfully!");
       setNewPassword("");
       setConfirmPassword("");
-      setTimeout(() => setSuccess(""), 3000);
+      setTimeout(() => setSetSuccess(""), 3000);
     },
     onError: (err) => {
-      setIsLoading(false);
-      setError(err.message || "Failed to set password");
+      setIsSetLoading(false);
+      setSetError(err.message || "Failed to set password");
     },
   });
 
   const changePasswordMutation = trpc.auth.changePassword.useMutation({
     onSuccess: () => {
-      setIsLoading(false);
-      setSuccess("Password changed successfully!");
+      setIsChangeLoading(false);
+      setChangeSuccess("Password changed successfully!");
       setCurrentPassword("");
       setChangeNewPassword("");
       setChangeConfirmPassword("");
-      setTimeout(() => setSuccess(""), 3000);
+      setTimeout(() => setChangeSuccess(""), 3000);
     },
     onError: (err) => {
-      setIsLoading(false);
-      setError(err.message || "Failed to change password");
+      setIsChangeLoading(false);
+      setChangeError(err.message || "Failed to change password");
     },
   });
 
   const handleSetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
+    setSetError("");
+    setSetSuccess("");
 
     if (newPassword !== confirmPassword) {
-      setError("Passwords do not match");
+      setSetError("Passwords do not match");
       return;
     }
 
     if (newPassword.length < 6) {
-      setError("Password must be at least 6 characters");
+      setSetError("Password must be at least 6 characters");
       return;
     }
 
-    setIsLoading(true);
+    setIsSetLoading(true);
     try {
       await setPasswordMutation.mutateAsync({ password: newPassword });
-    } catch (err) {
-      setIsLoading(false);
+    } catch {
+      setIsSetLoading(false);
     }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
+    setChangeError("");
+    setChangeSuccess("");
 
     if (changeNewPassword !== changeConfirmPassword) {
-      setError("New passwords do not match");
+      setChangeError("New passwords do not match");
       return;
     }
 
     if (changeNewPassword.length < 6) {
-      setError("Password must be at least 6 characters");
+      setChangeError("Password must be at least 6 characters");
       return;
     }
 
-    setIsLoading(true);
+    setIsChangeLoading(true);
     try {
       await changePasswordMutation.mutateAsync({
         currentPassword,
         newPassword: changeNewPassword,
       });
-    } catch (err) {
-      setIsLoading(false);
+    } catch {
+      setIsChangeLoading(false);
     }
   };
 
@@ -118,17 +117,17 @@ export default function PasswordManagement() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSetPassword} className="space-y-4">
-              {error && activeTab === "set" && (
+              {setError && (
                 <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <AlertCircle className="h-4 w-4 text-red-600" />
-                  <p className="text-sm text-red-700">{error}</p>
+                  <p className="text-sm text-red-700">{setError}</p>
                 </div>
               )}
 
-              {success && activeTab === "set" && (
+              {setSuccess && (
                 <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
                   <CheckCircle className="h-4 w-4 text-green-600" />
-                  <p className="text-sm text-green-700">{success}</p>
+                  <p className="text-sm text-green-700">{setSuccess}</p>
                 </div>
               )}
 
@@ -140,7 +139,7 @@ export default function PasswordManagement() {
                     placeholder="Enter new password"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    disabled={isLoading}
+                    disabled={isSetLoading}
                     minLength={6}
                   />
                   <button
@@ -160,17 +159,17 @@ export default function PasswordManagement() {
                   placeholder="Confirm password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isSetLoading}
                   minLength={6}
                 />
               </div>
 
               <Button
                 type="submit"
-                disabled={isLoading || !newPassword || !confirmPassword}
+                disabled={isSetLoading || !newPassword || !confirmPassword}
                 className="w-full bg-teal-600 hover:bg-teal-700"
               >
-                {isLoading ? (
+                {isSetLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Setting...
@@ -193,17 +192,17 @@ export default function PasswordManagement() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleChangePassword} className="space-y-4">
-              {error && activeTab === "change" && (
+              {changeError && (
                 <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <AlertCircle className="h-4 w-4 text-red-600" />
-                  <p className="text-sm text-red-700">{error}</p>
+                  <p className="text-sm text-red-700">{changeError}</p>
                 </div>
               )}
 
-              {success && activeTab === "change" && (
+              {changeSuccess && (
                 <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
                   <CheckCircle className="h-4 w-4 text-green-600" />
-                  <p className="text-sm text-green-700">{success}</p>
+                  <p className="text-sm text-green-700">{changeSuccess}</p>
                 </div>
               )}
 
@@ -214,7 +213,7 @@ export default function PasswordManagement() {
                   placeholder="Enter current password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isChangeLoading}
                 />
               </div>
 
@@ -226,7 +225,7 @@ export default function PasswordManagement() {
                     placeholder="Enter new password"
                     value={changeNewPassword}
                     onChange={(e) => setChangeNewPassword(e.target.value)}
-                    disabled={isLoading}
+                    disabled={isChangeLoading}
                     minLength={6}
                   />
                   <button
@@ -246,17 +245,17 @@ export default function PasswordManagement() {
                   placeholder="Confirm new password"
                   value={changeConfirmPassword}
                   onChange={(e) => setChangeConfirmPassword(e.target.value)}
-                  disabled={isLoading}
+                  disabled={isChangeLoading}
                   minLength={6}
                 />
               </div>
 
               <Button
                 type="submit"
-                disabled={isLoading || !currentPassword || !changeNewPassword || !changeConfirmPassword}
+                disabled={isChangeLoading || !currentPassword || !changeNewPassword || !changeConfirmPassword}
                 className="w-full bg-teal-600 hover:bg-teal-700"
               >
-                {isLoading ? (
+                {isChangeLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Changing...

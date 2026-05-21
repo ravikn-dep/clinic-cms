@@ -1,6 +1,6 @@
 import { count, desc, eq, like, lte, inArray, sql, and } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors } from "../drizzle/schema";
+import { InsertUser, InsertUserPermission, users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions, userPermissions, vendors } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from "bcryptjs";
 
@@ -534,14 +534,20 @@ export async function getFeaturePermissions(role: "consultant" | "staff" | "admi
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const perms = await db.select().from(rolePermissions).where(eq(rolePermissions.role, role));
-  
-  const result: Record<string, boolean> = {};
-  for (const perm of perms as any[]) {
-    result[perm.featureKey] = perm.isEnabled;
+  if (role === "admin") {
+    const { FEATURE_KEYS } = await import("@shared/rbac");
+    return Object.fromEntries(FEATURE_KEYS.map((k) => [k, true]));
   }
-  
-  return result;
+
+  const perms = await db.select().from(rolePermissions).where(eq(rolePermissions.role, role));
+
+  const stored: Record<string, boolean> = {};
+  for (const perm of perms as any[]) {
+    stored[perm.featureKey] = perm.isEnabled;
+  }
+
+  const { mergeRolePermissions } = await import("@shared/rbac");
+  return mergeRolePermissions(role, stored);
 }
 
 export async function setFeaturePermission(role: "consultant" | "staff", featureKey: string, isEnabled: boolean): Promise<void> {
@@ -595,18 +601,89 @@ export async function setFeaturePermissions(role: "consultant" | "staff", permis
 
 export async function checkFeatureAccess(role: "admin" | "consultant" | "staff", featureKey: string): Promise<boolean> {
   if (role === "admin") return true;
-  
+
+  const permissions = await getFeaturePermissions(role);
+  return permissions[featureKey] === true;
+}
+
+// ============ USER-SPECIFIC FEATURE PERMISSIONS ============
+
+export async function getRawUserPermissionOverrides(
+  userId: number
+): Promise<Record<string, boolean>> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const perm = await db.select().from(rolePermissions).where(
-    and(
-      eq(rolePermissions.role, role),
-      eq(rolePermissions.featureKey, featureKey)
-    )
-  );
+  const rows = await db
+    .select()
+    .from(userPermissions)
+    .where(eq(userPermissions.userId, userId));
 
-  return perm.length > 0 ? (perm[0] as any).isEnabled : false;
+  const stored: Record<string, boolean> = {};
+  for (const row of rows as { featureKey: string; isEnabled: boolean }[]) {
+    stored[row.featureKey] = row.isEnabled;
+  }
+  return stored;
+}
+
+export async function getEffectivePermissionsForUser(
+  userId: number,
+  role: "consultant" | "staff" | "admin"
+): Promise<Record<string, boolean>> {
+  if (role === "admin") {
+    const { FEATURE_KEYS } = await import("@shared/rbac");
+    return Object.fromEntries(FEATURE_KEYS.map((k) => [k, true]));
+  }
+
+  const { applyUserOverrides } = await import("@shared/rbac");
+  const rolePerms = await getFeaturePermissions(role);
+  const userOverrides = await getRawUserPermissionOverrides(userId);
+  return applyUserOverrides(rolePerms as Parameters<typeof applyUserOverrides>[0], userOverrides);
+}
+
+export async function setUserFeaturePermissions(
+  userId: number,
+  role: "consultant" | "staff",
+  desired: Record<string, boolean>
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const roleBaseline = await getFeaturePermissions(role);
+  const overrides: Record<string, boolean> = {};
+
+  for (const [featureKey, isEnabled] of Object.entries(desired)) {
+    if (roleBaseline[featureKey] !== isEnabled) {
+      overrides[featureKey] = isEnabled;
+    }
+  }
+
+  await db.delete(userPermissions).where(eq(userPermissions.userId, userId));
+
+  for (const [featureKey, isEnabled] of Object.entries(overrides)) {
+    const permissionId = `UPERM-${userId}-${featureKey}-${Date.now()}`;
+    await db.insert(userPermissions).values({
+      permissionId,
+      userId,
+      featureKey,
+      isEnabled,
+    } as InsertUserPermission);
+  }
+}
+
+export async function clearUserFeaturePermissions(userId: number): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.delete(userPermissions).where(eq(userPermissions.userId, userId));
+}
+
+export async function getUserByNumericId(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
 }
 
 export async function initializeDefaultPermissions(): Promise<void> {
@@ -616,10 +693,10 @@ export async function initializeDefaultPermissions(): Promise<void> {
   const existing = await db.select().from(rolePermissions);
   if (existing.length > 0) return;
 
-  const consultantFeatures = ["patient_records", "ambient_scribe", "billing", "notifications"];
-  const staffFeatures = ["patient_records", "pharmacy", "purchase_orders", "notifications"];
+  const { DEFAULT_ROLE_PERMISSIONS } = await import("@shared/rbac");
 
-  for (const feature of consultantFeatures) {
+  for (const [feature, isEnabled] of Object.entries(DEFAULT_ROLE_PERMISSIONS.consultant)) {
+    if (!isEnabled) continue;
     const permissionId = `PERM-${Date.now()}-${Math.random()}`;
     await db.insert(rolePermissions).values({
       permissionId,
@@ -629,7 +706,8 @@ export async function initializeDefaultPermissions(): Promise<void> {
     } as any);
   }
 
-  for (const feature of staffFeatures) {
+  for (const [feature, isEnabled] of Object.entries(DEFAULT_ROLE_PERMISSIONS.staff)) {
+    if (!isEnabled) continue;
     const permissionId = `PERM-${Date.now()}-${Math.random()}`;
     await db.insert(rolePermissions).values({
       permissionId,
@@ -752,6 +830,13 @@ export async function getAppointmentsByConsultant(consultantId: number, date?: s
   }
 
   return await db.select().from(appointments).where(eq(appointments.consultantId, consultantId));
+}
+
+export async function getAllAppointments() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return db.select().from(appointments).orderBy(desc(appointments.appointmentDate));
 }
 
 export async function updateAppointmentStatus(appointmentId: string, status: "Scheduled" | "Completed" | "Cancelled" | "No-show" | "Rescheduled") {

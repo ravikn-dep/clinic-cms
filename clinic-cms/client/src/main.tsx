@@ -5,6 +5,7 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
+import { LOGIN_PATH } from "./const";
 
 import "./index.css";
 
@@ -19,7 +20,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!isUnauthorized) return;
 
   // Redirect to DirectLogin (credential-based login)
-  window.location.href = "/direct-login";
+  window.location.href = LOGIN_PATH;
 };
 
 queryClient.getQueryCache().subscribe(event => {

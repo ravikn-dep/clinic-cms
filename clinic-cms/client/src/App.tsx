@@ -15,8 +15,6 @@ import UserManagement from "./pages/UserManagement";
 import PasswordManagement from "./pages/PasswordManagement";
 import DirectLogin from "./pages/DirectLogin";
 import DailyExport from "./pages/DailyExport";
-import ConsultantDashboard from "./pages/ConsultantDashboard";
-import StaffDashboard from "./pages/StaffDashboard";
 import AuditLogs from "./pages/AuditLogs";
 import Notifications from "./pages/Notifications";
 import FeatureAccessControl from "./pages/FeatureAccessControl";
@@ -40,7 +38,7 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
           <CardHeader>
             <CardTitle>Admin access required</CardTitle>
             <CardDescription>
-              Audit logs contain PHI access metadata and are available only to clinic administrators.
+              This area is only available to clinic administrators.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -59,8 +57,14 @@ function AdminOnly({ children }: { children: React.ReactNode }) {
 function Router() {
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/register-patient"} component={PatientRegistration} />
+      <Route path={"/"}>{() => <ProtectedRoute><Home /></ProtectedRoute>}</Route>
+      <Route path={"/register-patient"}>
+        {() => (
+          <ProtectedRoute feature="patient_records">
+            <PatientRegistration />
+          </ProtectedRoute>
+        )}
+      </Route>
       <Route path={"/patients"}>{() => <ProtectedRoute feature="patient_records"><PatientRecords /></ProtectedRoute>}</Route>
       <Route path={"/scribe"}>{() => <ProtectedRoute feature="ambient_scribe"><AmbientScribe /></ProtectedRoute>}</Route>
       <Route path={"/pharmacy"}>{() => <ProtectedRoute feature="pharmacy"><PharmacyInventory /></ProtectedRoute>}</Route>
@@ -68,8 +72,8 @@ function Router() {
       <Route path={"/bill-templates"}>{() => <AdminOnly><BillTemplateManagement /></AdminOnly>}</Route>
       <Route path={"/purchase-orders"}>{() => <ProtectedRoute feature="purchase_orders"><PurchaseOrders /></ProtectedRoute>}</Route>
       <Route path={"/users"}>{() => <AdminOnly><UserManagement /></AdminOnly>}</Route>
-      <Route path={"/audit-logs"}>{() => <ProtectedRoute feature="audit_trail" adminOnly><AuditLogs /></ProtectedRoute>}</Route>
-      <Route path={"/daily-export"}>{() => <ProtectedRoute feature="daily_export" adminOnly><DailyExport /></ProtectedRoute>}</Route>
+      <Route path={"/audit-logs"}>{() => <ProtectedRoute adminOnly><AuditLogs /></ProtectedRoute>}</Route>
+      <Route path={"/daily-export"}>{() => <ProtectedRoute adminOnly><DailyExport /></ProtectedRoute>}</Route>
       <Route path={"/feature-access"}>{() => <AdminOnly><FeatureAccessControl /></AdminOnly>}</Route>
       <Route path={"/op-form-customization"}>{() => <AdminOnly><OPFormCustomization /></AdminOnly>}</Route>
       <Route path={"/notifications"}>{() => <ProtectedRoute feature="notifications"><Notifications /></ProtectedRoute>}</Route>
@@ -94,15 +98,8 @@ function AuthenticatedApp() {
   }
 
   if (!user) {
-    return <DirectLogin />;
-  }
-
-  if (user?.role === "consultant") {
-    return <ConsultantDashboard />;
-  }
-
-  if (user?.role === "staff") {
-    return <StaffDashboard />;
+    window.location.href = LOGIN_PATH;
+    return null;
   }
 
   return (
@@ -132,7 +129,7 @@ function App() {
     );
   }
 
-  if (location === "/login" || location === "/password-login" || location === "/qr-login") {
+  if (location === "/direct-login" || location === "/password-login" || location === "/qr-login") {
     return <LegacyLoginRedirect />;
   }
 

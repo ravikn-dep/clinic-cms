@@ -271,6 +271,24 @@ export const rolePermissions = mysqlTable("rolePermissions", {
 export type RolePermission = typeof rolePermissions.$inferSelect;
 export type InsertRolePermission = typeof rolePermissions.$inferInsert;
 
+/** Per-user feature overrides (admin-assigned; layered on role permissions). */
+export const userPermissions = mysqlTable(
+  "userPermissions",
+  {
+    permissionId: varchar("permissionId", { length: 50 }).primaryKey(),
+    userId: int("userId").notNull(),
+    featureKey: varchar("featureKey", { length: 100 }).notNull(),
+    isEnabled: boolean("isEnabled").default(true),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  (table) => ({
+    userFeatureIdx: index("idx_user_feature").on(table.userId, table.featureKey),
+  })
+);
+
+export type UserPermission = typeof userPermissions.$inferSelect;
+export type InsertUserPermission = typeof userPermissions.$inferInsert;
 
 // Bill Templates - Pre-defined billing scenarios
 export const billTemplates = mysqlTable("billTemplates", {

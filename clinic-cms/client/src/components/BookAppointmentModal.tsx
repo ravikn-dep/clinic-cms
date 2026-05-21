@@ -28,11 +28,10 @@ export function BookAppointmentModal({ patientId, open, onOpenChange }: BookAppo
     }
 
     try {
-      const appointmentDateTime = `${appointmentDate}T${appointmentTime}:00`;
       await bookAppointmentMutation.mutateAsync({
         patientId: patientId,
         consultantId: parseInt(consultantId),
-        appointmentDate: appointmentDateTime,
+        appointmentDate: appointmentDate,
         appointmentTime: appointmentTime,
         notes: "Booked from patient registration",
       });

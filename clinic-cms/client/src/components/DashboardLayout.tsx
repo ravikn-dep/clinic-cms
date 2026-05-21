@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { FEATURE_TO_ROUTES } from "@/lib/featureAccess";
-import { Activity, Bell, BarChart3, Calendar, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings } from "lucide-react";
+import { getRoleLabel } from "@/lib/featureAccess";
+import { Activity, Bell, BarChart3, Calendar, ClipboardPenLine, KeyRound, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -30,7 +30,7 @@ import { Button } from "./ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: UserPlus, label: "Register Patient", path: "/register-patient" },
+  { icon: UserPlus, label: "Register Patient", path: "/register-patient", feature: "patient_records" as const },
   { icon: Users, label: "Patient Records", path: "/patients", feature: "patient_records" as const },
   { icon: ClipboardPenLine, label: "Ambient Scribe", path: "/scribe", feature: "ambient_scribe" as const },
   { icon: PackageSearch, label: "Pharmacy", path: "/pharmacy", feature: "pharmacy" as const },
@@ -38,6 +38,7 @@ const menuItems = [
   { icon: ShoppingCart, label: "Purchase Orders", path: "/purchase-orders", feature: "purchase_orders" as const },
   { icon: Calendar, label: "Appointments", path: "/appointments", feature: "appointments" as const },
   { icon: Bell, label: "Notifications", path: "/notifications", feature: "notifications" as const },
+  { icon: KeyRound, label: "Password", path: "/password-management" },
   { icon: Users, label: "User Management", path: "/users", adminOnly: true },
   { icon: Settings, label: "Feature Access Control", path: "/feature-access", adminOnly: true },
   { icon: Settings, label: "OP Form Customization", path: "/op-form-customization", adminOnly: true },
@@ -96,12 +97,9 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const visibleMenuItems = menuItems.filter(item => {
-    // Always show dashboard and register patient
-    if (item.path === "/" || item.path === "/register-patient") return true;
-    // Show admin items only for admins
+  const visibleMenuItems = menuItems.filter((item) => {
+    if (item.path === "/") return true;
     if (item.adminOnly) return user?.role === "admin";
-    // Show feature-gated items if user has access
     if (item.feature) return hasAccess(item.feature);
     return true;
   });
@@ -167,7 +165,7 @@ function DashboardLayoutContent({
               {!isCollapsed && (
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate">{user?.name}</p>
-                  <p className="text-xs text-muted-foreground truncate capitalize">{user?.role}</p>
+                  <p className="text-xs text-muted-foreground truncate">{getRoleLabel(user?.role)}</p>
                 </div>
               )}
             </div>

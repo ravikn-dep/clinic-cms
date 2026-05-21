@@ -198,7 +198,14 @@ export default function PatientRecords() {
             <CardDescription>{filteredPatients.length} patient(s) found</CardDescription>
           </CardHeader>
           <CardContent>
-            {patientsQuery.isLoading ? (
+            {patientsQuery.isError ? (
+              <div className="text-center py-12">
+                <p className="text-destructive">Failed to load patients.</p>
+                <Button variant="outline" className="mt-4" onClick={() => patientsQuery.refetch()}>
+                  Retry
+                </Button>
+              </div>
+            ) : patientsQuery.isLoading ? (
               <div className="flex items-center justify-center py-12 text-muted-foreground">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading patient records...
               </div>

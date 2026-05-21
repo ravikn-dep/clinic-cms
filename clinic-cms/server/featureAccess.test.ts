@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { mergeRolePermissions } from "@shared/rbac";
 import * as db from "./db";
 
 describe("Feature Access Control", () => {
@@ -11,10 +12,12 @@ describe("Feature Access Control", () => {
     it("should return default permissions for unset permissions", async () => {
       const perms = await db.getFeaturePermissions("consultant");
       expect(perms).toBeDefined();
-      expect(perms?.patient_records).toBe(true);
+      expect(perms.patient_records).toBe(true);
+      expect(perms.appointments).toBe(true);
+      expect(perms.billing).toBe(false);
     });
 
-    it("should return stored permissions for consultant", async () => {
+    it("should merge stored permissions for consultant", async () => {
       const testPerms = {
         patient_records: true,
         ambient_scribe: true,
@@ -22,10 +25,10 @@ describe("Feature Access Control", () => {
       };
       await db.setFeaturePermissions("consultant", testPerms);
       const perms = await db.getFeaturePermissions("consultant");
-      expect(perms).toEqual(testPerms);
+      expect(perms).toEqual(mergeRolePermissions("consultant", testPerms));
     });
 
-    it("should return stored permissions for staff", async () => {
+    it("should merge stored permissions for staff", async () => {
       const testPerms = {
         patient_records: true,
         pharmacy: true,
@@ -33,7 +36,7 @@ describe("Feature Access Control", () => {
       };
       await db.setFeaturePermissions("staff", testPerms);
       const perms = await db.getFeaturePermissions("staff");
-      expect(perms).toEqual(testPerms);
+      expect(perms).toEqual(mergeRolePermissions("staff", testPerms));
     });
   });
 
@@ -45,7 +48,7 @@ describe("Feature Access Control", () => {
       };
       await db.setFeaturePermissions("consultant", testPerms);
       const perms = await db.getFeaturePermissions("consultant");
-      expect(perms).toEqual(testPerms);
+      expect(perms).toEqual(mergeRolePermissions("consultant", testPerms));
     });
 
     it("should store permissions for staff", async () => {
@@ -55,18 +58,18 @@ describe("Feature Access Control", () => {
       };
       await db.setFeaturePermissions("staff", testPerms);
       const perms = await db.getFeaturePermissions("staff");
-      expect(perms).toEqual(testPerms);
+      expect(perms).toEqual(mergeRolePermissions("staff", testPerms));
     });
 
     it("should overwrite existing permissions", async () => {
       const oldPerms = { patient_records: true };
       const newPerms = { patient_records: false, pharmacy: true };
-      
+
       await db.setFeaturePermissions("consultant", oldPerms);
       await db.setFeaturePermissions("consultant", newPerms);
-      
+
       const perms = await db.getFeaturePermissions("consultant");
-      expect(perms).toEqual(newPerms);
+      expect(perms).toEqual(mergeRolePermissions("consultant", newPerms));
     });
   });
 
@@ -79,7 +82,7 @@ describe("Feature Access Control", () => {
     it("should return true for enabled features", async () => {
       const testPerms = { patient_records: true };
       await db.setFeaturePermissions("consultant", testPerms);
-      
+
       const access = await db.checkFeatureAccess("consultant", "patient_records");
       expect(access).toBe(true);
     });
@@ -87,15 +90,15 @@ describe("Feature Access Control", () => {
     it("should return false for disabled features", async () => {
       const testPerms = { patient_records: false };
       await db.setFeaturePermissions("consultant", testPerms);
-      
+
       const access = await db.checkFeatureAccess("consultant", "patient_records");
       expect(access).toBe(false);
     });
 
-    it("should return false for unset features", async () => {
+    it("should return false for features disabled by defaults", async () => {
       const testPerms = { patient_records: true };
       await db.setFeaturePermissions("consultant", testPerms);
-      
+
       const access = await db.checkFeatureAccess("consultant", "billing");
       expect(access).toBe(false);
     });
@@ -103,7 +106,7 @@ describe("Feature Access Control", () => {
     it("should handle staff role correctly", async () => {
       const staffPerms = { pharmacy: true, billing: false };
       await db.setFeaturePermissions("staff", staffPerms);
-      
+
       expect(await db.checkFeatureAccess("staff", "pharmacy")).toBe(true);
       expect(await db.checkFeatureAccess("staff", "billing")).toBe(false);
     });

@@ -38,6 +38,7 @@ describe("Feature Access Constants", () => {
 
   it("should map features to routes correctly", () => {
     expect(FEATURE_TO_ROUTES.patient_records).toContain("/patients");
+    expect(FEATURE_TO_ROUTES.patient_records).toContain("/register-patient");
     expect(FEATURE_TO_ROUTES.ambient_scribe).toContain("/scribe");
     expect(FEATURE_TO_ROUTES.pharmacy).toContain("/pharmacy");
     expect(FEATURE_TO_ROUTES.billing).toContain("/billing");
@@ -60,8 +61,11 @@ describe("Feature Access Constants", () => {
 
   it("should return null for unmapped routes", () => {
     expect(getFeatureForRoute("/")).toBeNull();
-    expect(getFeatureForRoute("/register-patient")).toBeNull();
     expect(getFeatureForRoute("/unknown-route")).toBeNull();
+  });
+
+  it("should map register-patient to patient_records", () => {
+    expect(getFeatureForRoute("/register-patient")).toBe("patient_records");
   });
 
   it("should get all protected routes", () => {

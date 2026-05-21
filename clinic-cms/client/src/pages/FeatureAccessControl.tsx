@@ -1,98 +1,181 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, AlertCircle } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2, AlertCircle, UserCog, Users } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-
-const FEATURES = [
-  { key: "patient_records", label: "Patient Records", description: "View and manage patient information" },
-  { key: "ambient_scribe", label: "Ambient Scribe", description: "Record and transcribe consultations" },
-  { key: "pharmacy", label: "Pharmacy", description: "Manage inventory and stock" },
-  { key: "billing", label: "Billing", description: "Create and manage bills" },
-  { key: "purchase_orders", label: "Purchase Orders", description: "Create and manage purchase orders" },
-  { key: "appointments", label: "Appointments", description: "Schedule and manage appointments" },
-  { key: "notifications", label: "Notifications", description: "View notifications" },
-  { key: "audit_trail", label: "Audit Trail", description: "View system audit logs" },
-  { key: "daily_export", label: "Daily Export", description: "Export daily reports" },
-  { key: "user_management", label: "User Management", description: "Manage staff and consultants" },
-];
+import { FEATURES, getRoleLabel } from "@/lib/featureAccess";
+import { Badge } from "@/components/ui/badge";
 
 export default function FeatureAccessControl() {
+  const [mode, setMode] = useState<"role" | "user">("role");
   const [activeRole, setActiveRole] = useState<"consultant" | "staff">("consultant");
   const [consultantPerms, setConsultantPerms] = useState<Record<string, boolean>>({});
   const [staffPerms, setStaffPerms] = useState<Record<string, boolean>>({});
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [userPerms, setUserPerms] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch permissions for consultant
-  const { data: consultantData, isLoading: consultantLoading } = trpc.featureAccess.getPermissions.useQuery(
-    { role: "consultant" },
+  const {
+    data: consultantData,
+    isLoading: consultantLoading,
+    isError: consultantError,
+  } = trpc.featureAccess.getPermissions.useQuery({ role: "consultant" });
+
+  const {
+    data: staffData,
+    isLoading: staffLoading,
+    isError: staffError,
+  } = trpc.featureAccess.getPermissions.useQuery({ role: "staff" });
+
+  const { data: assignableUsers, isLoading: usersLoading } =
+    trpc.featureAccess.listAssignableUsers.useQuery();
+
+  const selectedUserNumericId = selectedUserId ? Number(selectedUserId) : null;
+
+  const {
+    data: userPermissionData,
+    isLoading: userPermsLoading,
+    refetch: refetchUserPerms,
+  } = trpc.featureAccess.getUserPermissions.useQuery(
+    { userId: selectedUserNumericId! },
+    { enabled: selectedUserNumericId !== null && !Number.isNaN(selectedUserNumericId) }
   );
 
-  // Fetch permissions for staff
-  const { data: staffData, isLoading: staffLoading } = trpc.featureAccess.getPermissions.useQuery(
-    { role: "staff" },
-  );
-
-  // Initialize permissions on first load only
   useEffect(() => {
-    if (consultantData && staffData && !consultantLoading && !staffLoading && isLoading) {
-      setConsultantPerms(consultantData);
-      setStaffPerms(staffData);
+    if (!consultantLoading && !staffLoading) {
+      if (consultantData) setConsultantPerms(consultantData);
+      if (staffData) setStaffPerms(staffData);
       setIsLoading(false);
     }
-  }, [consultantData, staffData, consultantLoading, staffLoading, isLoading]);
+  }, [consultantData, staffData, consultantLoading, staffLoading]);
 
-  // Get current permissions based on active role
-  const currentPerms = activeRole === "consultant" ? consultantPerms : staffPerms;
-  const setCurrentPerms = activeRole === "consultant" ? setConsultantPerms : setStaffPerms;
+  useEffect(() => {
+    if (userPermissionData?.effective) {
+      setUserPerms(userPermissionData.effective);
+    }
+  }, [userPermissionData]);
 
-  // Handle checkbox change using native input
-  const handleToggle = (featureKey: string) => {
-    setCurrentPerms((prev) => ({
+  const currentRolePerms = activeRole === "consultant" ? consultantPerms : staffPerms;
+  const setCurrentRolePerms =
+    activeRole === "consultant" ? setConsultantPerms : setStaffPerms;
+
+  const handleRoleToggle = (featureKey: string) => {
+    setCurrentRolePerms((prev) => ({
       ...prev,
       [featureKey]: !prev[featureKey],
     }));
   };
 
-  // Update permissions mutation
-  const updateMutation = trpc.featureAccess.updatePermissions.useMutation({
+  const handleUserToggle = (featureKey: string) => {
+    setUserPerms((prev) => ({
+      ...prev,
+      [featureKey]: !prev[featureKey],
+    }));
+  };
+
+  const updateRoleMutation = trpc.featureAccess.updatePermissions.useMutation({
     onSuccess: () => {
-      toast.success("Permissions saved successfully!");
+      toast.success("Role permissions saved");
       setIsSaving(false);
       setError(null);
     },
-    onError: (error: any) => {
-      const errorMsg = error?.message || "Failed to update permissions";
-      console.error("Failed to update permissions:", error);
+    onError: (err: { message?: string }) => {
+      const errorMsg = err?.message || "Failed to update permissions";
       toast.error(errorMsg);
       setError(errorMsg);
       setIsSaving(false);
     },
   });
 
-  // Save permissions
-  const handleSave = async () => {
-    try {
-      setError(null);
-      setIsSaving(true);
-      const permsToSave = activeRole === "consultant" ? consultantPerms : staffPerms;
-      await updateMutation.mutateAsync({
-        role: activeRole,
-        permissions: permsToSave,
-      });
-    } catch (error) {
-      console.error("Error saving permissions:", error);
+  const updateUserMutation = trpc.featureAccess.updateUserPermissions.useMutation({
+    onSuccess: async () => {
+      toast.success("User permissions saved");
       setIsSaving(false);
-    }
+      setError(null);
+      await refetchUserPerms();
+    },
+    onError: (err: { message?: string }) => {
+      const errorMsg = err?.message || "Failed to update user permissions";
+      toast.error(errorMsg);
+      setError(errorMsg);
+      setIsSaving(false);
+    },
+  });
+
+  const clearUserMutation = trpc.featureAccess.clearUserPermissions.useMutation({
+    onSuccess: async () => {
+      toast.success("User now inherits role permissions");
+      setIsSaving(false);
+      setError(null);
+      await refetchUserPerms();
+    },
+    onError: (err: { message?: string }) => {
+      toast.error(err?.message || "Failed to clear user overrides");
+      setIsSaving(false);
+    },
+  });
+
+  const utils = trpc.useUtils();
+
+  const applyTemplateMutation = trpc.featureAccess.applyTemplate.useMutation({
+    onSuccess: async (_, variables) => {
+      toast.success("Template applied");
+      setIsSaving(false);
+      setError(null);
+      await utils.featureAccess.getPermissions.invalidate({ role: variables.role });
+      const updated = await utils.featureAccess.getPermissions.fetch({ role: variables.role });
+      if (variables.role === "consultant") {
+        setConsultantPerms(updated);
+      } else {
+        setStaffPerms(updated);
+      }
+    },
+    onError: (err: { message?: string }) => {
+      toast.error(err?.message || "Failed to apply template");
+      setIsSaving(false);
+    },
+  });
+
+  const handleSaveRole = async () => {
+    setError(null);
+    setIsSaving(true);
+    const permsToSave = activeRole === "consultant" ? consultantPerms : staffPerms;
+    await updateRoleMutation.mutateAsync({
+      role: activeRole,
+      permissions: permsToSave,
+    });
   };
 
-  // Reset to defaults
-  const handleReset = () => {
+  const handleSaveUser = async () => {
+    if (!selectedUserNumericId) return;
+    setError(null);
+    setIsSaving(true);
+    await updateUserMutation.mutateAsync({
+      userId: selectedUserNumericId,
+      permissions: userPerms,
+    });
+  };
+
+  const handleClearUserOverrides = async () => {
+    if (!selectedUserNumericId) return;
+    setError(null);
+    setIsSaving(true);
+    await clearUserMutation.mutateAsync({ userId: selectedUserNumericId });
+  };
+
+  const handleResetRole = () => {
     if (activeRole === "consultant" && consultantData) {
       setConsultantPerms(consultantData);
     } else if (activeRole === "staff" && staffData) {
@@ -101,51 +184,81 @@ export default function FeatureAccessControl() {
     setError(null);
   };
 
-  // Apply template mutation
-  const applyTemplateMutation = trpc.featureAccess.applyTemplate.useMutation({
-    onSuccess: () => {
-      toast.success("Template applied successfully!");
-      setIsSaving(false);
-      setError(null);
-    },
-    onError: (error: any) => {
-      const errorMsg = error?.message || "Failed to apply template";
-      console.error("Failed to apply template:", error);
-      toast.error(errorMsg);
-      setError(errorMsg);
-      setIsSaving(false);
-    },
-  });
-
-  // Apply a permission template
-  const handleApplyTemplate = async (template: "consultant" | "staff") => {
-    try {
-      setError(null);
-      setIsSaving(true);
-      await applyTemplateMutation.mutateAsync({
-        role: activeRole,
-        template,
-      });
-    } catch (error) {
-      console.error("Error applying template:", error);
-      setIsSaving(false);
+  const handleResetUser = () => {
+    if (userPermissionData?.effective) {
+      setUserPerms(userPermissionData.effective);
     }
+    setError(null);
   };
+
+  const handleApplyTemplate = async (template: "consultant" | "staff") => {
+    setError(null);
+    setIsSaving(true);
+    await applyTemplateMutation.mutateAsync({ role: activeRole, template });
+  };
+
+  const renderFeatureList = (
+    perms: Record<string, boolean>,
+    onToggle: (key: string) => void,
+    idPrefix: string
+  ) => (
+    <div className="grid gap-4">
+      {FEATURES.map((feature) => (
+        <div
+          key={feature.key}
+          className="flex items-start space-x-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50"
+        >
+          <input
+            type="checkbox"
+            id={`${idPrefix}-${feature.key}`}
+            checked={perms[feature.key] ?? false}
+            onChange={() => onToggle(feature.key)}
+            disabled={isSaving}
+            className="mt-1 h-4 w-4 cursor-pointer"
+          />
+          <div className="flex-1">
+            <label
+              htmlFor={`${idPrefix}-${feature.key}`}
+              className="cursor-pointer text-sm font-medium text-slate-900"
+            >
+              {feature.label}
+            </label>
+            <p className="text-sm text-slate-600">{feature.description}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-teal-600" />
       </div>
     );
   }
 
+  if (consultantError || staffError) {
+    return (
+      <div className="space-y-6 p-6">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Could not load feature permissions. Ensure you are signed in as an administrator and the database is available.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  const selectedUser = assignableUsers?.find((u) => String(u.id) === selectedUserId);
+
   return (
     <div className="space-y-6 p-6">
       <div>
         <h1 className="text-3xl font-bold text-slate-900">Feature Access Control</h1>
-        <p className="text-slate-600 mt-2">
-          Configure which dashboard features are accessible to consultants and staff
+        <p className="mt-2 text-slate-600">
+          Assign dashboard features by role (Doctor / Staff) or override access for individual users.
         </p>
       </div>
 
@@ -156,137 +269,169 @@ export default function FeatureAccessControl() {
         </Alert>
       )}
 
-      <Card className="bg-blue-50 border-blue-200">
-        <CardHeader>
-          <CardTitle className="text-blue-900">Permission Templates</CardTitle>
-          <CardDescription className="text-blue-800">
-            Quickly apply pre-configured permission templates to roles
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex gap-3">
-          <Button
-            onClick={() => handleApplyTemplate("consultant")}
-            variant="outline"
-            disabled={isSaving}
-            className="border-blue-300 text-blue-700 hover:bg-blue-100"
-          >
-            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Apply Consultant Template
-          </Button>
-          <Button
-            onClick={() => handleApplyTemplate("staff")}
-            variant="outline"
-            disabled={isSaving}
-            className="border-blue-300 text-blue-700 hover:bg-blue-100"
-          >
-            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Apply Staff Template
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Tabs value={activeRole} onValueChange={(value) => setActiveRole(value as "consultant" | "staff")}>
-        <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="consultant">Consultant Access</TabsTrigger>
-          <TabsTrigger value="staff">Staff Access</TabsTrigger>
+      <Tabs value={mode} onValueChange={(v) => setMode(v as "role" | "user")}>
+        <TabsList className="grid w-full max-w-lg grid-cols-2">
+          <TabsTrigger value="role" className="gap-2">
+            <Users className="h-4 w-4" />
+            By role
+          </TabsTrigger>
+          <TabsTrigger value="user" className="gap-2">
+            <UserCog className="h-4 w-4" />
+            By user
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="consultant" className="space-y-4">
-          <Card>
+        <TabsContent value="role" className="space-y-4">
+          <Card className="border-blue-200 bg-blue-50">
             <CardHeader>
-              <CardTitle>Consultant Feature Permissions</CardTitle>
-              <CardDescription>
-                Select which features consultants can access in the dashboard
+              <CardTitle className="text-blue-900">Role templates</CardTitle>
+              <CardDescription className="text-blue-800">
+                Defaults for all doctors or all staff. Individual users inherit these unless customized.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4">
-                {FEATURES.map((feature) => (
-                  <div key={feature.key} className="flex items-start space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">
-                    <input
-                      type="checkbox"
-                      id={`consultant-${feature.key}`}
-                      checked={consultantPerms[feature.key] ?? false}
-                      onChange={() => handleToggle(feature.key)}
-                      disabled={isSaving}
-                      className="mt-1 w-4 h-4 cursor-pointer"
-                    />
-                    <div className="flex-1">
-                      <label
-                        htmlFor={`consultant-${feature.key}`}
-                        className="text-sm font-medium text-slate-900 cursor-pointer"
-                      >
-                        {feature.label}
-                      </label>
-                      <p className="text-sm text-slate-600">{feature.description}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <CardContent className="flex flex-wrap gap-3">
+              <Button
+                onClick={() => handleApplyTemplate("consultant")}
+                variant="outline"
+                disabled={isSaving}
+                className="border-blue-300 text-blue-700 hover:bg-blue-100"
+              >
+                Apply doctor template
+              </Button>
+              <Button
+                onClick={() => handleApplyTemplate("staff")}
+                variant="outline"
+                disabled={isSaving}
+                className="border-blue-300 text-blue-700 hover:bg-blue-100"
+              >
+                Apply staff template
+              </Button>
             </CardContent>
           </Card>
+
+          <Tabs
+            value={activeRole}
+            onValueChange={(value) => setActiveRole(value as "consultant" | "staff")}
+          >
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="consultant">Doctor (consultant)</TabsTrigger>
+              <TabsTrigger value="staff">Staff</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="consultant">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Doctor role permissions</CardTitle>
+                  <CardDescription>Applies to every user with the doctor role unless overridden per user.</CardDescription>
+                </CardHeader>
+                <CardContent>{renderFeatureList(consultantPerms, handleRoleToggle, "consultant")}</CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="staff">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Staff role permissions</CardTitle>
+                  <CardDescription>Applies to every user with the staff role unless overridden per user.</CardDescription>
+                </CardHeader>
+                <CardContent>{renderFeatureList(staffPerms, handleRoleToggle, "staff")}</CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          <div className="flex gap-3">
+            <Button onClick={handleSaveRole} disabled={isSaving} className="bg-teal-600 hover:bg-teal-700">
+              {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Save role changes
+            </Button>
+            <Button onClick={handleResetRole} variant="outline" disabled={isSaving}>
+              Reset
+            </Button>
+          </div>
         </TabsContent>
 
-        <TabsContent value="staff" className="space-y-4">
+        <TabsContent value="user" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Staff Feature Permissions</CardTitle>
+              <CardTitle>Assign features to a user</CardTitle>
               <CardDescription>
-                Select which features staff members can access in the dashboard
+                Pick a doctor or staff member and enable or disable features for them. Overrides apply on top of their role defaults.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-4">
-                {FEATURES.map((feature) => (
-                  <div key={feature.key} className="flex items-start space-x-3 p-3 rounded-lg border border-slate-200 hover:bg-slate-50">
-                    <input
-                      type="checkbox"
-                      id={`staff-${feature.key}`}
-                      checked={staffPerms[feature.key] ?? false}
-                      onChange={() => handleToggle(feature.key)}
-                      disabled={isSaving}
-                      className="mt-1 w-4 h-4 cursor-pointer"
-                    />
-                    <div className="flex-1">
-                      <label
-                        htmlFor={`staff-${feature.key}`}
-                        className="text-sm font-medium text-slate-900 cursor-pointer"
-                      >
-                        {feature.label}
-                      </label>
-                      <p className="text-sm text-slate-600">{feature.description}</p>
-                    </div>
-                  </div>
-                ))}
+              <div className="max-w-md space-y-2">
+                <label className="text-sm font-medium text-slate-700">User</label>
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={usersLoading ? "Loading users..." : "Select a user"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(assignableUsers ?? []).map((u) => (
+                      <SelectItem key={u.id} value={String(u.id)}>
+                        {u.name ?? u.userId} — {getRoleLabel(u.role)}
+                        {u.userId ? ` (${u.userId})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
+              {selectedUser && userPermissionData && (
+                <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                  <span>
+                    Role baseline: <strong>{getRoleLabel(selectedUser.role)}</strong>
+                  </span>
+                  {userPermissionData.hasCustomOverrides ? (
+                    <Badge variant="secondary">Custom overrides active</Badge>
+                  ) : (
+                    <Badge variant="outline">Using role defaults only</Badge>
+                  )}
+                </div>
+              )}
+
+              {!selectedUserId && (
+                <p className="text-sm text-muted-foreground">Select a user to configure their feature access.</p>
+              )}
+
+              {selectedUserId && userPermsLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading permissions...
+                </div>
+              )}
+
+              {selectedUserId && !userPermsLoading && userPermissionData && (
+                <>
+                  {renderFeatureList(userPerms, handleUserToggle, `user-${selectedUserId}`)}
+                  <div className="flex flex-wrap gap-3 pt-2">
+                    <Button
+                      onClick={handleSaveUser}
+                      disabled={isSaving}
+                      className="bg-teal-600 hover:bg-teal-700"
+                    >
+                      {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                      Save user access
+                    </Button>
+                    <Button onClick={handleResetUser} variant="outline" disabled={isSaving}>
+                      Reset
+                    </Button>
+                    {userPermissionData.hasCustomOverrides && (
+                      <Button
+                        onClick={handleClearUserOverrides}
+                        variant="outline"
+                        disabled={isSaving}
+                        className="text-amber-700 border-amber-300 hover:bg-amber-50"
+                      >
+                        Clear overrides (use role only)
+                      </Button>
+                    )}
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
-
-      <div className="flex gap-3">
-        <Button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="bg-teal-600 hover:bg-teal-700"
-        >
-          {isSaving ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            "Save Changes"
-          )}
-        </Button>
-        <Button
-          onClick={handleReset}
-          variant="outline"
-          disabled={isSaving}
-        >
-          Reset
-        </Button>
-      </div>
     </div>
   );
 }
