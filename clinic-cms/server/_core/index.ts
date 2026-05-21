@@ -48,6 +48,11 @@ async function startServer() {
   
   registerStorageProxy(app);
 
+  // Legacy Manus OAuth paths — credential login only (/login).
+  app.use("/api/oauth", (_req, res) => {
+    res.redirect(302, "/login");
+  });
+
   app.get("/api/health", (_req, res) => {
     res.json({
       ok: true,

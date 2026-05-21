@@ -1,5 +1,4 @@
-import { Route, Switch, Link } from "wouter";
-import { useEffect } from "react";
+import { Route, Switch, Link, Redirect, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
@@ -27,7 +26,7 @@ import { Button } from "./components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ServerConnectionHelp } from "./components/ServerConnectionHelp";
-import { LOGIN_PATH } from "./const";
+import { getLoginUrl, isLoginPath, LEGACY_LOGIN_PATHS, LOGIN_PATH, normalizePathname } from "./const";
 import { TRPCClientError } from "@trpc/client";
 
 function AdminOnly({ children }: { children: React.ReactNode }) {
@@ -129,8 +128,12 @@ function AuthenticatedApp() {
   }
 
   if (!user) {
-    if (typeof window !== "undefined" && window.location.pathname !== LOGIN_PATH) {
-      window.location.replace(LOGIN_PATH);
+    const loginUrl = getLoginUrl();
+    if (
+      typeof window !== "undefined" &&
+      !isLoginPath(window.location.pathname)
+    ) {
+      window.location.replace(loginUrl);
     }
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -146,17 +149,11 @@ function AuthenticatedApp() {
   );
 }
 
-function LegacyLoginRedirect() {
-  useEffect(() => {
-    window.location.replace(LOGIN_PATH);
-  }, []);
-  return null;
-}
-
 function App() {
-  const location = typeof window !== "undefined" ? window.location.pathname : "";
+  const [location] = useLocation();
+  const pathname = normalizePathname(location);
 
-  if (location === LOGIN_PATH) {
+  if (isLoginPath(pathname)) {
     return (
       <ErrorBoundary>
         <ThemeProvider defaultTheme="light">
@@ -166,8 +163,8 @@ function App() {
     );
   }
 
-  if (location === "/direct-login" || location === "/password-login" || location === "/qr-login") {
-    return <LegacyLoginRedirect />;
+  if ((LEGACY_LOGIN_PATHS as readonly string[]).includes(pathname)) {
+    return <Redirect to={LOGIN_PATH} />;
   }
 
   return (

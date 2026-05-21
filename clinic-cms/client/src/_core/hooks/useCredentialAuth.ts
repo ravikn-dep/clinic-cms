@@ -1,4 +1,4 @@
-import { LOGIN_PATH } from "@/const";
+import { getLoginUrl } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { useCallback, useMemo } from "react";
 
@@ -30,7 +30,7 @@ export function useCredentialAuth() {
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
       if (typeof window !== "undefined") {
-        window.location.href = LOGIN_PATH;
+        window.location.href = getLoginUrl();
       }
     }
   }, [logoutMutation, utils]);

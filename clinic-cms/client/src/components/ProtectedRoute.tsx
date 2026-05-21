@@ -6,7 +6,7 @@ import { FeatureKey, getFeatureLabel, getRoleLabel } from "@/lib/featureAccess";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
-import { LOGIN_PATH } from "@/const";
+import { getLoginUrl, isLoginPath } from "@/const";
 
 export interface ProtectedRouteProps {
   children: ReactNode;
@@ -37,7 +37,9 @@ export function ProtectedRoute({
   }
 
   if (!user) {
-    window.location.href = LOGIN_PATH;
+    if (typeof window !== "undefined" && !isLoginPath(window.location.pathname)) {
+      window.location.href = getLoginUrl();
+    }
     return null;
   }
 
