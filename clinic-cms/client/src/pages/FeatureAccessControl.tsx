@@ -13,7 +13,7 @@ import {
 import { Loader2, AlertCircle, UserCog, Users } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { FEATURES, getRoleLabel } from "@/lib/featureAccess";
+import { FEATURES, getRoleLabel, normalizePermissionRecord, toPermissionBoolean } from "@/lib/featureAccess";
 import { Badge } from "@/components/ui/badge";
 
 export default function FeatureAccessControl() {
@@ -55,15 +55,15 @@ export default function FeatureAccessControl() {
 
   useEffect(() => {
     if (!consultantLoading && !staffLoading) {
-      if (consultantData) setConsultantPerms(consultantData);
-      if (staffData) setStaffPerms(staffData);
+      if (consultantData) setConsultantPerms(normalizePermissionRecord(consultantData));
+      if (staffData) setStaffPerms(normalizePermissionRecord(staffData));
       setIsLoading(false);
     }
   }, [consultantData, staffData, consultantLoading, staffLoading]);
 
   useEffect(() => {
     if (userPermissionData?.effective) {
-      setUserPerms(userPermissionData.effective);
+      setUserPerms(normalizePermissionRecord(userPermissionData.effective));
     }
   }, [userPermissionData]);
 
@@ -74,14 +74,14 @@ export default function FeatureAccessControl() {
   const handleRoleToggle = (featureKey: string) => {
     setCurrentRolePerms((prev) => ({
       ...prev,
-      [featureKey]: !prev[featureKey],
+      [featureKey]: !toPermissionBoolean(prev[featureKey]),
     }));
   };
 
   const handleUserToggle = (featureKey: string) => {
     setUserPerms((prev) => ({
       ...prev,
-      [featureKey]: !prev[featureKey],
+      [featureKey]: !toPermissionBoolean(prev[featureKey]),
     }));
   };
 
@@ -137,9 +137,9 @@ export default function FeatureAccessControl() {
       await utils.featureAccess.getPermissions.invalidate({ role: variables.role });
       const updated = await utils.featureAccess.getPermissions.fetch({ role: variables.role });
       if (variables.role === "consultant") {
-        setConsultantPerms(updated);
+        setConsultantPerms(normalizePermissionRecord(updated));
       } else {
-        setStaffPerms(updated);
+        setStaffPerms(normalizePermissionRecord(updated));
       }
     },
     onError: (err: { message?: string }) => {
@@ -151,7 +151,9 @@ export default function FeatureAccessControl() {
   const handleSaveRole = async () => {
     setError(null);
     setIsSaving(true);
-    const permsToSave = activeRole === "consultant" ? consultantPerms : staffPerms;
+    const permsToSave = normalizePermissionRecord(
+      activeRole === "consultant" ? consultantPerms : staffPerms
+    );
     await updateRoleMutation.mutateAsync({
       role: activeRole,
       permissions: permsToSave,
@@ -164,7 +166,7 @@ export default function FeatureAccessControl() {
     setIsSaving(true);
     await updateUserMutation.mutateAsync({
       userId: selectedUserNumericId,
-      permissions: userPerms,
+      permissions: normalizePermissionRecord(userPerms),
     });
   };
 
@@ -177,16 +179,16 @@ export default function FeatureAccessControl() {
 
   const handleResetRole = () => {
     if (activeRole === "consultant" && consultantData) {
-      setConsultantPerms(consultantData);
+      setConsultantPerms(normalizePermissionRecord(consultantData));
     } else if (activeRole === "staff" && staffData) {
-      setStaffPerms(staffData);
+      setStaffPerms(normalizePermissionRecord(staffData));
     }
     setError(null);
   };
 
   const handleResetUser = () => {
     if (userPermissionData?.effective) {
-      setUserPerms(userPermissionData.effective);
+      setUserPerms(normalizePermissionRecord(userPermissionData.effective));
     }
     setError(null);
   };
@@ -211,7 +213,7 @@ export default function FeatureAccessControl() {
           <input
             type="checkbox"
             id={`${idPrefix}-${feature.key}`}
-            checked={perms[feature.key] ?? false}
+            checked={toPermissionBoolean(perms[feature.key])}
             onChange={() => onToggle(feature.key)}
             disabled={isSaving}
             className="mt-1 h-4 w-4 cursor-pointer"

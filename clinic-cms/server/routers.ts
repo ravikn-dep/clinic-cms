@@ -16,7 +16,7 @@ import { csvResponse, makeCsvFilename, toCsv } from "./csvExport";
 import { notifyOwner } from "./_core/notification";
 import { resolveArtifactStorageKey } from "./artifactAccess";
 import { hashPassword, verifyPassword, generateRandomPassword } from "./_core/auth";
-import { getDefaultPermissions } from "@shared/rbac";
+import { getDefaultPermissions, normalizePermissionRecord } from "@shared/rbac";
 import {
   canManageAppointment,
   canViewAppointment,
@@ -1802,19 +1802,29 @@ export const appRouter = router({
     getPermissions: adminProcedure
       .input(z.object({ role: z.enum(["consultant", "staff"]) }))
       .query(async ({ input }) => {
-        // Get stored permissions or return defaults
         const stored = await db.getFeaturePermissions(input.role);
-        return stored || getDefaultPermissions(input.role);
+        return normalizePermissionRecord(
+          stored || getDefaultPermissions(input.role)
+        );
       }),
 
     // Update feature permissions for a role
     updatePermissions: adminProcedure
       .input(z.object({
         role: z.enum(["consultant", "staff"]),
-        permissions: z.record(z.string(), z.boolean()),
+        permissions: z.preprocess(
+          (value) =>
+            normalizePermissionRecord(
+              typeof value === "object" && value !== null && !Array.isArray(value)
+                ? (value as Record<string, unknown>)
+                : {}
+            ),
+          z.record(z.string(), z.boolean())
+        ),
       }))
       .mutation(async ({ input, ctx }) => {
-        await db.setFeaturePermissions(input.role, input.permissions);
+        const permissions = normalizePermissionRecord(input.permissions);
+        await db.setFeaturePermissions(input.role, permissions);
         
         // Log audit entry
         await db.createAuditLog({
@@ -1824,7 +1834,7 @@ export const appRouter = router({
           tableName: "featureAccess",
           recordId: input.role,
           oldValue: JSON.stringify(await db.getFeaturePermissions(input.role)),
-          newValue: JSON.stringify(input.permissions),
+          newValue: JSON.stringify(permissions),
           timestamp: new Date(),
         });
 
@@ -1847,7 +1857,11 @@ export const appRouter = router({
     // Get current user's effective feature permissions (role + per-user overrides)
     getMyPermissions: protectedProcedure.query(async ({ ctx }) => {
       if (ctx.user.role === "consultant" || ctx.user.role === "staff") {
-        return db.getEffectivePermissionsForUser(ctx.user.id, ctx.user.role);
+        const effective = await db.getEffectivePermissionsForUser(
+          ctx.user.id,
+          ctx.user.role
+        );
+        return normalizePermissionRecord(effective);
       }
       return {};
     }),
@@ -1889,9 +1903,9 @@ export const appRouter = router({
             name: user.name,
             role: user.role,
           },
-          rolePermissions,
-          userOverrides,
-          effective,
+          rolePermissions: normalizePermissionRecord(rolePermissions),
+          userOverrides: normalizePermissionRecord(userOverrides),
+          effective: normalizePermissionRecord(effective),
           hasCustomOverrides: Object.keys(userOverrides).length > 0,
         };
       }),
@@ -1901,7 +1915,15 @@ export const appRouter = router({
       .input(
         z.object({
           userId: z.number(),
-          permissions: z.record(z.string(), z.boolean()),
+          permissions: z.preprocess(
+            (value) =>
+              normalizePermissionRecord(
+                typeof value === "object" && value !== null && !Array.isArray(value)
+                  ? (value as Record<string, unknown>)
+                  : {}
+              ),
+            z.record(z.string(), z.boolean())
+          ),
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -1914,8 +1936,9 @@ export const appRouter = router({
         }
 
         const role = user.role as "consultant" | "staff";
+        const permissions = normalizePermissionRecord(input.permissions);
         const oldOverrides = await db.getRawUserPermissionOverrides(input.userId);
-        await db.setUserFeaturePermissions(input.userId, role, input.permissions);
+        await db.setUserFeaturePermissions(input.userId, role, permissions);
 
         await db.createAuditLog({
           logId: nanoid(),
@@ -1924,7 +1947,7 @@ export const appRouter = router({
           tableName: "userPermissions",
           recordId: String(input.userId),
           oldValue: JSON.stringify(oldOverrides),
-          newValue: JSON.stringify(input.permissions),
+          newValue: JSON.stringify(permissions),
           timestamp: new Date(),
         });
 
@@ -2057,7 +2080,8 @@ export const appRouter = router({
       .input(z.object({ role: z.enum(["consultant", "staff", "admin"]) }))
       .query(async ({ input }) => {
         try {
-          return await db.getFeaturePermissions(input.role);
+          const perms = await db.getFeaturePermissions(input.role);
+          return normalizePermissionRecord(perms);
         } catch (error) {
           console.error("[RBAC] Get feature permissions failed:", error);
           throw new Error("Failed to get feature permissions");

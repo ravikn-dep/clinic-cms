@@ -11,6 +11,8 @@ import {
   getRoleLabel,
   mergeRolePermissions,
   applyUserOverrides,
+  normalizePermissionRecord,
+  toPermissionBoolean,
   type FeatureKey,
 } from "@shared/rbac";
 
@@ -30,6 +32,8 @@ export {
   getRoleLabel,
   mergeRolePermissions,
   applyUserOverrides,
+  normalizePermissionRecord,
+  toPermissionBoolean,
   type FeatureKey,
 };
 

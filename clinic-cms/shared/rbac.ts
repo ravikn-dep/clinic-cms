@@ -105,6 +105,30 @@ export const API_FEATURE_BY_ROUTER: Partial<Record<string, FeatureKey>> = {
   dailyExport: "daily_export",
 };
 
+/** MySQL may return tinyint 0/1 as numbers — normalize for API and Zod. */
+export function toPermissionBoolean(value: unknown): boolean {
+  if (value === true || value === 1 || value === "1") return true;
+  if (value === false || value === 0 || value === "0") return false;
+  return Boolean(value);
+}
+
+export function normalizePermissionRecord(
+  record: Record<string, unknown> = {}
+): Record<string, boolean> {
+  const normalized: Record<string, boolean> = {};
+  for (const key of FEATURE_KEYS) {
+    if (record[key] !== undefined) {
+      normalized[key] = toPermissionBoolean(record[key]);
+    }
+  }
+  for (const [key, value] of Object.entries(record)) {
+    if (!(key in normalized)) {
+      normalized[key] = toPermissionBoolean(value);
+    }
+  }
+  return normalized;
+}
+
 export function getFeatureForRoute(path: string): FeatureKey | null {
   for (const [feature, routes] of Object.entries(FEATURE_TO_ROUTES)) {
     if (routes.includes(path)) {
@@ -116,13 +140,13 @@ export function getFeatureForRoute(path: string): FeatureKey | null {
 
 export function mergeRolePermissions(
   role: "consultant" | "staff",
-  stored: Record<string, boolean> = {}
+  stored: Record<string, unknown> = {}
 ): Record<FeatureKey, boolean> {
   const defaults = DEFAULT_ROLE_PERMISSIONS[role];
   const merged = { ...defaults };
   for (const key of FEATURE_KEYS) {
     if (stored[key] !== undefined) {
-      merged[key] = stored[key];
+      merged[key] = toPermissionBoolean(stored[key]);
     }
   }
   return merged;
@@ -131,12 +155,12 @@ export function mergeRolePermissions(
 /** Apply per-user overrides on top of role-effective permissions. */
 export function applyUserOverrides(
   rolePermissions: Record<FeatureKey, boolean>,
-  userOverrides: Record<string, boolean> = {}
+  userOverrides: Record<string, unknown> = {}
 ): Record<FeatureKey, boolean> {
   const merged = { ...rolePermissions };
   for (const key of FEATURE_KEYS) {
     if (userOverrides[key] !== undefined) {
-      merged[key] = userOverrides[key]!;
+      merged[key] = toPermissionBoolean(userOverrides[key]);
     }
   }
   return merged;
@@ -159,5 +183,5 @@ export function canRoleAccessFeature(
   permissions: Record<string, boolean>
 ): boolean {
   if (role === "admin") return true;
-  return permissions[feature] === true;
+  return toPermissionBoolean(permissions[feature]);
 }

@@ -675,12 +675,12 @@ export async function getFeaturePermissions(role: "consultant" | "staff" | "admi
 
   const perms = await db.select().from(rolePermissions).where(eq(rolePermissions.role, role));
 
-  const stored: Record<string, boolean> = {};
-  for (const perm of perms as any[]) {
-    stored[perm.featureKey] = perm.isEnabled;
+  const { mergeRolePermissions, toPermissionBoolean } = await import("@shared/rbac");
+  const stored: Record<string, unknown> = {};
+  for (const perm of perms as { featureKey: string; isEnabled: unknown }[]) {
+    stored[perm.featureKey] = toPermissionBoolean(perm.isEnabled);
   }
 
-  const { mergeRolePermissions } = await import("@shared/rbac");
   return mergeRolePermissions(role, stored);
 }
 
@@ -753,9 +753,10 @@ export async function getRawUserPermissionOverrides(
     .from(userPermissions)
     .where(eq(userPermissions.userId, userId));
 
+  const { toPermissionBoolean } = await import("@shared/rbac");
   const stored: Record<string, boolean> = {};
-  for (const row of rows as { featureKey: string; isEnabled: boolean }[]) {
-    stored[row.featureKey] = row.isEnabled;
+  for (const row of rows as { featureKey: string; isEnabled: unknown }[]) {
+    stored[row.featureKey] = toPermissionBoolean(row.isEnabled);
   }
   return stored;
 }
