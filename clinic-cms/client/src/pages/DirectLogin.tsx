@@ -14,6 +14,7 @@ export default function DirectLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [serverOk, setServerOk] = useState<boolean | null>(null);
+  const [databaseStatus, setDatabaseStatus] = useState<string | null>(null);
 
   const meQuery = trpc.auth.me.useQuery(undefined, {
     retry: false,
@@ -37,6 +38,13 @@ export default function DirectLogin() {
         }
         const body = await res.json();
         setServerOk(Boolean(body?.ok));
+        if (body?.database === "connected") {
+          setDatabaseStatus(null);
+        } else if (body?.database === "unconfigured") {
+          setDatabaseStatus(body?.databaseError ?? "Database is not configured");
+        } else if (body?.database === "error") {
+          setDatabaseStatus(body?.databaseError ?? "Database connection failed");
+        }
       })
       .catch(() => setServerOk(false));
   }, []);
@@ -103,6 +111,18 @@ export default function DirectLogin() {
                   , then open{" "}
                   <code className="text-xs break-all">{window.location.origin}/api/health</code>{" "}
                   (must show JSON, not HTML).
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {serverOk === true && databaseStatus && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Database: {databaseStatus}. Set{" "}
+                  <code className="text-xs">DATABASE_URL</code> in{" "}
+                  <code className="text-xs">clinic-cms/.env</code> and run{" "}
+                  <code className="text-xs">pnpm db:push</code>.
                 </AlertDescription>
               </Alert>
             )}

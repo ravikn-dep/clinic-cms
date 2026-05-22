@@ -52,7 +52,8 @@ export default function Home() {
   });
   const appointmentsQuery = trpc.appointments.list.useQuery(
     {
-      consultantId: user?.role === "consultant" ? user.id : undefined,
+      consultantId:
+        user?.role === "consultant" && user.id != null ? Number(user.id) : undefined,
       todayOnly: true,
     },
     {
@@ -77,12 +78,44 @@ export default function Home() {
 
   const billingSummary = billingSummaryQuery.data;
 
-  const hasDashboardError =
-    (hasAccess("patient_records") && patientsQuery.isError) ||
-    (hasAccess("pharmacy") && (inventoryQuery.isError || lowStockQuery.isError)) ||
-    (hasAccess("purchase_orders") && purchaseOrdersQuery.isError) ||
-    (hasAccess("appointments") && appointmentsQuery.isError) ||
-    (hasAccess("billing") && billingSummaryQuery.isError);
+  const dashboardErrors = useMemo(() => {
+    const entries: Array<{ label: string; message: string }> = [];
+    const pushError = (
+      label: string,
+      query: { isError: boolean; error: { message?: string } | null }
+    ) => {
+      if (query.isError) {
+        entries.push({
+          label,
+          message: query.error?.message?.trim() || "Request failed",
+        });
+      }
+    };
+
+    if (hasAccess("patient_records")) pushError("Patient records", patientsQuery);
+    if (hasAccess("pharmacy")) {
+      pushError("Pharmacy inventory", inventoryQuery);
+      pushError("Low stock alerts", lowStockQuery);
+    }
+    if (hasAccess("purchase_orders")) pushError("Purchase orders", purchaseOrdersQuery);
+    if (hasAccess("appointments")) pushError("Appointments", appointmentsQuery);
+    if (hasAccess("billing")) pushError("Billing summary", billingSummaryQuery);
+
+    return entries;
+  }, [
+    hasAccess,
+    patientsQuery,
+    inventoryQuery,
+    lowStockQuery,
+    purchaseOrdersQuery,
+    appointmentsQuery,
+    billingSummaryQuery,
+  ]);
+
+  const hasDashboardError = dashboardErrors.length > 0;
+  const databaseHint = dashboardErrors.some((e) =>
+    /database not available|DATABASE_URL|ECONNREFUSED|ER_|Unknown column/i.test(e.message)
+  );
 
   const todayLabel = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -249,8 +282,39 @@ export default function Home() {
 
       {hasDashboardError && (
         <Card className="border-destructive/30 bg-destructive/5 shadow-sm">
-          <CardContent className="flex items-center gap-3 py-4 text-sm text-destructive">
-            <AlertCircle className="h-4 w-4" /> Some dashboard data could not be loaded. Check your connection or permissions.
+          <CardContent className="space-y-3 py-4 text-sm text-destructive">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="space-y-2">
+                <p className="font-medium">
+                  Some dashboard data could not be loaded. Check your connection or permissions.
+                </p>
+                <ul className="list-inside list-disc space-y-1 text-destructive/90">
+                  {dashboardErrors.map((item) => (
+                    <li key={item.label}>
+                      <span className="font-medium">{item.label}:</span> {item.message}
+                    </li>
+                  ))}
+                </ul>
+                {databaseHint && (
+                  <p className="text-destructive/90">
+                    Database issue detected. Confirm MySQL is running, set{" "}
+                    <code className="rounded bg-destructive/10 px-1">DATABASE_URL</code> in{" "}
+                    <code className="rounded bg-destructive/10 px-1">clinic-cms/.env</code>, then run{" "}
+                    <code className="rounded bg-destructive/10 px-1">pnpm db:push</code>. Check{" "}
+                    <a
+                      href="/api/health"
+                      className="underline"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      /api/health
+                    </a>{" "}
+                    for database status.
+                  </p>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

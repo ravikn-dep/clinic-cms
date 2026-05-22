@@ -2,11 +2,13 @@ import "./loadEnv";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import { sql } from "drizzle-orm";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { getDb } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -53,11 +55,36 @@ async function startServer() {
     res.redirect(302, "/login");
   });
 
-  app.get("/api/health", (_req, res) => {
+  app.get("/api/health", async (_req, res) => {
+    let database: "connected" | "unconfigured" | "error" = "unconfigured";
+    let databaseError: string | undefined;
+
+    if (!process.env.DATABASE_URL) {
+      database = "unconfigured";
+      databaseError = "DATABASE_URL is not set in .env";
+    } else {
+      try {
+        const db = await getDb();
+        if (!db) {
+          database = "unconfigured";
+          databaseError = "Could not open database connection";
+        } else {
+          await db.execute(sql`SELECT 1`);
+          database = "connected";
+        }
+      } catch (error) {
+        database = "error";
+        databaseError =
+          error instanceof Error ? error.message : "Database health check failed";
+      }
+    }
+
     res.json({
-      ok: true,
+      ok: database === "connected",
       service: "clinic-cms",
       nodeEnv: process.env.NODE_ENV ?? "development",
+      database,
+      databaseError,
     });
   });
 
