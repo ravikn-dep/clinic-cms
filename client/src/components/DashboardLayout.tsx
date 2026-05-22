@@ -130,10 +130,20 @@ function DashboardLayoutContent({
 
   return (
     <>
+      <style>{`
+        @keyframes sidebar-holographic-glow {
+          0%, 100% { filter: drop-shadow(0 0 6px rgba(20, 184, 166, 0.3)) drop-shadow(0 0 12px rgba(34, 197, 94, 0.15)); }
+          50% { filter: drop-shadow(0 0 10px rgba(20, 184, 166, 0.5)) drop-shadow(0 0 16px rgba(34, 197, 94, 0.25)); }
+        }
+        .sidebar-holographic-logo {
+          animation: sidebar-holographic-glow 3s ease-in-out infinite;
+          filter: drop-shadow(0 0 8px rgba(20, 184, 166, 0.4)) drop-shadow(0 0 12px rgba(34, 197, 94, 0.2));
+        }
+      `}</style>
       <Sidebar className="border-r border-border/60 bg-gradient-to-b from-slate-50 to-white" collapsible="icon">
         <SidebarHeader className="border-b border-border/40 bg-gradient-to-r from-teal-50 to-cyan-50 px-4 py-4">
           <div className="flex items-center gap-3 px-2">
-            <img src="/manus-storage/deepthis-ortho-clinic-logo_47d1aff3.png" alt="Deepthis Ortho" className="h-10 w-10 object-contain" />
+            <img src="/manus-storage/deepthis-ortho-clinic-logo_47d1aff3.png" alt="Deepthis Ortho" className="h-10 w-10 object-contain sidebar-holographic-logo" />
             <div className="hidden group-data-[collapsible=icon]:hidden">
               <p className="font-bold text-teal-900 text-sm">Deepthis Ortho</p>
               <p className="text-xs text-teal-600">Clinic CMS</p>
