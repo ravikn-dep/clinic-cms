@@ -91,8 +91,10 @@ export const appRouter = router({
             },
           };
         } catch (error) {
-          console.error("[Auth] Password login failed:", error);
-          throw new Error("Login failed");
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error("[Auth] Password login failed:", errorMsg, error);
+          // Throw the actual error instead of generic message for debugging
+          throw new Error(errorMsg || "Login failed");
         }
       }),
 

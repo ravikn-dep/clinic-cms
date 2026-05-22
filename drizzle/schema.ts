@@ -203,11 +203,13 @@ export const rolePermissions = mysqlTable("rolePermissions", {
 	index("idx_role").on(table.role),
 ]);
 
-export const users = mysqlTable("users", {
-	id: int().autoincrement().notNull(),
-	name: text(),
-	email: varchar({ length: 320 }),
-	role: mysqlEnum(['user','admin','consultant','staff']).default('user').notNull(),
+	export const users = mysqlTable("users", {
+		id: int().autoincrement().notNull(),
+		openId: varchar({ length: 64 }).notNull().unique(),
+		loginMethod: varchar({ length: 64 }),
+		name: text(),
+		email: varchar({ length: 320 }),
+		role: mysqlEnum(['user','admin','consultant','staff']).default('user').notNull(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	lastSignedIn: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),

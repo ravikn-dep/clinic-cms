@@ -99,6 +99,13 @@
       "when": 1778902130841,
       "tag": "0013_powerful_giant_man",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "5",
+      "when": 1779366261149,
+      "tag": "0014_boring_fallen_one",
+      "breakpoints": true
     }
   ]
 }
