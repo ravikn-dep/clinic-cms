@@ -97,7 +97,7 @@ export default function DirectLogin() {
             </div>
           </div>
           <CardTitle className="text-2xl">Clinic Management System</CardTitle>
-          <CardDescription>Sign in with your username and password</CardDescription>
+          <CardDescription>Sign in with email, user ID, or username and password</CardDescription>
         </CardHeader>
 
         <CardContent>
@@ -135,11 +135,11 @@ export default function DirectLogin() {
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">Email, username, or user ID</Label>
               <Input
                 id="username"
                 type="text"
-                placeholder="e.g. admin or cons-001"
+                placeholder="e.g. admin@max, you@clinic.com, or CONS-001"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 disabled={loginMutation.isPending}

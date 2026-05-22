@@ -1,3 +1,4 @@
+import "./authBootstrap";
 import { trpc } from "@/lib/trpc";
 import { getTrpcUrl } from "@/lib/trpcUrl";
 import { UNAUTHED_ERR_MSG } from '@shared/const';

@@ -18,7 +18,13 @@
       (function () {
         var path = window.location.pathname || "/";
         var normalized = path.replace(/\/+$/, "") || "/";
-        if (normalized.indexOf("/api/oauth") === 0) {
+        var href = (window.location.href || "").toLowerCase();
+        if (
+          normalized.indexOf("/api/oauth") === 0 ||
+          normalized.indexOf("/app-auth") === 0 ||
+          href.indexOf("/app-auth") !== -1 ||
+          href.indexOf("/api/oauth/callback") !== -1
+        ) {
           window.location.replace("/login");
         }
       })();

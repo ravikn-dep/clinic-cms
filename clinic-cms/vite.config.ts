@@ -150,10 +150,23 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector()];
+const isProduction = process.env.NODE_ENV === "production";
+
+const plugins = [
+  react(),
+  tailwindcss(),
+  jsxLocPlugin(),
+  // Manus runtime is dev-only; production custom domains must not inject platform OAuth.
+  ...(isProduction ? [] : [vitePluginManusRuntime()]),
+  vitePluginManusDebugCollector(),
+];
 
 export default defineConfig({
   plugins,
+  define: {
+    // Manus build env may inject OAuth URL — force direct /login in client bundle.
+    "import.meta.env.VITE_OAUTH_PORTAL_URL": JSON.stringify(""),
+  },
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),

@@ -43,17 +43,22 @@ async function startServer() {
   // Manus / reverse proxies terminate TLS — required for secure session cookies.
   app.set("trust proxy", 1);
 
+  // Credential login only — never Manus OAuth (custom domains + legacy paths).
+  app.use((req, res, next) => {
+    const p = req.path.toLowerCase();
+    if (p.startsWith("/api/oauth") || p.startsWith("/app-auth")) {
+      res.redirect(302, "/login");
+      return;
+    }
+    next();
+  });
+
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   
   registerStorageProxy(app);
-
-  // Legacy Manus OAuth paths — credential login only (/login).
-  app.use("/api/oauth", (_req, res) => {
-    res.redirect(302, "/login");
-  });
 
   app.get("/api/health", async (_req, res) => {
     let database: "connected" | "unconfigured" | "error" = "unconfigured";
