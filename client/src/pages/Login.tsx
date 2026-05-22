@@ -24,33 +24,14 @@ export default function Login() {
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl">Admin Login</CardTitle>
             <CardDescription>
-              Sign in with your Manus account
+              Enter your clinic credentials
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* OAuth Login Button */}
-            <Button
-              onClick={handleOAuthLogin}
-              className="w-full bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 text-white font-medium h-10"
-            >
-              Sign in with Manus OAuth
-            </Button>
-
-            {/* Divider */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-slate-500">or</span>
-              </div>
-            </div>
-
-            {/* Alternative Login Option */}
+            {/* Password Login Button */}
             <Button
               type="button"
-              variant="outline"
-              className="w-full"
+              className="w-full bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 text-white font-medium h-10"
               onClick={() => window.location.href = "/password-login"}
             >
               Sign in with Email & Password
@@ -58,7 +39,7 @@ export default function Login() {
 
             {/* Help Text */}
             <div className="pt-4 text-center text-sm text-slate-600">
-              <p>For staff/consultant login, use the password login option</p>
+              <p>Enter your clinic credentials to access the system</p>
             </div>
           </CardContent>
         </Card>
