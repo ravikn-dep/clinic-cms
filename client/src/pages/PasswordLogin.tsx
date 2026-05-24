@@ -13,11 +13,15 @@ export default function PasswordLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   const loginMutation = trpc.auth.loginWithPassword.useMutation({
     onSuccess: () => {
-      setIsLoading(false);
-      window.location.href = "/";
+      setIsTransitioning(true);
+      // Wait for animation to complete before redirecting
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 1500);
     },
     onError: (err) => {
       setIsLoading(false);
@@ -41,7 +45,44 @@ export default function PasswordLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-white to-teal-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 via-white to-teal-50 p-4 relative overflow-hidden">
+      {/* Loading Overlay Animation */}
+      {isTransitioning && (
+        <>
+          <style>{`
+            @keyframes slideOut {
+              0% { transform: translateY(0); opacity: 1; }
+              100% { transform: translateY(-100vh); opacity: 0; }
+            }
+            @keyframes fadeInDashboard {
+              0% { opacity: 0; }
+              100% { opacity: 1; }
+            }
+            .login-slide-out {
+              animation: slideOut 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            }
+            .dashboard-fade-in {
+              animation: fadeInDashboard 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+            }
+          `}</style>
+          <div className="fixed inset-0 bg-gradient-to-b from-teal-500 to-blue-600 login-slide-out z-50"></div>
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            <div className="text-center">
+              <div className="mb-4 flex justify-center">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-75"></div>
+                  <div className="relative h-16 w-16 rounded-full bg-white flex items-center justify-center">
+                    <div className="h-12 w-12 rounded-full border-4 border-teal-500 border-t-blue-600 animate-spin"></div>
+                  </div>
+                </div>
+              </div>
+              <p className="text-white font-medium text-lg">Loading your dashboard...</p>
+            </div>
+          </div>
+        </>
+      )}
+      
+      <div className={isTransitioning ? "login-slide-out" : ""}>
       <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="space-y-2">
           <div className="flex items-center justify-center mb-4">
@@ -124,6 +165,7 @@ export default function PasswordLogin() {
           </form>
         </CardContent>
       </Card>
+      </div>
 
       {/* Footer */}
       <div className="absolute bottom-4 left-0 right-0 text-center">
