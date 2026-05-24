@@ -301,6 +301,7 @@ export default function Home() {
                     Database issue detected. Confirm MySQL is running, set{" "}
                     <code className="rounded bg-destructive/10 px-1">DATABASE_URL</code> in{" "}
                     <code className="rounded bg-destructive/10 px-1">clinic-cms/.env</code>, then run{" "}
+                    <code className="rounded bg-destructive/10 px-1">pnpm db:ensure-schema</code> or{" "}
                     <code className="rounded bg-destructive/10 px-1">pnpm db:push</code>. Check{" "}
                     <a
                       href="/api/health"

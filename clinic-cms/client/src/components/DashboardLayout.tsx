@@ -22,7 +22,7 @@ import {
 import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { getRoleLabel } from "@/lib/featureAccess";
-import { Activity, Bell, BarChart3, Calendar, ClipboardPenLine, KeyRound, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings } from "lucide-react";
+import { Activity, Bell, BarChart3, Calendar, ClipboardPenLine, KeyRound, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings, Archive } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -45,6 +45,7 @@ const menuItems = [
   { icon: BarChart3, label: "Analytics", path: "/analytics", adminOnly: true },
   { icon: Activity, label: "Audit Trail", path: "/audit-logs", feature: "audit_trail" as const },
   { icon: Download, label: "Daily Export", path: "/daily-export", feature: "daily_export" as const },
+  { icon: Archive, label: "Archive", path: "/archive", adminOnly: true },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

@@ -10,14 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap } from "lucide-react";
+import { mapExtractedPoToForm } from "@/lib/poFormUtils";
+import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap, Package } from "lucide-react";
 import { ConfidenceBadge, ConfidenceTooltip } from "@/components/ConfidenceBadge";
+import { toast } from "sonner";
 
 export default function PurchaseOrders() {
   const { user } = useAuth();
-  const showAlert = (title: string, message: string) => {
-    console.log(`${title}: ${message}`);
-  };
+  const isAdmin = user?.role === "admin";
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     vendorName: "",
@@ -36,24 +36,27 @@ export default function PurchaseOrders() {
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
   const updatePaymentStatus = trpc.purchaseOrders.updatePaymentStatus.useMutation();
-  const uploadPOImage = trpc.purchaseOrders.uploadPoImage.useMutation();
-  const extractPO = trpc.purchaseOrders.extractFromImage.useMutation();
+  const extractFromBase64 = trpc.purchaseOrders.extractFromBase64.useMutation();
   const approvePO = trpc.purchaseOrders.approve.useMutation({
-    onSuccess: () => {
-      showAlert("Success", "Purchase Order approved");
+    onSuccess: (data) => {
+      const inv = data.inventoryResult;
+      const msg = inv
+        ? `Approved — ${inv.created} new inventory item(s), ${inv.updated} updated.`
+        : "Purchase order approved.";
+      toast.success(msg);
       refetch();
     },
     onError: (error) => {
-      showAlert("Error", error.message || "Failed to approve PO");
+      toast.error(error.message || "Failed to approve PO");
     },
   });
   const rejectPO = trpc.purchaseOrders.reject.useMutation({
     onSuccess: () => {
-      showAlert("Success", "Purchase Order rejected");
+      toast.success("Purchase order rejected");
       refetch();
     },
     onError: (error) => {
-      showAlert("Error", error.message || "Failed to reject PO");
+      toast.error(error.message || "Failed to reject PO");
     },
   });
   const [searchTerm, setSearchTerm] = useState("");
@@ -135,11 +138,25 @@ export default function PurchaseOrders() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.vendorName || !formData.vendorContactNumber || formData.items.length === 0) {
-      showAlert("Error", "Please fill in all required fields");
+      toast.error("Please fill vendor name, contact, and at least one item");
+      return;
+    }
+
+    const invalidItem = formData.items.find((i) => !i.itemName?.trim() || !i.unitPrice);
+    if (invalidItem) {
+      toast.error("Each line item needs a name and unit price");
+      return;
+    }
+
+    if (!isAuthorized) {
+      toast.error("Confirm authorization before submitting");
       return;
     }
 
     try {
+      const approvalStatus =
+        isAdmin && isAuthorized ? ("Approved" as const) : ("Pending Approval" as const);
+
       await createPO.mutateAsync({
         vendorName: formData.vendorName,
         vendorContactNumber: formData.vendorContactNumber,
@@ -151,15 +168,19 @@ export default function PurchaseOrders() {
         expectedDeliveryDate: formData.expectedDeliveryDate || undefined,
         notes: formData.notes || undefined,
         items: formData.items.map((item) => ({
-          itemName: item.itemName,
+          itemName: item.itemName.trim(),
           quantity: item.quantity,
           unitPrice: item.unitPrice,
         })),
         authorizationNotes: authorizationNotes || undefined,
-        approvalStatus: "Approved",
+        approvalStatus,
       });
 
-      showAlert("Success", "Purchase order created successfully");
+      toast.success(
+        approvalStatus === "Approved"
+          ? "Purchase order created and inventory updated"
+          : "Purchase order submitted — awaiting admin approval for inventory"
+      );
       setFormData({
         vendorName: "",
         vendorContactNumber: "",
@@ -172,9 +193,12 @@ export default function PurchaseOrders() {
         items: [{ itemName: "", quantity: 1, unitPrice: "" }],
       });
       setShowForm(false);
+      setConfidenceScores(null);
+      setAuthorizationNotes("");
+      setIsAuthorized(false);
       refetch();
     } catch (error) {
-      showAlert("Error", "Failed to create purchase order");
+      toast.error(error instanceof Error ? error.message : "Failed to create purchase order");
     }
   };
 
@@ -184,10 +208,10 @@ export default function PurchaseOrders() {
         purchaseOrderId: poId,
         paymentStatus: status as "Pending" | "Paid" | "Partial",
       });
-      showAlert("Success", "Payment status updated");
+      toast.success("Payment status updated");
       refetch();
     } catch (error) {
-      showAlert("Error", "Failed to update payment status");
+      toast.error("Failed to update payment status");
     }
   };
 
@@ -206,57 +230,51 @@ export default function PurchaseOrders() {
     if (!file) return;
     setOcrLoading(true);
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const base64Data = e.target?.result as string;
-          console.log('[PO Upload] Starting upload with file:', file.name);
-          const uploadResponse = await uploadPOImage.mutateAsync({ 
-            imageData: base64Data,
-            fileName: file.name 
-          });
-          console.log('[PO Upload] Upload successful, URL:', uploadResponse.url);
-          
-          console.log('[PO Extract] Starting extraction with URL:', uploadResponse.url);
-          const extractedData = await extractPO.mutateAsync({ imageUrl: uploadResponse.url });
-          console.log('[PO Extract] Extraction successful, data:', extractedData);
-          setConfidenceScores(extractedData.confidence || null);
-          setFormData({
-            vendorName: extractedData.vendorName || "",
-            vendorContactNumber: extractedData.vendorContactNumber || "",
-            vendorEmail: "",
-            vendorGSTNumber: extractedData.vendorGstNumber || "",
-            vendorBankDetails: "",
-            vendorAddress: extractedData.vendorAddress || "",
-            expectedDeliveryDate: "",
-            notes: "",
-            items: extractedData.items?.map((item: any) => ({
-              itemName: item.name || "",
-              quantity: parseInt(item.quantity) || 1,
-              unitPrice: item.valuePerItem || "",
-            })) || [{ itemName: "", quantity: 1, unitPrice: "" }],
-          });
-          showAlert("Success", "PO data extracted successfully");
-          setShowOCRDialog(false);
-          setShowForm(true);
-          setOcrImageFile(null);
-          setImagePreview(null);
-          setImageRotation(0);
-        } catch (error) {
-          console.error("[PO Extraction] Error:", error);
-          const errorMsg = error instanceof Error ? error.message : "Failed to extract PO data from image";
-          console.error("[PO Extraction] Full error:", JSON.stringify(error, null, 2));
-          showAlert("Error", errorMsg);
-          setShowOCRDialog(false);
-        } finally {
-          setOcrLoading(false);
-        }
-      };
-      reader.readAsDataURL(file);
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Could not read file"));
+        reader.readAsDataURL(file);
+      });
+
+      const extractedData = await extractFromBase64.mutateAsync({
+        imageData: base64Data,
+        mimeType: file.type || "image/jpeg",
+        fileName: file.name,
+      });
+
+      setConfidenceScores(extractedData.confidence || null);
+      const mapped = mapExtractedPoToForm({
+        vendorName: extractedData.vendorName,
+        vendorContactNumber: extractedData.vendorContactNumber,
+        vendorGstNumber: extractedData.vendorGstNumber,
+        vendorAddress: extractedData.vendorAddress,
+        items: extractedData.items,
+        notes: extractedData.poToName
+          ? `Deliver to: ${extractedData.poToName}${extractedData.poToAddress ? ` — ${extractedData.poToAddress}` : ""}`
+          : "",
+      });
+      setFormData(mapped);
+      toast.success(`Extracted ${mapped.items.length} line item(s) — review and submit`);
+      setShowOCRDialog(false);
+      setShowForm(true);
+      setOcrImageFile(null);
+      setImagePreview(null);
+      setImageRotation(0);
     } catch (error) {
-      showAlert("Error", "Failed to process PO image");
+      console.error("[PO Extraction] Error:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to extract PO data from image"
+      );
+    } finally {
       setOcrLoading(false);
     }
+  };
+
+  const handleFileDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleImageSelect(file);
   };
 
   return (
@@ -264,7 +282,9 @@ export default function PurchaseOrders() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Purchase Orders</h1>
-          <p className="text-gray-600 mt-1">Manage vendor purchase orders and payments</p>
+          <p className="text-gray-600 mt-1">
+            Scan PO → OCR fills the form → submit → admin approval updates pharmacy inventory
+          </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => setShowOCRDialog(true)} className="bg-blue-600 hover:bg-blue-700">
@@ -281,19 +301,23 @@ export default function PurchaseOrders() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Scan Purchase Order</DialogTitle>
-              <DialogDescription>Upload a PO image to auto-extract details</DialogDescription>
+              <DialogDescription>
+                Upload a scanned PO photo or PDF. Data is extracted with AI and fills the form below.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div 
+              <div
                 className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition"
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleFileDrop}
               >
                 <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-600">Click to upload PO image or drag and drop</p>
+                <p className="text-sm text-gray-600">Click or drag a PO image / PDF here</p>
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/*,application/pdf"
                   onChange={(e) => handleImageSelect(e.target.files?.[0] || null)}
                   className="hidden"
                 />
@@ -557,7 +581,11 @@ export default function PurchaseOrders() {
                   className="bg-teal-600 hover:bg-teal-700"
                   disabled={!isAuthorized}
                 >
-                  {isAuthorized ? "Create & Submit PO" : "Authorize to Submit"}
+                  {isAuthorized
+                    ? isAdmin
+                      ? "Create PO & update inventory"
+                      : "Submit for approval"
+                    : "Authorize to Submit"}
                 </Button>
                 <Button type="button" onClick={() => {
                   setShowForm(false);
@@ -613,8 +641,10 @@ export default function PurchaseOrders() {
                     <TableHead>Vendor Name</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Total Amount</TableHead>
-                    <TableHead>Payment Status</TableHead>
-                    <TableHead>Order Date</TableHead>
+                    <TableHead>Items</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Approval</TableHead>
+                    <TableHead>Date</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -625,6 +655,12 @@ export default function PurchaseOrders() {
                       <TableCell>{po.vendorName}</TableCell>
                       <TableCell>{po.vendorContactNumber}</TableCell>
                       <TableCell>₹{parseFloat(String(po.totalAmount)).toFixed(2)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <Package className="h-3.5 w-3.5" />
+                          {po.itemCount ?? 0}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <Select value={po.paymentStatus} onValueChange={(value) => handlePaymentStatusChange(po.purchaseOrderId, value)}>
                           <SelectTrigger className="w-32">
@@ -643,8 +679,8 @@ export default function PurchaseOrders() {
                           </SelectContent>
                         </Select>
                       </TableCell>
-                      <TableCell>{new Date(po.createdAt).toLocaleDateString()}</TableCell>
                       <TableCell>{getApprovalBadge(po.approvalStatus)}</TableCell>
+                      <TableCell>{new Date(po.createdAt).toLocaleDateString()}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           {po.approvalStatus === "Pending Approval" && user?.role !== "admin" && (
@@ -670,7 +706,7 @@ export default function PurchaseOrders() {
                                   if (reason && reason.length >= 5) {
                                     rejectPO.mutate({ purchaseOrderId: po.purchaseOrderId, rejectionReason: reason });
                                   } else if (reason) {
-                                    showAlert("Error", "Rejection reason must be at least 5 characters");
+                                    toast.error("Rejection reason must be at least 5 characters");
                                   }
                                 }}
                                 disabled={rejectPO.isPending}

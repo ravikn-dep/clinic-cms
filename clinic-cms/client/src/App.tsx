@@ -14,6 +14,7 @@ import UserManagement from "./pages/UserManagement";
 import PasswordManagement from "./pages/PasswordManagement";
 import DirectLogin from "./pages/DirectLogin";
 import DailyExport from "./pages/DailyExport";
+import ArchiveSettings from "./pages/ArchiveSettings";
 import AuditLogs from "./pages/AuditLogs";
 import Notifications from "./pages/Notifications";
 import FeatureAccessControl from "./pages/FeatureAccessControl";
@@ -75,6 +76,7 @@ function Router() {
       <Route path={"/users"}>{() => <AdminOnly><UserManagement /></AdminOnly>}</Route>
       <Route path={"/audit-logs"}>{() => <ProtectedRoute adminOnly><AuditLogs /></ProtectedRoute>}</Route>
       <Route path={"/daily-export"}>{() => <ProtectedRoute adminOnly><DailyExport /></ProtectedRoute>}</Route>
+      <Route path={"/archive"}>{() => <AdminOnly><ArchiveSettings /></AdminOnly>}</Route>
       <Route path={"/feature-access"}>{() => <AdminOnly><FeatureAccessControl /></AdminOnly>}</Route>
       <Route path={"/op-form-customization"}>{() => <AdminOnly><OPFormCustomization /></AdminOnly>}</Route>
       <Route path={"/notifications"}>{() => <ProtectedRoute feature="notifications"><Notifications /></ProtectedRoute>}</Route>

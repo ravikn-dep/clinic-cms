@@ -9,6 +9,8 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { getDb } from "../db";
+import { startArchiveCron } from "../archive/cron";
+import { handleArchiveOAuthCallback } from "../archive/router";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -46,7 +48,11 @@ async function startServer() {
   // Credential login only — never Manus OAuth (custom domains + legacy paths).
   app.use((req, res, next) => {
     const p = req.path.toLowerCase();
-    if (p.startsWith("/api/oauth") || p.startsWith("/app-auth")) {
+    if (
+      p.startsWith("/api/oauth") ||
+      p.startsWith("/app-auth") ||
+      p.startsWith("/manus-oauth")
+    ) {
       res.redirect(302, "/login");
       return;
     }
@@ -93,6 +99,31 @@ async function startServer() {
     });
   });
 
+  app.get("/api/archive/google/callback", async (req, res) => {
+    const code = typeof req.query.code === "string" ? req.query.code : "";
+    const state = typeof req.query.state === "string" ? req.query.state : "";
+    const oauthError = typeof req.query.error === "string" ? req.query.error : "";
+
+    if (oauthError) {
+      res.redirect(302, `/archive?error=${encodeURIComponent(oauthError)}`);
+      return;
+    }
+
+    if (!code || !state) {
+      res.redirect(302, "/archive?error=missing_oauth_params");
+      return;
+    }
+
+    try {
+      await handleArchiveOAuthCallback(code, state);
+      res.redirect(302, "/archive?connected=1");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Google Drive connection failed";
+      res.redirect(302, `/archive?error=${encodeURIComponent(message)}`);
+    }
+  });
+
   // tRPC API
   app.use(
     "/api/trpc",
@@ -125,6 +156,7 @@ async function startServer() {
   server.listen(port, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${port}/`);
     console.log(`API health check: http://localhost:${port}/api/health`);
+    startArchiveCron();
   });
 }
 

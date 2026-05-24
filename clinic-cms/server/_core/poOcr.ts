@@ -41,6 +41,31 @@ export interface ExtractedPOData {
   };
 }
 
+function buildVisionContent(imageUrl: string, extractionPrompt: string) {
+  const isPdf =
+    imageUrl.startsWith("data:application/pdf") ||
+    imageUrl.toLowerCase().includes(".pdf");
+
+  if (isPdf) {
+    return [
+      { type: "text" as const, text: extractionPrompt },
+      {
+        type: "file_url" as const,
+        file_url: { url: imageUrl, mime_type: "application/pdf" as const },
+      },
+    ];
+  }
+
+  return [
+    { type: "text" as const, text: extractionPrompt },
+    {
+      type: "image_url" as const,
+      image_url: { url: imageUrl, detail: "high" as const },
+    },
+  ];
+}
+
+/** Accepts HTTPS URL or data: URL (base64 image/PDF). */
 export async function extractPOFromImage(imageUrl: string): Promise<ExtractedPOData> {
   const extractionPrompt = `You are an expert OCR system for extracting Purchase Order (PO) information from images.
 
@@ -103,19 +128,7 @@ Return ONLY valid JSON, no other text.`;
         },
         {
           role: "user",
-          content: [
-            {
-              type: "text",
-              text: extractionPrompt
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: imageUrl,
-                detail: "high"
-              }
-            }
-          ]
+          content: buildVisionContent(imageUrl, extractionPrompt),
         }
       ],
       response_format: {

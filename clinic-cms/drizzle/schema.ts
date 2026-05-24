@@ -324,3 +324,34 @@ export const vendors = mysqlTable("vendors", {
 });
 export type Vendor = typeof vendors.$inferSelect;
 export type InsertVendor = typeof vendors.$inferInsert;
+
+/** Scheduled / manual archive runs uploaded to Google Drive. */
+export const archiveRuns = mysqlTable("archiveRuns", {
+  runId: varchar("runId", { length: 50 }).primaryKey(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  finishedAt: timestamp("finishedAt"),
+  status: mysqlEnum("status", ["running", "completed", "failed"]).default("running").notNull(),
+  fileCount: int("fileCount").default(0),
+  archiveSizeBytes: int("archiveSizeBytes"),
+  driveFileId: varchar("driveFileId", { length: 255 }),
+  driveFolderId: varchar("driveFolderId", { length: 255 }),
+  error: text("error"),
+  triggeredBy: varchar("triggeredBy", { length: 100 }),
+});
+
+export type ArchiveRun = typeof archiveRuns.$inferSelect;
+export type InsertArchiveRun = typeof archiveRuns.$inferInsert;
+
+/** Google Drive OAuth tokens (single clinic connection). */
+export const googleDriveTokens = mysqlTable("googleDriveTokens", {
+  id: varchar("id", { length: 50 }).primaryKey(),
+  accessTokenEnc: text("accessTokenEnc"),
+  refreshTokenEnc: text("refreshTokenEnc").notNull(),
+  expiryDate: timestamp("expiryDate"),
+  connectedEmail: varchar("connectedEmail", { length: 320 }),
+  driveFolderId: varchar("driveFolderId", { length: 255 }),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type GoogleDriveToken = typeof googleDriveTokens.$inferSelect;
+export type InsertGoogleDriveToken = typeof googleDriveTokens.$inferInsert;

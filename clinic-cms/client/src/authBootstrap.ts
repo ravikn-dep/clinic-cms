@@ -7,10 +7,22 @@ function shouldForceLoginRoute(): boolean {
   if (typeof window === "undefined") return false;
 
   const path = normalizePathname(window.location.pathname);
-  if (path.startsWith("/api/oauth") || path.startsWith("/app-auth")) return true;
+  if (
+    path.startsWith("/api/oauth") ||
+    path.startsWith("/app-auth") ||
+    path.startsWith("/manus-oauth")
+  ) {
+    return true;
+  }
 
   const href = window.location.href.toLowerCase();
-  if (href.includes("/app-auth") || href.includes("/api/oauth/callback")) return true;
+  if (
+    href.includes("/app-auth") ||
+    href.includes("/api/oauth/callback") ||
+    href.includes("/manus-oauth/")
+  ) {
+    return true;
+  }
 
   return false;
 }

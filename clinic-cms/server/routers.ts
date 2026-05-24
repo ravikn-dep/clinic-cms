@@ -23,6 +23,7 @@ import {
   canViewAllAppointments,
   resolveConsultantIdForCreate,
 } from "./appointmentAccess";
+import { archiveRouter } from "./archive/router";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -1168,7 +1169,8 @@ export const appRouter = router({
         expectedDeliveryDate: z.string().optional(),
         notes: z.string().optional(),
         authorizationNotes: z.string().optional(),
-        approvalStatus: z.enum(["Pending", "Approved", "Rejected"]).optional(),
+        approvalStatus: z.enum(["Pending Approval", "Approved", "Rejected"]).optional(),
+        scanImageKey: z.string().optional(),
         items: z.array(z.object({
           itemName: z.string(),
           quantity: z.number(),
@@ -1210,45 +1212,20 @@ export const appRouter = router({
             unitPrice: unitPrice.toString() as any,
             subtotal: subtotal.toString() as any,
           });
+        }
 
-          // Auto-add to pharmacy inventory when PO is created (Pending status)
-          try {
-            const existingItem = await db.getInventoryByName(item.itemName);
-            
-            if (existingItem) {
-              // Update existing item quantity (even if current quantity is 0)
-              const currentQuantity = existingItem.quantityAvailable || 0;
-              const newQuantity = currentQuantity + item.quantity;
-              await db.updateInventoryItem(existingItem.itemId, { quantityAvailable: newQuantity });
-            } else {
-              // Create new inventory item
-              const itemId = utils.generateAuditLogId();
-              const futureDate = new Date();
-              futureDate.setFullYear(futureDate.getFullYear() + 1);
-              await db.createInventoryItem({
-                itemId,
-                itemName: item.itemName,
-                quantityAvailable: item.quantity,
-                unitPrice: unitPrice.toString() as any,
-                reorderLevel: Math.ceil(item.quantity * 0.2),
-                batchNumber: `PO-${purchaseOrderId}`,
-                expiryDate: futureDate.toISOString().split('T')[0],
-              });
-            }
-
-            // Log inventory addition
-            await db.createAuditLog({
-              logId: utils.generateAuditLogId(),
-              userId: ctx.user.id.toString(),
-              actionType: "CREATE",
-              tableName: "inventory",
-              recordId: item.itemName,
-              newValue: JSON.stringify({ itemName: item.itemName, quantity: item.quantity, source: `PO-${purchaseOrderId}` }),
-              timestamp: new Date(),
-            });
-          } catch (error) {
-            console.error(`Failed to add inventory for ${item.itemName}:`, error);
-          }
+        const isApproved = po.approvalStatus === "Approved";
+        if (isApproved) {
+          const { syncPurchaseOrderItemsToInventory } = await import("./poInventory");
+          await syncPurchaseOrderItemsToInventory(
+            purchaseOrderId,
+            input.items.map((item) => ({
+              itemName: item.itemName,
+              quantity: item.quantity,
+              unitPrice: parseFloat(item.unitPrice),
+            })),
+            ctx.user.id.toString()
+          );
         }
 
         // Log audit trail
@@ -1277,7 +1254,17 @@ export const appRouter = router({
       }),
 
     getAll: protectedProcedure.query(async () => {
-      return db.getAllPurchaseOrders();
+      const orders = await db.getAllPurchaseOrders();
+      return Promise.all(
+        orders.map(async (po) => {
+          const items = await db.getPurchaseOrderItems(po.purchaseOrderId);
+          return {
+            ...po,
+            itemCount: items.length,
+            items,
+          };
+        })
+      );
     }),
 
     getById: protectedProcedure
@@ -1325,6 +1312,18 @@ export const appRouter = router({
 
         await db.approvePurchaseOrder(input.purchaseOrderId, ctx.user.name || ctx.user.id.toString());
 
+        const poItems = await db.getPurchaseOrderItems(input.purchaseOrderId);
+        const { syncPurchaseOrderItemsToInventory } = await import("./poInventory");
+        const inventoryResult = await syncPurchaseOrderItemsToInventory(
+          input.purchaseOrderId,
+          poItems.map((row) => ({
+            itemName: row.itemName,
+            quantity: row.quantity ?? 1,
+            unitPrice: Number.parseFloat(String(row.unitPrice ?? 0)),
+          })),
+          ctx.user.id.toString()
+        );
+
         // Notify owner
         await notifyOwner({
           title: "Purchase Order Approved",
@@ -1342,7 +1341,7 @@ export const appRouter = router({
           timestamp: new Date(),
         });
 
-        return { success: true };
+        return { success: true, inventoryResult };
       }),
 
     reject: adminProcedure
@@ -1384,46 +1383,71 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    /** OCR from base64/data URL — works without cloud storage (local dev friendly). */
+    extractFromBase64: protectedProcedure
+      .input(
+        z.object({
+          imageData: z.string().min(20),
+          mimeType: z.string().optional(),
+          fileName: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        try {
+          const poOcr = await import("./_core/poOcr");
+          const dataUrl = input.imageData.includes("data:")
+            ? input.imageData
+            : `data:${input.mimeType || "image/jpeg"};base64,${input.imageData.split(",")[1] || input.imageData}`;
+          return await poOcr.extractPOFromImage(dataUrl);
+        } catch (error) {
+          console.error("[PO OCR] Base64 extraction failed:", error);
+          throw new Error(
+            `Failed to extract PO data: ${error instanceof Error ? error.message : "Unknown error"}`
+          );
+        }
+      }),
+
     uploadPoImage: protectedProcedure
       .input(z.object({
         imageData: z.string(),
         fileName: z.string(),
+        mimeType: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        const base64Data = input.imageData.split(",")[1] || input.imageData;
+        const buffer = Buffer.from(base64Data, "base64");
+        const mimeType = input.mimeType || "image/jpeg";
+        const fileKey = `po-scans/${Date.now()}-${input.fileName}`;
+
         try {
-          // Convert base64 to buffer
-          const base64Data = input.imageData.split(',')[1] || input.imageData;
-          const buffer = Buffer.from(base64Data, 'base64');
-          
-          // Upload to storage
           const { storagePut } = await import("./storage");
-          const fileKey = `po-scans/${Date.now()}-${input.fileName}`;
-          const { url: relativeUrl } = await storagePut(fileKey, buffer, 'image/jpeg');
-          
-          // Convert relative URL to absolute URL for OCR extraction
-          const protocol = ctx.req.protocol || 'https';
-          const host = ctx.req.get('host') || 'localhost:3000';
+          const { url: relativeUrl } = await storagePut(fileKey, buffer, mimeType);
+          const protocol = ctx.req.protocol || "https";
+          const host = ctx.req.get("host") || "localhost:3000";
           const absoluteUrl = `${protocol}://${host}${relativeUrl}`;
-          
-          return { url: absoluteUrl, key: fileKey };
-        } catch (error) {
-          console.error("[PO Upload] Failed:", error);
-          throw new Error(`Failed to upload PO image: ${error instanceof Error ? error.message : "Unknown error"}`);
+          return { url: absoluteUrl, key: fileKey, storage: "forge" as const };
+        } catch (storageError) {
+          console.warn("[PO Upload] Cloud storage unavailable, using inline data URL:", storageError);
+          const dataUrl = `data:${mimeType};base64,${base64Data}`;
+          return { url: dataUrl, key: fileKey, storage: "inline" as const };
         }
       }),
 
     extractFromImage: protectedProcedure
-      .input(z.object({
-        imageUrl: z.string().url(),
-      }))
+      .input(
+        z.object({
+          imageUrl: z.string().min(10),
+        })
+      )
       .mutation(async ({ input }) => {
         try {
           const poOcr = await import("./_core/poOcr");
-          const extractedData = await poOcr.extractPOFromImage(input.imageUrl);
-          return extractedData;
+          return await poOcr.extractPOFromImage(input.imageUrl);
         } catch (error) {
           console.error("[PO OCR] Extraction failed:", error);
-          throw new Error(`Failed to extract PO data: ${error instanceof Error ? error.message : "Unknown error"}`);
+          throw new Error(
+            `Failed to extract PO data: ${error instanceof Error ? error.message : "Unknown error"}`
+          );
         }
       }),
   }),
@@ -1795,6 +1819,9 @@ export const appRouter = router({
         }
       }),
   }),
+
+  // ============ ARCHIVE (Google Drive) ============
+  archive: archiveRouter,
 
   // ============ FEATURE ACCESS CONTROL ============
   featureAccess: router({

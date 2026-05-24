@@ -22,8 +22,10 @@
         if (
           normalized.indexOf("/api/oauth") === 0 ||
           normalized.indexOf("/app-auth") === 0 ||
+          normalized.indexOf("/manus-oauth") === 0 ||
           href.indexOf("/app-auth") !== -1 ||
-          href.indexOf("/api/oauth/callback") !== -1
+          href.indexOf("/api/oauth/callback") !== -1 ||
+          href.indexOf("/manus-oauth/") !== -1
         ) {
           window.location.replace("/login");
         }

@@ -7,4 +7,13 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
   forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
+  googleDriveClientId: process.env.GOOGLE_DRIVE_CLIENT_ID ?? "",
+  googleDriveClientSecret: process.env.GOOGLE_DRIVE_CLIENT_SECRET ?? "",
+  googleDriveRedirectUri: process.env.GOOGLE_DRIVE_REDIRECT_URI ?? "",
+  googleDriveFolderId: process.env.GOOGLE_DRIVE_FOLDER_ID ?? "",
+  archiveCronEnabled: process.env.ARCHIVE_CRON_ENABLED === "true",
+  archiveIntervalWeeks: Math.max(
+    1,
+    parseInt(process.env.ARCHIVE_INTERVAL_WEEKS ?? "6", 10) || 6
+  ),
 };
