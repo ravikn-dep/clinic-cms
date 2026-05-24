@@ -117,13 +117,13 @@ function AuthenticatedApp() {
 function App() {
   const location = typeof window !== 'undefined' ? window.location.pathname : '';
   
-  // Show DirectLogin immediately without any auth checks
-  if (location === '/direct-login' || location === '/login' || location === '/password-login' || location === '/qr-login' || location === '/staff-login') {
+  // Show public login pages immediately without any auth checks
+  if (location === '/direct-login' || location === '/login' || location === '/password-login' || location === '/qr-login' || location === '/staff-login' || location === '/staff-consultant-login') {
     if (location === '/direct-login') return <DirectLogin />;
     if (location === '/login') return <Login />;
     if (location === '/password-login') return <PasswordLogin />;
     if (location === '/qr-login') return <QRLogin />;
-    if (location === '/staff-login') return <StaffConsultantLogin />;
+    if (location === '/staff-login' || location === '/staff-consultant-login') return <StaffConsultantLogin />;
   }
   
   return (
