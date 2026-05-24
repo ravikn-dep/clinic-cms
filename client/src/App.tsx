@@ -16,6 +16,7 @@ import Login from "./pages/Login";
 import PasswordLogin from "./pages/PasswordLogin";
 import PasswordManagement from "./pages/PasswordManagement";
 import DirectLogin from "./pages/DirectLogin";
+import StaffConsultantLogin from "./pages/StaffConsultantLogin";
 import DailyExport from "./pages/DailyExport";
 import ConsultantDashboard from "./pages/ConsultantDashboard";
 import StaffDashboard from "./pages/StaffDashboard";
@@ -117,11 +118,12 @@ function App() {
   const location = typeof window !== 'undefined' ? window.location.pathname : '';
   
   // Show DirectLogin immediately without any auth checks
-  if (location === '/direct-login' || location === '/login' || location === '/password-login' || location === '/qr-login') {
+  if (location === '/direct-login' || location === '/login' || location === '/password-login' || location === '/qr-login' || location === '/staff-login') {
     if (location === '/direct-login') return <DirectLogin />;
     if (location === '/login') return <Login />;
     if (location === '/password-login') return <PasswordLogin />;
     if (location === '/qr-login') return <QRLogin />;
+    if (location === '/staff-login') return <StaffConsultantLogin />;
   }
   
   return (
