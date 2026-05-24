@@ -30,8 +30,9 @@ const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserI
 
 class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
-    if (ENV.oAuthServerUrl) {
-      console.log("[OAuth] Initialized with baseURL:", ENV.oAuthServerUrl);
+    const oauthBase = process.env.OAUTH_SERVER_URL?.trim();
+    if (oauthBase) {
+      console.log("[OAuth] Legacy OAuth server configured:", oauthBase);
     }
   }
 
@@ -75,7 +76,7 @@ class OAuthService {
 
 const createOAuthHttpClient = (): AxiosInstance =>
   axios.create({
-    baseURL: ENV.oAuthServerUrl,
+    baseURL: process.env.OAUTH_SERVER_URL ?? "",
     timeout: AXIOS_TIMEOUT_MS,
   });
 

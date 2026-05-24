@@ -3,6 +3,7 @@ import { keyFromStorageUrl, resolveArtifactStorageKey } from "./artifactAccess";
 
 describe("artifact access helpers", () => {
   it("extracts a storage key from the managed storage URL path", () => {
+    expect(keyFromStorageUrl("/files/patients/PAT-123/qr.png")).toBe("patients/PAT-123/qr.png");
     expect(keyFromStorageUrl("/manus-storage/patients/PAT-123/qr.png")).toBe("patients/PAT-123/qr.png");
   });
 

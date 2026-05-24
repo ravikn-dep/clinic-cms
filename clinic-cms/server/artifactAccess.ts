@@ -1,19 +1,27 @@
-export const STORAGE_URL_MARKER = "/manus-storage/";
+export const STORAGE_URL_MARKERS = ["/files/", "/manus-storage/"] as const;
 
 export function keyFromStorageUrl(url?: string | null) {
   if (!url) return undefined;
-  const markerIndex = url.indexOf(STORAGE_URL_MARKER);
-  if (markerIndex < 0) return undefined;
 
-  const rawKey = url.slice(markerIndex + STORAGE_URL_MARKER.length);
-  if (!rawKey) return undefined;
+  for (const marker of STORAGE_URL_MARKERS) {
+    const markerIndex = url.indexOf(marker);
+    if (markerIndex < 0) continue;
 
-  const [withoutHash] = rawKey.split("#", 1);
-  const [withoutQuery] = withoutHash.split("?", 1);
-  return withoutQuery || undefined;
+    const rawKey = url.slice(markerIndex + marker.length);
+    if (!rawKey) continue;
+
+    const [withoutHash] = rawKey.split("#", 1);
+    const [withoutQuery] = withoutHash.split("?", 1);
+    return withoutQuery || undefined;
+  }
+
+  return undefined;
 }
 
-export function resolveArtifactStorageKey(input: { key?: string | null; url?: string | null }) {
+export function resolveArtifactStorageKey(input: {
+  key?: string | null;
+  url?: string | null;
+}) {
   const explicitKey = input.key?.trim();
   if (explicitKey) return explicitKey;
   return keyFromStorageUrl(input.url);

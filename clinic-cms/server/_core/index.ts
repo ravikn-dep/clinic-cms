@@ -42,7 +42,7 @@ async function startServer() {
   }
 
   const app = express();
-  // Manus / reverse proxies terminate TLS — required for secure session cookies.
+  // Reverse proxies terminate TLS — required for secure session cookies.
   app.set("trust proxy", 1);
 
   // Credential login only — never Manus OAuth (custom domains + legacy paths).

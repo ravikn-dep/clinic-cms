@@ -1,48 +1,49 @@
-import type { Express } from "express";
-import { ENV } from "./env";
+import type { Express, Request, Response } from "express";
+import { isS3Configured, s3GetPresignedUrl } from "../storage/s3";
+import { localFileExists, localReadStream } from "../storage/local";
 
-export function registerStorageProxy(app: Express) {
-  app.get("/manus-storage/*", async (req, res) => {
-    const key = (req.params as Record<string, string>)["0"];
-    if (!key) {
-      res.status(400).send("Missing storage key");
-      return;
-    }
+const LEGACY_PREFIX = "/manus-storage";
+const PUBLIC_PREFIX = "/files";
 
-    if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
-      res.status(500).send("Storage proxy not configured");
-      return;
-    }
+async function serveStorageKey(key: string, res: Response): Promise<void> {
+  if (!key) {
+    res.status(400).send("Missing storage key");
+    return;
+  }
 
+  if (isS3Configured()) {
     try {
-      const forgeUrl = new URL(
-        "v1/storage/presign/get",
-        ENV.forgeApiUrl.replace(/\/+$/, "") + "/",
-      );
-      forgeUrl.searchParams.set("path", key);
-
-      const forgeResp = await fetch(forgeUrl, {
-        headers: { Authorization: `Bearer ${ENV.forgeApiKey}` },
-      });
-
-      if (!forgeResp.ok) {
-        const body = await forgeResp.text().catch(() => "");
-        console.error(`[StorageProxy] forge error: ${forgeResp.status} ${body}`);
-        res.status(502).send("Storage backend error");
-        return;
-      }
-
-      const { url } = (await forgeResp.json()) as { url: string };
-      if (!url) {
-        res.status(502).send("Empty signed URL from backend");
-        return;
-      }
-
+      const url = await s3GetPresignedUrl(key);
       res.set("Cache-Control", "no-store");
       res.redirect(307, url);
+      return;
     } catch (err) {
-      console.error("[StorageProxy] failed:", err);
-      res.status(502).send("Storage proxy error");
+      console.error("[StorageProxy] S3 presign failed:", err);
+      res.status(502).send("Storage backend error");
+      return;
     }
-  });
+  }
+
+  if (!localFileExists(key)) {
+    res.status(404).send("File not found");
+    return;
+  }
+
+  res.set("Cache-Control", "private, max-age=3600");
+  localReadStream(key).pipe(res);
+}
+
+function keyFromRequest(req: Request): string | undefined {
+  const params = req.params as Record<string, string>;
+  return params["0"]?.replace(/^\/+/, "");
+}
+
+export function registerStorageProxy(app: Express) {
+  const handler = async (req: Request, res: Response) => {
+    await serveStorageKey(keyFromRequest(req) ?? "", res);
+  };
+
+  app.get(`${PUBLIC_PREFIX}/*`, handler);
+  // Legacy Manus-hosted URLs stored in the database still work.
+  app.get(`${LEGACY_PREFIX}/*`, handler);
 }

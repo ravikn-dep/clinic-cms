@@ -31,7 +31,7 @@ Add to `.env` on the server (never commit secrets):
 | `ARCHIVE_CRON_ENABLED` | No | Set `true` to enable scheduled checks (production only) |
 | `ARCHIVE_INTERVAL_WEEKS` | No | Default `6` — minimum weeks between completed archives |
 | `JWT_SECRET` | Yes | Encrypts refresh/access tokens at rest |
-| `BUILT_IN_FORGE_API_URL` / `BUILT_IN_FORGE_API_KEY` | Yes | Required to download files from storage for zipping |
+| S3 or local `uploads/` | Yes | Files are read from configured storage for zipping |
 
 ## Database migration
 

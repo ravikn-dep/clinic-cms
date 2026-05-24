@@ -34,29 +34,21 @@ export type GenerateImageResponse = {
 export async function generateImage(
   options: GenerateImageOptions
 ): Promise<GenerateImageResponse> {
-  if (!ENV.forgeApiUrl) {
-    throw new Error("BUILT_IN_FORGE_API_URL is not configured");
-  }
-  if (!ENV.forgeApiKey) {
-    throw new Error("BUILT_IN_FORGE_API_KEY is not configured");
+  if (!ENV.aiApiUrl || !ENV.aiApiKey) {
+    throw new Error(
+      "Image generation requires AI_API_URL and AI_API_KEY (OpenAI-compatible images endpoint not yet wired for self-hosted mode).",
+    );
   }
 
-  // Build the full URL by appending the service path to the base URL
-  const baseUrl = ENV.forgeApiUrl.endsWith("/")
-    ? ENV.forgeApiUrl
-    : `${ENV.forgeApiUrl}/`;
-  const fullUrl = new URL(
-    "images.v1.ImageService/GenerateImage",
-    baseUrl
-  ).toString();
+  const baseUrl = ENV.aiApiUrl.endsWith("/") ? ENV.aiApiUrl : `${ENV.aiApiUrl}/`;
+  const fullUrl = new URL("images/generations", baseUrl).toString();
 
   const response = await fetch(fullUrl, {
     method: "POST",
     headers: {
       accept: "application/json",
       "content-type": "application/json",
-      "connect-protocol-version": "1",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${ENV.aiApiKey}`,
     },
     body: JSON.stringify({
       prompt: options.prompt,

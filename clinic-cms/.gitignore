@@ -109,5 +109,8 @@ temp/
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
 
-# Manus version file (auto-generated, not part of source)
-client/public/__manus__/version.json
+# Local file uploads (when S3 is not configured)
+uploads/
+
+# Legacy dev log collector output
+.manus-logs/
