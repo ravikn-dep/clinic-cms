@@ -61,6 +61,11 @@ export const appRouter = router({
           if (!user) {
             throw new Error("Invalid email or password");
           }
+          
+          // Log staff/consultant access for analytics
+          if (user.role !== 'admin') {
+            console.log(`[Analytics] Staff Login: user_id=${user.id}, role=${user.role}, email=${input.email}, timestamp=${new Date().toISOString()}, ip=${ctx.req.ip || 'unknown'}`);
+          }
 
           // Ensure user has a valid openId for session token creation
           // First fetch the full user object to get openId
@@ -80,6 +85,9 @@ export const appRouter = router({
 
           const cookieOptions = getSessionCookieOptions(ctx.req);
           ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: 365 * 24 * 60 * 60 * 1000 });
+
+          // Log successful login for analytics
+          console.log(`[Analytics] Login Success: user_id=${user.id}, role=${user.role}, email=${input.email}, timestamp=${new Date().toISOString()}`);
 
           return {
             success: true,

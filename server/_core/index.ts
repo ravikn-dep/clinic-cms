@@ -35,11 +35,25 @@ async function startServer() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   
-  // Bypass OAuth for direct login routes
+  // Bypass OAuth for direct login routes and staff subdomain
   app.use((req, res, next) => {
-    if (req.path === "/direct-login" || req.path === "/login" || req.path.startsWith("/api/trpc")) {
+    const isStaffSubdomain = req.hostname?.startsWith('staff.') || req.hostname?.includes('staff-');
+    if (req.path === "/direct-login" || req.path === "/login" || req.path.startsWith("/api/trpc") || isStaffSubdomain) {
       // Skip OAuth middleware for these routes
       return next();
+    }
+    next();
+  });
+
+  // Staff subdomain routing - redirect to staff-consultant-login
+  app.use((req, res, next) => {
+    const isStaffSubdomain = req.hostname?.startsWith('staff.') || req.hostname?.includes('staff-');
+    if (isStaffSubdomain && req.path === '/') {
+      return res.redirect('/staff-consultant-login');
+    }
+    // Log staff access for analytics
+    if (isStaffSubdomain || req.path === '/staff-consultant-login' || req.path === '/staff-login') {
+      console.log(`[Staff Access] ${req.method} ${req.path} from ${req.hostname} at ${new Date().toISOString()}`);
     }
     next();
   });
@@ -54,9 +68,24 @@ async function startServer() {
       createContext,
     })
   );
-  // Add route handler for direct login before Vite/static files
+  // Add route handlers for login pages before Vite/static files
   app.get("/direct-login", (req, res, next) => {
     // Serve the app for direct login route
+    next();
+  });
+  
+  app.get("/staff-login", (req, res, next) => {
+    // Serve the app for staff login route
+    next();
+  });
+  
+  app.get("/staff-consultant-login", (req, res, next) => {
+    // Serve the app for staff consultant login route
+    next();
+  });
+  
+  app.get("/password-login", (req, res, next) => {
+    // Serve the app for password login route
     next();
   });
   
