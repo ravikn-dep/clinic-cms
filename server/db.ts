@@ -538,7 +538,8 @@ export async function getFeaturePermissions(role: "consultant" | "staff" | "admi
   
   const result: Record<string, boolean> = {};
   for (const perm of perms as any[]) {
-    result[perm.featureKey] = perm.isEnabled;
+    // Convert tinyint (0/1) to boolean
+    result[perm.featureKey] = Boolean(perm.isEnabled);
   }
   
   return result;
