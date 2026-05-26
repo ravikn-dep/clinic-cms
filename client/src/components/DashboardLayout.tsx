@@ -100,11 +100,6 @@ function DashboardLayoutContent({
     if (item.path === "/" || item.path === "/register-patient") return true;
     // Show admin items only for admins
     if (item.adminOnly) return user?.role === "admin";
-    // For consultants/staff: restrict to patient records, appointments, and ambient scribe
-    if (user?.role === "consultant" || user?.role === "staff") {
-      const allowedPaths = ["/patients", "/appointments", "/scribe"];
-      return allowedPaths.includes(item.path);
-    }
     // Show feature-gated items if user has access
     if (item.feature) return hasAccess(item.feature);
     return true;

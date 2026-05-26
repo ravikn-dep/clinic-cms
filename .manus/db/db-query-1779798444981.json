@@ -1,0 +1,9 @@
+{
+  "query": "DELETE FROM users WHERE username = 'admin' OR email = 'admin@clinic.local';\nINSERT INTO users (username, email, passwordHash, role, isActive, name, loginMethod, openId, createdAt, updatedAt) \nVALUES ('admin', 'admin', '$2b$10$i8tV7w.yEq65y43hH.I0.ei4ybZ6vc2jH2E/V0eT31kK6aEU.U.Oi', 'admin', 1, 'Admin User', 'credential', 'admin-openid-001', NOW(), NOW());",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway06.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 2FpfnzJKbQhQq3C.root --database 47itfTjNF9LgnsoJ4nN2Uu --execute DELETE FROM users WHERE username = 'admin' OR email = 'admin@clinic.local';\nINSERT INTO users (username, email, passwordHash, role, isActive, name, loginMethod, openId, createdAt, updatedAt) \nVALUES ('admin', 'admin', '$2b$10$i8tV7w.yEq65y43hH.I0.ei4ybZ6vc2jH2E/V0eT31kK6aEU.U.Oi', 'admin', 1, 'Admin User', 'credential', 'admin-openid-001', NOW(), NOW());",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 2023
+}
