@@ -1,11 +1,14 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+
+import { useCredentialAuth } from "@/_core/hooks/useCredentialAuth";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Package, Users, Pill, AlertCircle, CheckCircle } from "lucide-react";
 
 export default function StaffDashboard() {
-  const { user } = useAuth();
+  const { user } = useCredentialAuth();
+  const { hasAccess } = useFeatureAccess();
 
   if (!user || user.role !== "staff") {
     return (
@@ -80,24 +83,33 @@ export default function StaffDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button asChild className="w-full justify-start gap-2 bg-teal-600 hover:bg-teal-700">
-              <Link href="/register-patient">
-                <Users className="h-4 w-4" />
-                Register New Patient
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start gap-2">
-              <Link href="/pharmacy">
-                <Pill className="h-4 w-4" />
-                Manage Inventory
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start gap-2">
-              <Link href="/purchase-orders">
-                <Package className="h-4 w-4" />
-                View Purchase Orders
-              </Link>
-            </Button>
+            {hasAccess('patient_records') && (
+              <Button asChild className="w-full justify-start gap-2 bg-teal-600 hover:bg-teal-700">
+                <Link href="/register-patient">
+                  <Users className="h-4 w-4" />
+                  Register New Patient
+                </Link>
+              </Button>
+            )}
+            {hasAccess('pharmacy') && (
+              <Button asChild variant="outline" className="w-full justify-start gap-2">
+                <Link href="/pharmacy">
+                  <Pill className="h-4 w-4" />
+                  Manage Inventory
+                </Link>
+              </Button>
+            )}
+            {hasAccess('purchase_orders') && (
+              <Button asChild variant="outline" className="w-full justify-start gap-2">
+                <Link href="/purchase-orders">
+                  <Package className="h-4 w-4" />
+                  View Purchase Orders
+                </Link>
+              </Button>
+            )}
+            {!hasAccess('patient_records') && !hasAccess('pharmacy') && !hasAccess('purchase_orders') && (
+              <p className="text-sm text-gray-500 py-4">No features available. Contact administrator.</p>
+            )}
           </CardContent>
         </Card>
 

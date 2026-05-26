@@ -71,7 +71,7 @@ export const patientRegistrationRouter = router({
         tableName: "patients",
         recordId: patientId,
         newValue: JSON.stringify(patient),
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
       });
 
       // Trigger notification
@@ -184,7 +184,7 @@ export const billingRouter = router({
         tableName: "bills",
         recordId: billId,
         newValue: JSON.stringify(bill),
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
       });
 
       // Trigger notification

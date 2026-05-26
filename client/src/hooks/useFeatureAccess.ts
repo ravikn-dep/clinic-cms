@@ -59,22 +59,32 @@ export function useFeatureAccess(): UseFeatureAccessResult {
     }
 
     const perms = fullPermissions || {};
+    const allPerms: Record<string, boolean> = {
+      patient_records: perms['patient_records'] === true,
+      ambient_scribe: perms['ambient_scribe'] === true,
+      pharmacy: perms['pharmacy'] === true,
+      billing: perms['billing'] === true,
+      purchase_orders: perms['purchase_orders'] === true,
+      appointments: perms['appointments'] === true,
+      notifications: perms['notifications'] === true,
+      audit_trail: perms['audit_trail'] === true,
+      daily_export: perms['daily_export'] === true,
+      user_management: perms['user_management'] === true,
+    };
 
     return {
       hasAccess: (feature: FeatureKey) => {
-        return perms[feature] === true;
+        return allPerms[feature] === true;
       },
       canAccessRoute: (path: string) => {
         const feature = getFeatureForRoute(path);
         if (!feature) return true; // Routes without feature mapping are always accessible
-        return perms[feature] === true;
+        return allPerms[feature] === true;
       },
-      accessibleFeatures: Object.entries(perms)
-        .filter(([_, allowed]) => allowed === true)
-        .map(([key]) => key as FeatureKey),
-      accessibleRoutes: Object.entries(perms)
-        .filter(([_, allowed]) => allowed === true)
-        .flatMap(([key]) => FEATURE_TO_ROUTES[key as FeatureKey] || []),
+      accessibleFeatures: Object.keys(allPerms).filter(key => allPerms[key] === true) as FeatureKey[],
+      accessibleRoutes: Object.keys(allPerms)
+        .filter(key => allPerms[key] === true)
+        .flatMap(key => FEATURE_TO_ROUTES[key as FeatureKey] || []),
       isLoading,
       error: error as Error | null,
     };

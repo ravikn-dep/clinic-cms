@@ -1,12 +1,14 @@
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { useCredentialAuth } from "@/_core/hooks/useCredentialAuth";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { Calendar, FileText, TrendingUp, Users as UsersIcon } from "lucide-react";
 
 export default function ConsultantDashboard() {
-  const { user } = useAuth();
+  const { user } = useCredentialAuth();
+  const { hasAccess } = useFeatureAccess();
 
   if (!user || user.role !== "consultant") {
     return (
@@ -81,18 +83,25 @@ export default function ConsultantDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            <Button asChild className="w-full justify-start gap-2 bg-teal-600 hover:bg-teal-700">
-              <Link href="/scribe">
-                <FileText className="h-4 w-4" />
-                Start Consultation Notes
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="w-full justify-start gap-2">
-              <Link href="/patients">
-                <UsersIcon className="h-4 w-4" />
-                View Patient Records
-              </Link>
-            </Button>
+            {hasAccess('ambient_scribe') && (
+              <Button asChild className="w-full justify-start gap-2 bg-teal-600 hover:bg-teal-700">
+                <Link href="/scribe">
+                  <FileText className="h-4 w-4" />
+                  Start Consultation Notes
+                </Link>
+              </Button>
+            )}
+            {hasAccess('patient_records') && (
+              <Button asChild variant="outline" className="w-full justify-start gap-2">
+                <Link href="/patients">
+                  <UsersIcon className="h-4 w-4" />
+                  View Patient Records
+                </Link>
+              </Button>
+            )}
+            {!hasAccess('ambient_scribe') && !hasAccess('patient_records') && (
+              <p className="text-sm text-gray-500 py-4">No features available. Contact administrator.</p>
+            )}
           </CardContent>
         </Card>
 

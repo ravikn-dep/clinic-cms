@@ -213,7 +213,7 @@ export const appRouter = router({
           tableName: "patients",
           recordId: patientId,
           newValue: JSON.stringify(patient),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         // Trigger in-app and owner-channel notifications for the clinic owner.
@@ -267,7 +267,7 @@ export const appRouter = router({
         tableName: "patients",
         recordId: "patient-records-csv",
         newValue: JSON.stringify({ rowCount: rows.length, format: "csv" }),
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
       });
 
       return csvResponse(csv, makeCsvFilename("patient-records"), rows.length);
@@ -284,7 +284,7 @@ export const appRouter = router({
           tableName: "patients",
           recordId: input.patientId,
           newValue: JSON.stringify({ accessType: "patient_profile_view" }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
         return patient;
       }),
@@ -300,7 +300,7 @@ export const appRouter = router({
           tableName: "patients",
           recordId: "patient-search",
           newValue: JSON.stringify({ query: input.query, resultCount: results.length }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
         return results;
       }),
@@ -325,7 +325,7 @@ export const appRouter = router({
           tableName: "patients",
           recordId: input.patientId,
           newValue: JSON.stringify({ accessType: "billing_form_lookup" }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return {
@@ -368,7 +368,7 @@ export const appRouter = router({
           tableName: "consultations",
           recordId: input.patientId,
           newValue: JSON.stringify({ fileKey: upload.key, mimeType: input.mimeType, sizeBytes: audioBuffer.length }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return { url: upload.url, key: upload.key };
@@ -388,7 +388,7 @@ export const appRouter = router({
           patientId: input.patientId,
           audioFileUrl: input.audioFileUrl,
           audioFileKey: input.audioFileKey,
-          consultationDate: new Date(),
+          consultationDate: new Date().toISOString(),
         });
 
         return consultation;
@@ -477,7 +477,7 @@ export const appRouter = router({
           tableName: "consultations",
           recordId: input.consultationId,
           newValue: JSON.stringify(parsedData),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return {
@@ -508,7 +508,7 @@ export const appRouter = router({
 
         await db.updateConsultation(input.consultationId, {
           digitalSignature,
-          isFinalized: true,
+          isFinalized: 1,
         });
 
         return { success: true };
@@ -559,7 +559,7 @@ export const appRouter = router({
           tableName: "inventory",
           recordId: itemId,
           newValue: JSON.stringify(item),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         if (input.quantityAvailable <= input.reorderLevel) {
@@ -642,7 +642,7 @@ export const appRouter = router({
           recordId: input.itemId,
           oldValue: JSON.stringify(oldItem),
           newValue: JSON.stringify(sanitizedUpdates),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return { success: true };
@@ -768,7 +768,7 @@ export const appRouter = router({
           tableName: "bills",
           recordId: billId,
           newValue: JSON.stringify(billWithInvoice),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         // Trigger in-app and owner-channel notification.
@@ -862,7 +862,7 @@ export const appRouter = router({
         tableName: "bills",
         recordId: "billing-history-csv",
         newValue: JSON.stringify({ rowCount: rows.length, format: "csv" }),
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
       });
 
       return csvResponse(csv, makeCsvFilename("billing-history"), rows.length);
@@ -886,7 +886,7 @@ export const appRouter = router({
           tableName: "bills",
           recordId: input.billId,
           newValue: JSON.stringify({ paymentStatus: input.paymentStatus }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return { success: true };
@@ -908,7 +908,7 @@ export const appRouter = router({
           tableName: "consultations",
           recordId: input.consultationId,
           newValue: JSON.stringify({ accessType: "billing_form_lookup" }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return {
@@ -961,7 +961,7 @@ export const appRouter = router({
           tableName: "bills",
           recordId: input.billId,
           newValue: JSON.stringify({ receiptGenerated: true, receiptUrl: receiptPdf.url }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return { success: true, receiptUrl: receiptPdf.url };
@@ -1000,7 +1000,7 @@ export const appRouter = router({
             tableName: "bills",
             recordId: input.billId,
             newValue: JSON.stringify({ receiptDelivered: true, method: input.method }),
-            timestamp: new Date(),
+            timestamp: new Date().toISOString(),
           });
 
           return { success: true, message: `Receipt sent via ${input.method}` };
@@ -1056,7 +1056,7 @@ export const appRouter = router({
           vendorName: input.vendorName,
           vendorContactNumber: input.vendorContactNumber,
           vendorEmail: input.vendorEmail,
-          vendorGSTNumber: input.vendorGSTNumber,
+          vendorGstNumber: input.vendorGSTNumber,
           vendorBankDetails: input.vendorBankDetails,
           vendorAddress: input.vendorAddress,
           totalAmount: totalAmount.toString() as any,
@@ -1064,7 +1064,7 @@ export const appRouter = router({
           approvalStatus: input.approvalStatus === "Approved" ? "Approved" : "Pending Approval",
           authorizationNotes: input.authorizationNotes,
           approvedBy: input.approvalStatus === "Approved" ? ctx.user.name : undefined,
-          approvalTimestamp: input.approvalStatus === "Approved" ? new Date() : undefined,
+          approvalTimestamp: input.approvalStatus === "Approved" ? new Date().toISOString() : undefined,
           expectedDeliveryDate: input.expectedDeliveryDate,
           notes: input.notes,
         });
@@ -1116,7 +1116,7 @@ export const appRouter = router({
               tableName: "inventory",
               recordId: item.itemName,
               newValue: JSON.stringify({ itemName: item.itemName, quantity: item.quantity, source: `PO-${purchaseOrderId}` }),
-              timestamp: new Date(),
+              timestamp: new Date().toISOString(),
             });
           } catch (error) {
             console.error(`Failed to add inventory for ${item.itemName}:`, error);
@@ -1131,7 +1131,7 @@ export const appRouter = router({
           tableName: "purchaseOrders",
           recordId: purchaseOrderId,
           newValue: JSON.stringify({ vendorName: input.vendorName, totalAmount }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         await safeNotifyOwner(
@@ -1179,7 +1179,7 @@ export const appRouter = router({
           tableName: "purchaseOrders",
           recordId: input.purchaseOrderId,
           newValue: JSON.stringify({ paymentStatus: input.paymentStatus }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return { success: true };
@@ -1211,7 +1211,7 @@ export const appRouter = router({
           tableName: "purchaseOrders",
           recordId: input.purchaseOrderId,
           newValue: JSON.stringify({ approvalStatus: "Approved" }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return { success: true };
@@ -1250,7 +1250,7 @@ export const appRouter = router({
           tableName: "purchaseOrders",
           recordId: input.purchaseOrderId,
           newValue: JSON.stringify({ approvalStatus: "Rejected", rejectionReason: input.rejectionReason }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return { success: true };
@@ -1387,7 +1387,7 @@ export const appRouter = router({
             userId,
             username,
             passwordHash,
-            isActive: true,
+            isActive: 1,
             qrcodeLoginUrl,
             createdBy: ctx.user.id,
             loginMethod: "local",
@@ -1505,7 +1505,7 @@ export const appRouter = router({
           }
 
           // Update last signed in
-          await db.updateStaffUser(user.userId!, { lastSignedIn: new Date() });
+          await db.updateStaffUser(user.userId!, { lastSignedIn: new Date().toISOString() });
 
           // Create session token and set cookie
           const sessionToken = await sdk.createSessionToken(user.openId || `local-${user.userId}`, {
@@ -1568,7 +1568,7 @@ export const appRouter = router({
           }
 
           // Update last signed in
-          await db.updateStaffUser(user.userId!, { lastSignedIn: new Date() });
+          await db.updateStaffUser(user.userId!, { lastSignedIn: new Date().toISOString() });
 
           // Create session token and set cookie
           const sessionToken = await sdk.createSessionToken(user.openId || `local-${user.userId}`, {
@@ -1619,7 +1619,7 @@ export const appRouter = router({
           tableName: "storage_artifacts",
           recordId: input.recordId || input.patientId || storageKey,
           newValue: JSON.stringify({ artifactType: input.artifactType, patientId: input.patientId, key: artifact.key }),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return artifact;
@@ -1705,7 +1705,7 @@ export const appRouter = router({
           recordId: input.role,
           oldValue: JSON.stringify(await db.getFeaturePermissions(input.role)),
           newValue: JSON.stringify(input.permissions),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return { success: true };
@@ -1765,7 +1765,7 @@ export const appRouter = router({
           recordId: input.role,
           oldValue: "",
           newValue: JSON.stringify(templatePermissions),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return { success: true };
@@ -1806,7 +1806,7 @@ export const appRouter = router({
           recordId: "default",
           oldValue: "",
           newValue: JSON.stringify(input),
-          timestamp: new Date(),
+          timestamp: new Date().toISOString(),
         });
 
         return { success: true };
@@ -1823,7 +1823,7 @@ export const appRouter = router({
         recordId: "default",
         oldValue: "",
         newValue: "reset_to_default",
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
       });
 
       return { success: true };
@@ -1853,7 +1853,7 @@ export const appRouter = router({
             recordId: `${input.role}-${input.featureKey}`,
             oldValue: { isEnabled: !input.isEnabled },
             newValue: { isEnabled: input.isEnabled },
-            timestamp: new Date(),
+            timestamp: new Date().toISOString(),
           });
           return { success: true };
         } catch (error) {

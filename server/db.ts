@@ -512,7 +512,7 @@ export async function updateRolePermission(role: "admin" | "consultant" | "staff
     // Update existing
     await db
       .update(rolePermissions)
-      .set({ isEnabled, updatedAt: new Date() })
+      .set({ isEnabled, updatedAt: new Date().toISOString() })
       .where(eq(rolePermissions.permissionId, existing.permissionId));
   } else {
     // Create new
@@ -560,7 +560,7 @@ export async function setFeaturePermission(role: "consultant" | "staff", feature
 
   if (existing.length > 0) {
     await db.update(rolePermissions)
-      .set({ isEnabled, updatedAt: new Date() })
+      .set({ isEnabled: isEnabled ? 1 : 0, updatedAt: new Date().toISOString() })
       .where(
         and(
           eq(rolePermissions.role, role),
@@ -572,7 +572,7 @@ export async function setFeaturePermission(role: "consultant" | "staff", feature
       permissionId,
       role,
       featureKey,
-      isEnabled,
+      isEnabled: isEnabled ? 1 : 0,
     } as any);
   }
 }
@@ -589,7 +589,7 @@ export async function setFeaturePermissions(role: "consultant" | "staff", permis
       permissionId,
       role,
       featureKey,
-      isEnabled,
+      isEnabled: isEnabled ? 1 : 0,
     } as any);
   }
 }
@@ -607,7 +607,7 @@ export async function checkFeatureAccess(role: "admin" | "consultant" | "staff",
     )
   );
 
-  return perm.length > 0 ? (perm[0] as any).isEnabled : false;
+  return perm.length > 0 ? (perm[0] as any).isEnabled === 1 : false;
 }
 
 export async function initializeDefaultPermissions(): Promise<void> {
@@ -626,7 +626,7 @@ export async function initializeDefaultPermissions(): Promise<void> {
       permissionId,
       role: "consultant",
       featureKey: feature,
-      isEnabled: true,
+      isEnabled: 1,
     } as any);
   }
 
@@ -636,7 +636,7 @@ export async function initializeDefaultPermissions(): Promise<void> {
       permissionId,
       role: "staff",
       featureKey: feature,
-      isEnabled: true,
+      isEnabled: 1,
     } as any);
   }
 }
@@ -760,7 +760,7 @@ export async function updateAppointmentStatus(appointmentId: string, status: "Sc
   if (!db) throw new Error("Database not available");
 
   await db.update(appointments)
-    .set({ status, updatedAt: new Date() })
+    .set({ status, updatedAt: new Date().toISOString() })
     .where(eq(appointments.appointmentId, appointmentId));
 }
 
@@ -769,7 +769,7 @@ export async function cancelAppointment(appointmentId: string) {
   if (!db) throw new Error("Database not available");
 
   await db.update(appointments)
-    .set({ status: "Cancelled", updatedAt: new Date() })
+    .set({ status: "Cancelled", updatedAt: new Date().toISOString() })
     .where(eq(appointments.appointmentId, appointmentId));
 }
 
@@ -782,7 +782,7 @@ export async function rescheduleAppointment(appointmentId: string, newDate: stri
       appointmentDate: newDate,
       appointmentTime: newTime,
       status: "Rescheduled",
-      updatedAt: new Date() 
+      updatedAt: new Date().toISOString() 
     })
     .where(eq(appointments.appointmentId, appointmentId));
 }
@@ -844,7 +844,7 @@ export async function setConsultantAvailability(data: {
     endTime: data.endTime,
     slotDuration: data.slotDuration ?? 30,
     maxAppointmentsPerDay: data.maxAppointmentsPerDay ?? 10,
-    isActive: true,
+    isActive: 1,
   } as any);
 
   return availabilityId;
@@ -861,7 +861,7 @@ export async function getAvailableSlots(consultantId: number, date: string) {
     and(
       eq(consultantAvailability.consultantId, consultantId),
       eq(consultantAvailability.dayOfWeek, dayOfWeek),
-      eq(consultantAvailability.isActive, true)
+      eq(consultantAvailability.isActive, 1)
     )
   );
 
@@ -919,7 +919,7 @@ export async function setUserPassword(userId: number, password: string): Promise
   const hashedPassword = await hashPassword(password);
   
   await db.update(users)
-    .set({ passwordHash: hashedPassword, updatedAt: new Date() })
+    .set({ passwordHash: hashedPassword, updatedAt: new Date().toISOString() })
     .where(eq(users.id, userId));
 }
 
@@ -999,7 +999,7 @@ export async function getAllBillTemplates() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  return db.select().from(billTemplates).where(eq(billTemplates.isActive, true)).orderBy(desc(billTemplates.createdAt));
+  return db.select().from(billTemplates).where(eq(billTemplates.isActive, 1)).orderBy(desc(billTemplates.createdAt));
 }
 
 export async function updateBillTemplate(templateId: string, updates: Partial<typeof billTemplates.$inferInsert>) {
@@ -1013,7 +1013,7 @@ export async function deleteBillTemplate(templateId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.update(billTemplates).set({ isActive: false }).where(eq(billTemplates.templateId, templateId));
+  await db.update(billTemplates).set({ isActive: 0 }).where(eq(billTemplates.templateId, templateId));
 }
 
 
@@ -1053,7 +1053,7 @@ export async function createDirectLoginUser(data: {
     phone: data.phone,
     department: data.department,
     createdBy: data.createdBy,
-    isActive: true,
+    isActive: 1,
     loginMethod: "direct",
   });
   
@@ -1071,7 +1071,7 @@ export async function updateUserStatus(userId: number, isActive: boolean) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.update(users).set({ isActive }).where(eq(users.id, userId));
+  await db.update(users).set({ isActive: isActive ? 1 : 0 }).where(eq(users.id, userId));
 }
 
 export async function getAllDirectLoginUsers() {
@@ -1098,7 +1098,7 @@ export async function createVendor(vendorData: any): Promise<any> {
     address: vendorData.address,
     dlNumber: vendorData.dlNumber ? JSON.stringify(vendorData.dlNumber) : null,
     email: vendorData.email,
-    isActive: true,
+    isActive: 1,
     createdBy: vendorData.createdBy,
   });
   
@@ -1109,7 +1109,7 @@ export async function getAllVendors(): Promise<any[]> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  return await db.select().from(vendors).where(eq(vendors.isActive, true));
+  return await db.select().from(vendors).where(eq(vendors.isActive, 1));
 }
 
 export async function getVendorById(vendorId: string): Promise<any | null> {
@@ -1131,7 +1131,7 @@ export async function updateVendor(vendorId: string, vendorData: any): Promise<a
     address: vendorData.address,
     dlNumber: vendorData.dlNumber ? JSON.stringify(vendorData.dlNumber) : null,
     email: vendorData.email,
-    updatedAt: new Date(),
+    updatedAt: new Date().toISOString(),
   }).where(eq(vendors.vendorId, vendorId));
   
   return { vendorId, ...vendorData };
