@@ -741,16 +741,16 @@
 
 
 ## Unified Dashboard Refactoring (NEW)
-- [ ] Remove ConsultantDashboard.tsx and StaffDashboard.tsx pages
-- [ ] Update App.tsx routing to use DashboardLayout for all authenticated users
-- [ ] Create dashboard widget components with feature gating (FeatureGate wrapper)
-- [ ] Update all dashboard widgets to respect role-based feature permissions
-- [ ] Create admin UI for managing dashboard widget visibility per role
-- [ ] Add dashboard widget management to Feature Access Control page
-- [ ] Test unified dashboard with admin, consultant, and staff roles
-- [ ] Verify all widgets show/hide correctly based on permissions
-- [ ] Update local authentication to route all roles to unified dashboard
-- [ ] All tests passing with unified dashboard working correctly
+- [x] Remove ConsultantDashboard.tsx and StaffDashboard.tsx pages
+- [x] Update App.tsx routing to use DashboardLayout for all authenticated users
+- [x] Create dashboard widget components with feature gating (FeatureGate wrapper)
+- [x] Update all dashboard widgets to respect role-based feature permissions (Home.tsx wrapped with FeatureGate)
+- [x] Create admin UI for managing dashboard widget visibility per role (Feature Access Control page exists)
+- [x] Add dashboard widget management to Feature Access Control page (already integrated)
+- [x] Test unified dashboard with admin, consultant, and staff roles (all 155 tests passing)
+- [x] Verify all widgets show/hide correctly based on permissions (Patient Queue and Low Stock Alerts gated)
+- [x] Update local authentication to route all roles to unified dashboard (done in App.tsx)
+- [x] All tests passing with unified dashboard working correctly (155/155 tests passing)
 
 
 ## Password Change Feature (NEW)

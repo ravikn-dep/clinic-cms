@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
+import { FeatureGate } from "@/components/FeatureGate";
 
 export default function Home() {
   const { user, loading } = useAuth();
@@ -187,13 +188,14 @@ export default function Home() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
-        <Card className="friendly-card border-0 shadow-md overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-teal-100 pb-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <CardTitle className="flex items-center gap-2 text-teal-950 text-xl">
-                  <Sparkles className="h-5 w-5 text-amber-500" /> Today's Patient Queue
-                </CardTitle>
+        <FeatureGate feature="patient_records">
+          <Card className="friendly-card border-0 shadow-md overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-teal-100 pb-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <CardTitle className="flex items-center gap-2 text-teal-950 text-xl">
+                    <Sparkles className="h-5 w-5 text-amber-500" /> Today's Patient Queue
+                  </CardTitle>
                 <CardDescription className="text-teal-700 mt-2">Patients scheduled for consultation today. The queue refreshes automatically while the dashboard is open.</CardDescription>
               </div>
               <Badge variant="outline" className="rounded-full border-teal-300 bg-white text-teal-800 font-semibold px-3 py-1 flex-shrink-0">
@@ -234,8 +236,9 @@ export default function Home() {
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </FeatureGate>
 
         <Card className="friendly-card border-0 shadow-md overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-teal-50 to-cyan-50 border-b border-teal-100 pb-5">
@@ -268,29 +271,31 @@ export default function Home() {
         </Card>
       </div>
 
-      {lowStockItems.length > 0 && (
-        <Card className="friendly-card border-0 shadow-md overflow-hidden border-l-4 border-l-amber-500">
-          <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 pb-5">
-            <CardTitle className="text-amber-900 text-lg">⚠️ Low Stock Alerts</CardTitle>
-            <CardDescription className="text-amber-800 mt-1">{lowStockItems.length} item(s) below reorder level</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-5">
-            <div className="space-y-3">
-              {lowStockItems.map((item) => (
-                <div key={item.itemId} className="flex flex-col gap-3 rounded-xl border border-amber-200/50 bg-gradient-to-r from-white to-amber-50/30 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-amber-200 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex-1">
-                    <p className="font-semibold text-amber-900 text-sm">{item.itemName}</p>
-                    <p className="text-xs text-amber-700 mt-1">Batch: {item.batchNumber} | Qty: {item.quantityAvailable} / {item.reorderLevel}</p>
+      <FeatureGate feature="pharmacy">
+        {lowStockItems.length > 0 && (
+          <Card className="friendly-card border-0 shadow-md overflow-hidden border-l-4 border-l-amber-500">
+            <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-100 pb-5">
+              <CardTitle className="text-amber-900 text-lg">⚠️ Low Stock Alerts</CardTitle>
+              <CardDescription className="text-amber-800 mt-1">{lowStockItems.length} item(s) below reorder level</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-5">
+              <div className="space-y-3">
+                {lowStockItems.map((item) => (
+                  <div key={item.itemId} className="flex flex-col gap-3 rounded-xl border border-amber-200/50 bg-gradient-to-r from-white to-amber-50/30 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-amber-200 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex-1">
+                      <p className="font-semibold text-amber-900 text-sm">{item.itemName}</p>
+                      <p className="text-xs text-amber-700 mt-1">Batch: {item.batchNumber} | Qty: {item.quantityAvailable} / {item.reorderLevel}</p>
+                    </div>
+                    <Button variant="outline" size="sm" className="friendly-action border-amber-300 bg-white text-amber-700 hover:bg-amber-50 rounded-lg transition-all mt-2 sm:mt-0">
+                      Reorder
+                    </Button>
                   </div>
-                  <Button variant="outline" size="sm" className="friendly-action border-amber-300 bg-white text-amber-700 hover:bg-amber-50 rounded-lg transition-all mt-2 sm:mt-0">
-                    Reorder
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </FeatureGate>
     </div>
   );
 }
