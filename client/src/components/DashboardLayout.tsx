@@ -22,7 +22,7 @@ import {
 import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { FEATURE_TO_ROUTES } from "@/lib/featureAccess";
-import { Activity, Bell, BarChart3, Calendar, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings } from "lucide-react";
+import { Activity, Bell, BarChart3, Calendar, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings, Lock } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -189,7 +189,11 @@ function DashboardLayoutContent({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="rounded-lg shadow-lg">
-                <DropdownMenuItem onClick={() => logout()} className="cursor-pointer">
+                <DropdownMenuItem onClick={() => navigate("/change-password")} className="cursor-pointer">
+                  <Lock className="h-4 w-4 mr-2" />
+                  Change Password
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => logout()} className="cursor-pointer text-red-600">
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
                 </DropdownMenuItem>

@@ -15,11 +15,11 @@ import QRLogin from "./pages/QRLogin";
 import Login from "./pages/Login";
 import PasswordLogin from "./pages/PasswordLogin";
 import PasswordManagement from "./pages/PasswordManagement";
+import ChangePassword from "./pages/ChangePassword";
 import DirectLogin from "./pages/DirectLogin";
 import StaffConsultantLogin from "./pages/StaffConsultantLogin";
 import DailyExport from "./pages/DailyExport";
-import ConsultantDashboard from "./pages/ConsultantDashboard";
-import StaffDashboard from "./pages/StaffDashboard";
+
 import AuditLogs from "./pages/AuditLogs";
 import Notifications from "./pages/Notifications";
 import FeatureAccessControl from "./pages/FeatureAccessControl";
@@ -78,6 +78,7 @@ function Router() {
       <Route path={"/appointments"}>{() => <ProtectedRoute feature="appointments"><Appointments /></ProtectedRoute>}</Route>
       <Route path={"/analytics"}>{() => <AdminOnly><Analytics /></AdminOnly>}</Route>
       <Route path={"/password-management"}>{() => <ProtectedRoute><PasswordManagement /></ProtectedRoute>}</Route>
+      <Route path={"/change-password"}>{() => <ProtectedRoute><ChangePassword /></ProtectedRoute>}</Route>
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -97,14 +98,6 @@ function AuthenticatedApp() {
 
   if (!user) {
     return <DirectLogin />;
-  }
-
-  if (user?.role === "consultant") {
-    return <ConsultantDashboard />;
-  }
-
-  if (user?.role === "staff") {
-    return <StaffDashboard />;
   }
 
   return (

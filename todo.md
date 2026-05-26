@@ -738,3 +738,25 @@
 - [x] Check if there's a React key issue or component re-rendering issue
 - [x] Consider using React DevTools to inspect component state during toggle
 - [x] Implemented native HTML checkboxes instead of shadcn/ui (resolved state reset issue)
+
+
+## Unified Dashboard Refactoring (NEW)
+- [ ] Remove ConsultantDashboard.tsx and StaffDashboard.tsx pages
+- [ ] Update App.tsx routing to use DashboardLayout for all authenticated users
+- [ ] Create dashboard widget components with feature gating (FeatureGate wrapper)
+- [ ] Update all dashboard widgets to respect role-based feature permissions
+- [ ] Create admin UI for managing dashboard widget visibility per role
+- [ ] Add dashboard widget management to Feature Access Control page
+- [ ] Test unified dashboard with admin, consultant, and staff roles
+- [ ] Verify all widgets show/hide correctly based on permissions
+- [ ] Update local authentication to route all roles to unified dashboard
+- [ ] All tests passing with unified dashboard working correctly
+
+
+## Password Change Feature (NEW)
+- [x] Create changePassword backend procedure with validation (already existed)
+- [x] Create ChangePassword page component with form
+- [x] Add password change link to user profile menu in DashboardLayout
+- [x] Implement password validation (min length, complexity)
+- [x] Add success/error notifications for password change
+- [x] Test password change flow with consultant/staff users (all 155 tests passing)
