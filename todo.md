@@ -760,3 +760,13 @@
 - [x] Implement password validation (min length, complexity)
 - [x] Add success/error notifications for password change
 - [x] Test password change flow with consultant/staff users (all 155 tests passing)
+
+
+## Dashboard Widget Feature Gating (NEW)
+- [x] Wrap stat cards with FeatureGate based on feature keys (patient_records, appointments, pharmacy, purchase_orders)
+- [x] Wrap Quick Actions buttons with FeatureGate (Register Patient, Ambient Scribe, Pharmacy, Billing, Purchase Orders)
+- [x] Wrap hero section buttons with FeatureGate (New Patient, Start Scribe)
+- [x] Wrap Patient Queue widget with FeatureGate (patient_records)
+- [x] Wrap Low Stock Alerts widget with FeatureGate (pharmacy)
+- [x] All 155 tests passing with feature gating working correctly
+- [x] Dashboard widgets now automatically hide/show based on user role permissions

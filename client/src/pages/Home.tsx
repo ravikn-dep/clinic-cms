@@ -59,13 +59,15 @@ export default function Home() {
       icon: Users,
       helper: "Registered in this workspace",
       tone: "from-teal-50 to-cyan-50 text-teal-700 border-teal-100",
+      feature: "patient_records" as const,
     },
     {
       label: "Today's queue",
-      value: patientsQuery.isLoading ? null : todayConsultations.length,
+      value: todayConsultations.length,
       icon: Clock,
       helper: "Refreshing every 30 seconds",
-      tone: "from-emerald-50 to-teal-50 text-emerald-700 border-emerald-100",
+      tone: "from-blue-50 to-indigo-50 text-blue-700 border-blue-100",
+      feature: "appointments" as const,
     },
     {
       label: "Low-stock attention",
@@ -73,6 +75,7 @@ export default function Home() {
       icon: AlertTriangle,
       helper: "Items below reorder level",
       tone: "from-amber-50 to-orange-50 text-amber-700 border-amber-100",
+      feature: "pharmacy" as const,
     },
     {
       label: "Inventory items",
@@ -80,6 +83,7 @@ export default function Home() {
       icon: PackageCheck,
       helper: "Active pharmacy catalogue",
       tone: "from-violet-50 to-fuchsia-50 text-violet-700 border-violet-100",
+      feature: "pharmacy" as const,
     },
     {
       label: "Pending POs",
@@ -87,6 +91,7 @@ export default function Home() {
       icon: ShoppingCart,
       helper: "Awaiting vendor payment",
       tone: "from-rose-50 to-pink-50 text-rose-700 border-rose-100",
+      feature: "purchase_orders" as const,
     },
   ];
 
@@ -96,30 +101,35 @@ export default function Home() {
       description: "Start a warm, guided intake",
       icon: Users,
       path: "/register-patient",
+      feature: "patient_records" as const,
     },
     {
       title: "Ambient Scribe",
       description: "Create a consultation note",
       icon: ClipboardPenLine,
       path: "/scribe",
+      feature: "ambient_scribe" as const,
     },
     {
       title: "Pharmacy",
       description: "Review stock and alerts",
       icon: PackageCheck,
       path: "/pharmacy",
+      feature: "pharmacy" as const,
     },
     {
       title: "Billing",
       description: "Prepare invoices clearly",
       icon: Receipt,
       path: "/billing",
+      feature: "billing" as const,
     },
     {
       title: "Purchase Orders",
       description: "Manage vendor orders",
       icon: ShoppingCart,
       path: "/purchase-orders",
+      feature: "purchase_orders" as const,
     },
   ];
 
@@ -148,12 +158,16 @@ export default function Home() {
             </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
-            <Button onClick={() => navigate("/register-patient")} size="lg" className="friendly-action bg-teal-600 text-white hover:bg-teal-700">
-              + New Patient
-            </Button>
-            <Button onClick={() => navigate("/scribe")} size="lg" variant="outline" className="friendly-action border-teal-200 bg-white/80 text-teal-800 hover:bg-teal-50">
-              Start Scribe
-            </Button>
+            <FeatureGate feature="patient_records">
+              <Button onClick={() => navigate("/register-patient")} size="lg" className="friendly-action bg-teal-600 text-white hover:bg-teal-700">
+                + New Patient
+              </Button>
+            </FeatureGate>
+            <FeatureGate feature="ambient_scribe">
+              <Button onClick={() => navigate("/scribe")} size="lg" variant="outline" className="friendly-action border-teal-200 bg-white/80 text-teal-800 hover:bg-teal-50">
+                Start Scribe
+              </Button>
+            </FeatureGate>
           </div>
         </div>
       </section>
@@ -168,22 +182,24 @@ export default function Home() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {stats.map((stat) => (
-          <Card key={stat.label} className={`friendly-card overflow-hidden bg-gradient-to-br ${stat.tone} border-0 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1`}>
-            <CardContent className="p-5 sm:p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="space-y-3 flex-1">
-                  <p className="text-xs sm:text-sm font-semibold opacity-85 uppercase tracking-wide">{stat.label}</p>
-                  <div className="text-3xl sm:text-4xl font-bold text-foreground">
-                    {stat.value === null ? <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /> : stat.value}
+          <FeatureGate key={stat.label} feature={stat.feature}>
+            <Card className={`friendly-card overflow-hidden bg-gradient-to-br ${stat.tone} border-0 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1`}>
+              <CardContent className="p-5 sm:p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-3 flex-1">
+                    <p className="text-xs sm:text-sm font-semibold opacity-85 uppercase tracking-wide">{stat.label}</p>
+                    <div className="text-3xl sm:text-4xl font-bold text-foreground">
+                      {stat.value === null ? <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /> : stat.value}
+                    </div>
+                    <p className="text-xs font-medium opacity-70 leading-snug">{stat.helper}</p>
                   </div>
-                  <p className="text-xs font-medium opacity-70 leading-snug">{stat.helper}</p>
+                  <div className="rounded-2xl bg-white/80 p-3 shadow-md flex-shrink-0">
+                    <stat.icon className="h-6 w-6" />
+                  </div>
                 </div>
-                <div className="rounded-2xl bg-white/80 p-3 shadow-md flex-shrink-0">
-                  <stat.icon className="h-6 w-6" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </FeatureGate>
         ))}
       </div>
 
@@ -248,23 +264,24 @@ export default function Home() {
           <CardContent className="pt-5">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
               {quickActions.map((action) => (
-                <button
-                  key={action.path}
-                  type="button"
-                  onClick={() => navigate(action.path)}
-                  className="group flex items-center justify-between rounded-xl border border-teal-100/50 bg-gradient-to-r from-white to-teal-50/30 p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-teal-50/80 hover:shadow-md hover:border-teal-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                >
-                  <span className="flex items-center gap-3 flex-1 min-w-0">
-                    <span className="rounded-lg bg-gradient-to-br from-teal-100 to-cyan-100 p-3 text-teal-700 transition-all duration-200 group-hover:from-teal-600 group-hover:to-cyan-600 group-hover:text-white flex-shrink-0">
-                      <action.icon className="h-5 w-5" />
+                <FeatureGate key={action.path} feature={action.feature}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(action.path)}
+                    className="group flex items-center justify-between rounded-xl border border-teal-100/50 bg-gradient-to-r from-white to-teal-50/30 p-4 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-teal-50/80 hover:shadow-md hover:border-teal-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  >
+                    <span className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className="rounded-lg bg-gradient-to-br from-teal-100 to-cyan-100 p-3 text-teal-700 transition-all duration-200 group-hover:from-teal-600 group-hover:to-cyan-600 group-hover:text-white flex-shrink-0">
+                        <action.icon className="h-5 w-5" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold text-teal-950 text-sm">{action.title}</span>
+                        <span className="text-xs text-muted-foreground line-clamp-1">{action.description}</span>
+                      </span>
                     </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-semibold text-teal-950 text-sm">{action.title}</span>
-                      <span className="text-xs text-muted-foreground line-clamp-1">{action.description}</span>
-                    </span>
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground transition-all duration-200 group-hover:translate-x-1 group-hover:text-teal-700 flex-shrink-0 ml-2" />
-                </button>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground transition-all duration-200 group-hover:translate-x-1 group-hover:text-teal-700 flex-shrink-0 ml-2" />
+                  </button>
+                </FeatureGate>
               ))}
             </div>
           </CardContent>
