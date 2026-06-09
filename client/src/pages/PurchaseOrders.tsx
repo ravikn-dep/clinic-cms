@@ -32,12 +32,15 @@ export default function PurchaseOrders() {
   });
   const [confidenceScores, setConfidenceScores] = useState<any>(null);
   const [showConfidenceInfo, setShowConfidenceInfo] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<any[]>([]);
+  const [validationWarnings, setValidationWarnings] = useState<any[]>([]);
 
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
   const updatePaymentStatus = trpc.purchaseOrders.updatePaymentStatus.useMutation();
   const uploadPOImage = trpc.purchaseOrders.uploadPoImage.useMutation();
   const extractPO = trpc.purchaseOrders.extractFromImage.useMutation();
+  const validateExtractedData = trpc.purchaseOrders.validateExtractedData.useMutation();
   const approvePO = trpc.purchaseOrders.approve.useMutation({
     onSuccess: () => {
       showAlert("Success", "Purchase Order approved");
@@ -221,6 +224,23 @@ export default function PurchaseOrders() {
           const extractedData = await extractPO.mutateAsync({ imageUrl: uploadResponse.url });
           console.log('[PO Extract] Extraction successful, data:', extractedData);
           setConfidenceScores(extractedData.confidence || null);
+          
+          // Validate extracted data
+          console.log('[Validation] Starting validation...');
+          const validationResult = await validateExtractedData.mutateAsync({
+            vendorName: extractedData.vendorName || "",
+            vendorGstNumber: extractedData.vendorGstNumber || "",
+            vendorContactNumber: extractedData.vendorContactNumber || "",
+            vendorAddress: extractedData.vendorAddress || "",
+            poToName: extractedData.poToName || "",
+            items: extractedData.items || [],
+            totalValue: extractedData.totalValue || "",
+            confidence: extractedData.confidence,
+          });
+          console.log('[Validation] Result:', validationResult);
+          setValidationErrors(validationResult.errors || []);
+          setValidationWarnings(validationResult.warnings || []);
+          
           setFormData({
             vendorName: extractedData.vendorName || "",
             vendorContactNumber: extractedData.vendorContactNumber || "",
@@ -236,7 +256,12 @@ export default function PurchaseOrders() {
               unitPrice: item.valuePerItem || "",
             })) || [{ itemName: "", quantity: 1, unitPrice: "" }],
           });
-          showAlert("Success", "PO data extracted successfully");
+          
+          if (validationResult.isValid) {
+            showAlert("Success", "PO data extracted and validated successfully");
+          } else {
+            showAlert("Validation Issues", `Found ${validationResult.errors.length} error(s) and ${validationResult.warnings.length} warning(s)`);
+          }
           setShowOCRDialog(false);
           setShowForm(true);
           setOcrImageFile(null);
@@ -350,6 +375,26 @@ export default function PurchaseOrders() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {validationErrors.length > 0 && (
+                <div className="bg-red-50 border border-red-300 rounded-lg p-4">
+                  <h3 className="font-semibold text-red-900 mb-2">Validation Errors ({validationErrors.length})</h3>
+                  <ul className="space-y-1">
+                    {validationErrors.map((error, idx) => (
+                      <li key={idx} className="text-sm text-red-800">• {error.field}: {error.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {validationWarnings.length > 0 && (
+                <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+                  <h3 className="font-semibold text-yellow-900 mb-2">Validation Warnings ({validationWarnings.length})</h3>
+                  <ul className="space-y-1">
+                    {validationWarnings.map((warning, idx) => (
+                      <li key={idx} className="text-sm text-yellow-800">⚠ {warning.field}: {warning.message}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {confidenceScores && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">

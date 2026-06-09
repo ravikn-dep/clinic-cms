@@ -1298,6 +1298,32 @@ export const appRouter = router({
           throw new Error(`Failed to extract PO data: ${error instanceof Error ? error.message : "Unknown error"}`);
         }
       }),
+    validateExtractedData: protectedProcedure
+      .input(z.object({
+        vendorName: z.string(),
+        vendorGstNumber: z.string(),
+        vendorContactNumber: z.string(),
+        vendorAddress: z.string(),
+        poToName: z.string(),
+        items: z.array(z.object({
+          name: z.string(),
+          quantity: z.string(),
+          valuePerItem: z.string(),
+          totalValue: z.string(),
+        })),
+        totalValue: z.string(),
+        confidence: z.any().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        try {
+          const validation = await import("./_core/invoiceValidation");
+          const result = validation.validateInvoice(input);
+          return result;
+        } catch (error) {
+          console.error("[Invoice Validation] Validation failed:", error);
+          throw new Error(`Failed to validate invoice: ${error instanceof Error ? error.message : "Unknown error"}`);
+        }
+      }),
   }),
 
   // ============ RBAC USER MANAGEMENT ============

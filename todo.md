@@ -781,3 +781,29 @@
 - [x] Added batch number extraction from BATCH column
 - [x] Updated PurchaseOrders.tsx to display invoice details in notes field
 - [x] All 155 tests passing with enhanced Scan PO feature
+
+
+## Invoice Validation Rules for Scan PO (NEW)
+- [x] Create validation function for GST number format (XXYAIQPRXXXXPXZX)
+- [x] Add vendor database lookup to verify vendor details
+- [x] Implement validation error messages for invalid GST numbers
+- [x] Add validation for required fields (vendor name, items, total amount)
+- [x] Create validation summary display in form (red errors, yellow warnings)
+
+## PO Approval Workflow (NEW)
+- [x] Add approval status field to purchaseOrders table (already exists: Pending Approval, Approved, Rejected)
+- [x] Create approval procedure in backend (approve and reject procedures exist)
+- [x] Add approval UI in Purchase Orders page (approve/reject buttons for admin)
+- [x] Implement multi-level approval logic (admin approval required)
+- [ ] Add approval history tracking (audit trail)
+- [x] Send notifications when PO requires approval (notifyOwner implemented)
+- [x] Display approval status in PO list (approval badge shown)
+
+## Manual Correction Interface (NEW)
+- [ ] Highlight fields with low confidence scores (< 0.7) with red border
+- [ ] Add edit mode for each field with inline editing
+- [ ] Create confidence score tooltip on hover
+- [ ] Add "Verify All" button to mark fields as manually verified
+- [ ] Display confidence badge next to each field
+- [ ] Add visual feedback for corrected vs extracted fields
+- [ ] Save correction history for audit trail
