@@ -229,7 +229,7 @@ export default function PurchaseOrders() {
             vendorBankDetails: "",
             vendorAddress: extractedData.vendorAddress || "",
             expectedDeliveryDate: "",
-            notes: "",
+            notes: `Invoice: ${extractedData.invoiceNumber || 'N/A'} | Date: ${extractedData.invoiceDate || 'N/A'} | Recipient: ${extractedData.poToName || 'N/A'}`,
             items: extractedData.items?.map((item: any) => ({
               itemName: item.name || "",
               quantity: parseInt(item.quantity) || 1,

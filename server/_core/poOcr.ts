@@ -10,6 +10,8 @@ export interface ExtractedPOData {
   poToContactNumber: string;
   poToAddress: string;
   poToGstNumber?: string;
+  invoiceDate?: string;
+  invoiceNumber?: string;
   items: {
     name: string;
     quantity: string;
@@ -42,33 +44,35 @@ export interface ExtractedPOData {
 }
 
 export async function extractPOFromImage(imageUrl: string): Promise<ExtractedPOData> {
-  const extractionPrompt = `You are an expert OCR system for extracting Purchase Order (PO) information from images.
+  const extractionPrompt = `You are an expert OCR system for extracting Purchase Order and GST Invoice information from images.
 
-Extract the following information from the PO image and return a JSON object:
+Extract the following information from the PO/Invoice image and return a JSON object:
 
 {
-  "vendorName": "Vendor company name",
-  "vendorContactNumber": "Contact number",
-  "vendorGstNumber": "GST number",
-  "vendorAddress": "Full address",
+  "vendorName": "Vendor/Supplier company name (from 'From' or sender section)",
+  "vendorContactNumber": "Vendor contact number or phone",
+  "vendorGstNumber": "Vendor GST number (look for 'GST NO' or 'GSTIN')",
+  "vendorAddress": "Full vendor address including city and postal code",
   "vendorDlNumbers": ["DL number 1", "DL number 2"],
-  "poToName": "PO recipient name/company",
-  "poToContactNumber": "Recipient contact number",
-  "poToAddress": "Recipient address",
-  "poToGstNumber": "Recipient GST (optional)",
+  "poToName": "Bill recipient name/company (from 'To' or 'Bill To' section)",
+  "poToContactNumber": "Recipient contact number or phone",
+  "poToAddress": "Full recipient address including city and postal code",
+  "poToGstNumber": "Recipient GST number (if visible)",
+  "invoiceDate": "Invoice date in DD/MM/YYYY format",
+  "invoiceNumber": "Invoice or bill number",
   "items": [
     {
-      "name": "Item name",
-      "quantity": "Quantity",
-      "expiryDate": "DD/MM/YYYY or blank",
-      "batchNumber": "Batch number or blank",
-      "valuePerItem": "Price per unit",
-      "discount": "Discount amount or blank",
-      "totalValue": "Total value for this item"
+      "name": "Item name (from PRODUCT NAME column)",
+      "quantity": "Quantity (from QTY column)",
+      "expiryDate": "Expiry date in DD/MM/YYYY format (from EXP column)",
+      "batchNumber": "Batch number (from BATCH column)",
+      "valuePerItem": "Unit price/MRP (from M.R.P or RATE column)",
+      "discount": "Discount per item or blank",
+      "totalValue": "Total amount for item (from AMOUNT column)"
     }
   ],
-  "totalDiscount": "Total discount of PO",
-  "totalValue": "Total value of PO",
+  "totalDiscount": "Total discount amount (from invoice totals)",
+  "totalValue": "Total invoice amount (from NET AMOUNT or Total Due)",
   "confidence": {
     "vendorName": 0.95,
     "vendorContactNumber": 0.85,
@@ -90,16 +94,27 @@ Extract the following information from the PO image and return a JSON object:
   }
 }
 
-For each field, provide a confidence score between 0 and 1 (where 1 is 100% confident).
-Be precise and extract all visible information. If a field is not visible, use empty string or null.
-Return ONLY valid JSON, no other text.`;
+IMPORTANT NOTES FOR GST INVOICES:
+1. Look for 'GST INVOICE' header to identify invoice type
+2. Extract GST NO from the invoice header (format: XXYAIQPRXXXXPXZB)
+3. Look for 'To' section for bill recipient details (company name, address, contact)
+4. Extract items from the itemized table with columns: HSNCODE, PRODUCT NAME, PACK, MFG, BATCH, EXP, QTY, FREE, M.R.P, RATE, AMOUNT
+5. Extract expiry date in DD/MM format (e.g., 01/28 means January 28) and convert to DD/MM/YYYY
+6. Extract batch number from BATCH column (e.g., CARO 02260181)
+7. Extract unit price from M.R.P or RATE column
+8. Extract total amount from AMOUNT column (rightmost column)
+9. Extract total invoice amount from 'NET AMOUNT' or 'Total Due' field at bottom
+10. Extract invoice date from invoice header
+11. For each field, provide a confidence score between 0 and 1 (where 1 is 100% confident)
+12. Be precise and extract all visible information. If a field is not visible, use empty string or null
+13. Return ONLY valid JSON, no other text.`;
 
   try {
     const response = await invokeLLM({
       messages: [
         {
           role: "system",
-          content: "You are an OCR expert for extracting Purchase Order data from images. Return only valid JSON."
+          content: "You are an OCR expert for extracting Purchase Order and GST Invoice data from images. Return only valid JSON with all fields properly populated."
         },
         {
           role: "user",
@@ -135,6 +150,8 @@ Return ONLY valid JSON, no other text.`;
               poToContactNumber: { type: "string" },
               poToAddress: { type: "string" },
               poToGstNumber: { type: "string" },
+              invoiceDate: { type: "string" },
+              invoiceNumber: { type: "string" },
               items: {
                 type: "array",
                 items: {

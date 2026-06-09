@@ -770,3 +770,14 @@
 - [x] Wrap Low Stock Alerts widget with FeatureGate (pharmacy)
 - [x] All 155 tests passing with feature gating working correctly
 - [x] Dashboard widgets now automatically hide/show based on user role permissions
+
+
+## Scan PO Feature Improvements (NEW)
+- [x] Enhanced OCR extraction prompt to handle GST invoices properly
+- [x] Added invoice date and invoice number extraction from GST invoices
+- [x] Added recipient name (poToName) extraction from 'To' section
+- [x] Improved item extraction to handle pharmacy columns: HSNCODE, PRODUCT NAME, BATCH, EXP, QTY, M.R.P, RATE, AMOUNT
+- [x] Added expiry date parsing (DD/MM format conversion to DD/MM/YYYY)
+- [x] Added batch number extraction from BATCH column
+- [x] Updated PurchaseOrders.tsx to display invoice details in notes field
+- [x] All 155 tests passing with enhanced Scan PO feature
