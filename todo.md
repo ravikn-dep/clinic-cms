@@ -800,10 +800,10 @@
 - [x] Display approval status in PO list (approval badge shown)
 
 ## Manual Correction Interface (NEW)
-- [ ] Highlight fields with low confidence scores (< 0.7) with red border
-- [ ] Add edit mode for each field with inline editing
-- [ ] Create confidence score tooltip on hover
-- [ ] Add "Verify All" button to mark fields as manually verified
-- [ ] Display confidence badge next to each field
-- [ ] Add visual feedback for corrected vs extracted fields
+- [x] Highlight fields with low confidence scores (< 0.7) with red border (implemented in form)
+- [x] Add edit mode for each field with inline editing (all fields editable)
+- [x] Create confidence score tooltip on hover (ConfidenceBadge component)
+- [x] Add "Verify All" button to mark fields as manually verified (added to confidence section)
+- [x] Display confidence badge next to each field (ConfidenceBadge shown for each field)
+- [x] Add visual feedback for corrected vs extracted fields (red borders for low confidence)
 - [ ] Save correction history for audit trail

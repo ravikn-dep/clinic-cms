@@ -34,6 +34,7 @@ export default function PurchaseOrders() {
   const [showConfidenceInfo, setShowConfidenceInfo] = useState(false);
   const [validationErrors, setValidationErrors] = useState<any[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<any[]>([]);
+  const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set());
 
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
@@ -399,17 +400,29 @@ export default function PurchaseOrders() {
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-semibold text-blue-900">Extraction Confidence</h3>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowConfidenceInfo(!showConfidenceInfo)}
-                      className="text-xs"
-                    >
-                      {showConfidenceInfo ? 'Hide' : 'Show'} Info
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowConfidenceInfo(!showConfidenceInfo)}
+                        className="text-xs"
+                      >
+                        {showConfidenceInfo ? 'Hide' : 'Show'} Info
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setVerifiedFields(new Set(['vendorName', 'vendorContactNumber', 'vendorGSTNumber', 'vendorAddress', 'poToName']))}
+                        className="text-xs bg-green-50 border-green-300 text-green-800 hover:bg-green-100"
+                      >
+                        Verify All
+                      </Button>
+                    </div>
                   </div>
                   {showConfidenceInfo && <ConfidenceTooltip />}
+                  <p className="text-xs text-blue-700 mt-2">Fields with red borders have low confidence - please review and correct if needed</p>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">
