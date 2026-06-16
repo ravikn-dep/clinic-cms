@@ -78,7 +78,19 @@ export default function PatientRegistration() {
       setRegisteredPatient(result as RegisteredPatient);
       setRegisteredPatientDetails(data);
       toast.success(`Patient registered successfully! ID: ${result.patientId}`);
-      reset();
+      reset({
+        firstName: "",
+        lastName: "",
+        age: "",
+        gender: undefined,
+        contactNumber: "",
+        email: "",
+        address: "",
+        consultantName: "",
+        consultantId: 0,
+        consultantRegistrationNumber: "",
+        consultantStateCounsilSection: "",
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Registration failed");
     } finally {
@@ -253,6 +265,19 @@ export default function PatientRegistration() {
                   <Button variant="outline" className="w-full mt-2" onClick={() => {
                     setRegisteredPatient(null);
                     setRegisteredPatientDetails(null);
+                    reset({
+                      firstName: "",
+                      lastName: "",
+                      age: "",
+                      gender: undefined,
+                      contactNumber: "",
+                      email: "",
+                      address: "",
+                      consultantName: "",
+                      consultantId: 0,
+                      consultantRegistrationNumber: "",
+                      consultantStateCounsilSection: "",
+                    });
                   }}>
                     Skip for Now
                   </Button>
@@ -266,7 +291,23 @@ export default function PatientRegistration() {
                   />
                 )}
 
-                <Button onClick={() => { setRegisteredPatient(null); setRegisteredPatientDetails(null); }} variant="outline" className="w-full">
+                <Button onClick={() => { 
+                  setRegisteredPatient(null); 
+                  setRegisteredPatientDetails(null);
+                  reset({
+                    firstName: "",
+                    lastName: "",
+                    age: "",
+                    gender: undefined,
+                    contactNumber: "",
+                    email: "",
+                    address: "",
+                    consultantName: "",
+                    consultantId: 0,
+                    consultantRegistrationNumber: "",
+                    consultantStateCounsilSection: "",
+                  });
+                }} variant="outline" className="w-full">
                   Register Another Patient
                 </Button>
               </CardContent>

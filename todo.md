@@ -807,3 +807,11 @@
 - [x] Display confidence badge next to each field (ConfidenceBadge shown for each field)
 - [x] Add visual feedback for corrected vs extracted fields (red borders for low confidence)
 - [ ] Save correction history for audit trail
+
+
+## Bug Fixes (NEW)
+- [x] Fixed PatientRegistration form reset issue - form fields not clearing after registration
+  - Issue: After registering first patient, consultant dropdown and other fields retained values
+  - Fix: Updated reset() calls to explicitly clear all form fields including consultantId
+  - Affected buttons: "Register Patient" submit, "Skip for Now", "Register Another Patient"
+  - All 155 tests passing after fix
