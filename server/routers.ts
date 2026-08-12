@@ -16,6 +16,7 @@ import { csvResponse, makeCsvFilename, toCsv } from "./csvExport";
 import { notifyOwner } from "./_core/notification";
 import { resolveArtifactStorageKey } from "./artifactAccess";
 import { hashPassword, verifyPassword, generateRandomPassword } from "./_core/auth";
+import { registerPatientWithTracking } from "./services/patientRegistration";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -162,82 +163,19 @@ export const appRouter = router({
         consultantName: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
-        // Generate a daily sequential OP patient ID in the requested clinic format.
-        const registrationDate = new Date();
-        const patientIdPrefix = utils.generatePatientIdPrefix(registrationDate);
-        let dailySequence = (await db.countPatientsByPatientIdPrefix(patientIdPrefix)) + 1;
-        let patientId = utils.generatePatientId(dailySequence, registrationDate);
-
-        // Guard against rare concurrent-registration collisions by advancing the sequence.
-        for (let attempt = 0; attempt < 100; attempt += 1) {
-          const existingPatient = await db.getPatientById(patientId);
-          if (!existingPatient) break;
-          dailySequence += 1;
-          patientId = utils.generatePatientId(dailySequence, registrationDate);
-
-          if (attempt === 99) {
-            throw new Error("Unable to allocate a unique daily Patient ID. Please retry registration.");
-          }
-        }
-
-        // Generate OPD tracking barcode and QR code, then persist images in cloud storage.
-        const barcodeData = utils.generateBarcodeData(patientId);
-        const barcodeAssets = await barcodeGen.generatePatientBarcodes(patientId);
-        const [qrUpload, barcodeUpload] = await Promise.all([
-          storagePut(`barcodes/${patientId}-qr.png`, barcodeAssets.qrCodePngBuffer, "image/png"),
-          storagePut(`barcodes/${patientId}-barcode.png`, barcodeAssets.barcodePngBuffer, "image/png"),
-        ]);
-
-        // Create patient record
-        const patient = await db.createPatient({
-          patientId,
+        return registerPatientWithTracking({
           firstName: input.firstName,
           lastName: input.lastName,
-          dateOfBirth: null,
+          age: Number(input.age),
           gender: input.gender,
           contactNumber: input.contactNumber,
           email: input.email,
           address: input.address,
-          barcodeData,
-          barcodeImageUrl: barcodeUpload.url,
-          barcodeImageKey: barcodeUpload.key,
-          qrcodeImageUrl: qrUpload.url,
-          qrcodeImageKey: qrUpload.key,
+        }, {
+          auditActorId: ctx.user.id.toString(),
+          notificationUserId: ctx.user.id,
+          source: "cms",
         });
-
-        // Log audit trail
-        await db.createAuditLog({
-          logId: utils.generateAuditLogId(),
-          userId: ctx.user.id.toString(),
-          actionType: "CREATE",
-          tableName: "patients",
-          recordId: patientId,
-          newValue: JSON.stringify(patient),
-          timestamp: new Date().toISOString(),
-        });
-
-        // Trigger in-app and owner-channel notifications for the clinic owner.
-        await db.createNotification({
-          notificationId: utils.generateNotificationId(),
-          userId: ctx.user.id,
-          title: "New Patient Registration",
-          content: `${input.firstName} ${input.lastName} has been registered.`,
-          notificationType: "patient_registration",
-        });
-        await safeNotifyOwner(
-          "New Patient Registration",
-          `${input.firstName} ${input.lastName} has been registered with Patient ID ${patientId}.`,
-        );
-
-        return {
-          success: true,
-          patientId,
-          barcodeData,
-          barcodeImageUrl: barcodeUpload.url,
-          qrcodeImageUrl: qrUpload.url,
-          barcodeImageKey: barcodeUpload.key,
-          qrcodeImageKey: qrUpload.key,
-        };
       }),
 
     getAll: protectedProcedure.query(async () => {

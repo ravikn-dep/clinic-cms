@@ -1,4 +1,4 @@
-import { mysqlTable, mysqlSchema, AnyMySqlColumn, varchar, int, mysqlEnum, text, timestamp, json, decimal, index, tinyint } from "drizzle-orm/mysql-core"
+import { mysqlTable, mysqlSchema, AnyMySqlColumn, varchar, int, mysqlEnum, text, timestamp, json, decimal, index, tinyint, uniqueIndex } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
 
 export const appointments = mysqlTable("appointments", {
@@ -13,9 +13,15 @@ export const appointments = mysqlTable("appointments", {
 	reminderSent: tinyint().default(0),
 	reminderSentAt: timestamp({ mode: 'string' }),
 	notificationMethod: varchar({ length: 50 }),
+	checkedInAt: timestamp({ mode: 'string' }),
+	checkedInBy: varchar({ length: 100 }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
+},
+(table) => [
+	uniqueIndex("appointments_appointmentId_unique").on(table.appointmentId),
+	index("appointments_patientId_idx").on(table.patientId),
+]);
 
 export const auditLogs = mysqlTable("auditLogs", {
 	logId: varchar({ length: 50 }).notNull(),
@@ -142,8 +148,10 @@ export const patients = mysqlTable("patients", {
 	firstName: varchar({ length: 100 }).notNull(),
 	lastName: varchar({ length: 100 }).notNull(),
 	dateOfBirth: varchar({ length: 10 }),
+	age: int(),
 	gender: varchar({ length: 20 }),
 	contactNumber: varchar({ length: 20 }).notNull(),
+	normalizedContactNumber: varchar({ length: 15 }),
 	email: varchar({ length: 255 }),
 	address: text(),
 	barcodeData: varchar({ length: 255 }),
@@ -155,7 +163,9 @@ export const patients = mysqlTable("patients", {
 	qrcodeImageKey: text(),
 },
 (table) => [
+	uniqueIndex("patients_patientId_unique").on(table.patientId),
 	index("patients_barcodeData_unique").on(table.barcodeData),
+	index("patients_normalizedContactNumber_idx").on(table.normalizedContactNumber),
 ]);
 
 export const purchaseOrderItems = mysqlTable("purchaseOrderItems", {
@@ -241,3 +251,68 @@ export const vendors = mysqlTable("vendors", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
+
+export const enquiries = mysqlTable("enquiries", {
+	enquiryId: varchar({ length: 64 }).notNull(),
+	patientId: varchar({ length: 50 }),
+	appointmentId: varchar({ length: 50 }),
+	channel: mysqlEnum(['VOICE', 'WHATSAPP', 'PHONE', 'WALK_IN', 'WEBSITE', 'GOOGLE', 'INSTAGRAM', 'REFERRAL', 'OTHER']).notNull(),
+	sourceDetail: varchar({ length: 255 }),
+	lifecycleStage: mysqlEnum(['NEW', 'DETAILS_COLLECTED', 'APPOINTMENT_OFFERED', 'BOOKED', 'CONFIRMED', 'CHECKED_IN', 'OP_COMPLETED', 'NO_SHOW', 'CANCELLED', 'LOST']).default('NEW').notNull(),
+	preferredLanguage: mysqlEnum(['en-IN', 'hi-IN', 'te-IN', 'mixed']).default('mixed').notNull(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	uniqueIndex("enquiries_enquiryId_unique").on(table.enquiryId),
+	index("enquiries_patientId_idx").on(table.patientId),
+	index("enquiries_appointmentId_idx").on(table.appointmentId),
+]);
+
+export const externalApiAuditLogs = mysqlTable("externalApiAuditLogs", {
+	auditId: varchar({ length: 64 }).notNull(),
+	requestId: varchar({ length: 64 }).notNull(),
+	serviceKeyId: varchar({ length: 100 }),
+	action: varchar({ length: 100 }).notNull(),
+	resourceType: varchar({ length: 50 }).notNull(),
+	resourceId: varchar({ length: 100 }),
+	result: mysqlEnum(['SUCCESS', 'DENIED', 'ERROR', 'IDEMPOTENT_REPLAY']).notNull(),
+	safeMetadata: json(),
+	timestamp: timestamp({ mode: 'string' }).defaultNow().notNull(),
+},
+(table) => [
+	uniqueIndex("externalApiAuditLogs_auditId_unique").on(table.auditId),
+	index("externalApiAuditLogs_requestId_idx").on(table.requestId),
+	index("externalApiAuditLogs_serviceKeyId_idx").on(table.serviceKeyId),
+]);
+
+export const externalIdempotencyKeys = mysqlTable("externalIdempotencyKeys", {
+	idempotencyId: varchar({ length: 64 }).notNull(),
+	operation: varchar({ length: 100 }).notNull(),
+	idempotencyKey: varchar({ length: 128 }).notNull(),
+	requestHash: varchar({ length: 64 }).notNull(),
+	serviceKeyId: varchar({ length: 100 }).notNull(),
+	resourceType: varchar({ length: 50 }),
+	resourceId: varchar({ length: 100 }),
+	responseStatus: int().notNull(),
+	responseBody: json().notNull(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+	expiresAt: timestamp({ mode: 'string' }),
+},
+(table) => [
+	uniqueIndex("externalIdempotency_operation_key_unique").on(table.operation, table.idempotencyKey),
+	uniqueIndex("externalIdempotency_idempotencyId_unique").on(table.idempotencyId),
+	index("externalIdempotency_serviceKeyId_idx").on(table.serviceKeyId),
+]);
+
+export const appointmentBookingLocks = mysqlTable("appointmentBookingLocks", {
+	consultantId: int().notNull(),
+	appointmentDate: varchar({ length: 10 }).notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	uniqueIndex("appointmentBookingLocks_consultant_date_unique").on(table.consultantId, table.appointmentDate),
+]);
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;

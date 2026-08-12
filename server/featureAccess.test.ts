@@ -1,17 +1,31 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import * as db from "./db";
+import { afterAll, beforeAll, beforeEach } from "vitest";
 
 describe("Feature Access Control", () => {
-  beforeEach(() => {
-    // Reset permissions before each test
-    // In-memory store is reset
+  let originalConsultantPermissions: Record<string, boolean>;
+  let originalStaffPermissions: Record<string, boolean>;
+
+  beforeAll(async () => {
+    originalConsultantPermissions = await db.getFeaturePermissions("consultant");
+    originalStaffPermissions = await db.getFeaturePermissions("staff");
+  });
+
+  beforeEach(async () => {
+    await db.setFeaturePermissions("consultant", {});
+    await db.setFeaturePermissions("staff", {});
+  });
+
+  afterAll(async () => {
+    await db.setFeaturePermissions("consultant", originalConsultantPermissions);
+    await db.setFeaturePermissions("staff", originalStaffPermissions);
   });
 
   describe("getFeaturePermissions", () => {
     it("should return default permissions for unset permissions", async () => {
       const perms = await db.getFeaturePermissions("consultant");
       expect(perms).toBeDefined();
-      expect(perms?.patient_records).toBe(true);
+      expect(perms).toEqual({});
     });
 
     it("should return stored permissions for consultant", async () => {

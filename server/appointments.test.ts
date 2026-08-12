@@ -2,8 +2,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import * as db from "./db";
 
 describe("Appointment Scheduling System", () => {
-  const testConsultantId = 1;
-  const testPatientId = "PAT-TEST-001";
+  const testConsultantId = 100000 + (Date.now() % 100000000);
+  const testPatientId = `PAT-TEST-${testConsultantId}`;
   const testDate = "2026-05-15";
   const testTime = "10:00";
 
@@ -100,7 +100,7 @@ describe("Appointment Scheduling System", () => {
     });
 
     it("should retrieve appointments by consultant ID", async () => {
-      const consultantId = 2;
+      const consultantId = testConsultantId + 1;
       
       const apt1 = await db.createAppointment({
         patientId: `PAT-${Date.now()}-1`,
@@ -191,7 +191,7 @@ describe("Appointment Scheduling System", () => {
       const beforeCancel = await db.getAppointmentById(appointmentId);
       const beforeTime = beforeCancel?.updatedAt;
 
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 1100));
       await db.cancelAppointment(appointmentId);
 
       const afterCancel = await db.getAppointmentById(appointmentId);
@@ -257,7 +257,7 @@ describe("Appointment Scheduling System", () => {
     });
 
     it("should not detect conflict for non-overlapping time slots", async () => {
-      const uniqueConsultantId = 20;
+      const uniqueConsultantId = testConsultantId + 2;
       const uniqueDate = new Date();
       uniqueDate.setDate(uniqueDate.getDate() + 1);
       const dateStr = uniqueDate.toISOString().split('T')[0];
@@ -309,7 +309,7 @@ describe("Appointment Scheduling System", () => {
       });
 
       const hasConflict = await db.checkAppointmentConflict(
-        3, // Different consultant
+        testConsultantId + 3, // Different consultant
         testDate,
         "10:00",
         30
@@ -319,7 +319,7 @@ describe("Appointment Scheduling System", () => {
     });
 
     it("should not detect conflict for cancelled appointments", async () => {
-      const uniqueConsultantId = 21;
+      const uniqueConsultantId = testConsultantId + 4;
       const uniqueDate = new Date();
       uniqueDate.setDate(uniqueDate.getDate() + 2);
       const dateStr = uniqueDate.toISOString().split('T')[0];
@@ -348,7 +348,7 @@ describe("Appointment Scheduling System", () => {
 
   describe("Available Slots Calculation", () => {
     it("should return empty array when no availability is set", async () => {
-      const slots = await db.getAvailableSlots(99, testDate);
+      const slots = await db.getAvailableSlots(testConsultantId + 5, testDate);
       expect(Array.isArray(slots)).toBe(true);
       expect(slots.length).toBe(0);
     });
@@ -371,7 +371,7 @@ describe("Appointment Scheduling System", () => {
     });
 
     it("should exclude booked time slots from available slots", async () => {
-      const consultantId = 4;
+      const consultantId = testConsultantId + 6;
       const uniqueDate = new Date();
       uniqueDate.setDate(uniqueDate.getDate() + 7);
       const futureDate = uniqueDate.toISOString().split('T')[0];
@@ -403,7 +403,7 @@ describe("Appointment Scheduling System", () => {
   describe("Consultant Availability Management", () => {
     it("should set consultant availability", async () => {
       const availabilityId = await db.setConsultantAvailability({
-        consultantId: 5,
+        consultantId: testConsultantId + 7,
         dayOfWeek: 1, // Monday
         startTime: "09:00",
         endTime: "17:00",
@@ -416,7 +416,7 @@ describe("Appointment Scheduling System", () => {
     });
 
     it("should retrieve consultant availability", async () => {
-      const consultantId = 6;
+      const consultantId = testConsultantId + 8;
       
       await db.setConsultantAvailability({
         consultantId,
@@ -434,7 +434,7 @@ describe("Appointment Scheduling System", () => {
     });
 
     it("should use default slot duration of 30 minutes", async () => {
-      const consultantId = 7;
+      const consultantId = testConsultantId + 9;
       
       const availabilityId = await db.setConsultantAvailability({
         consultantId,
@@ -450,7 +450,7 @@ describe("Appointment Scheduling System", () => {
     });
 
     it("should use default max appointments of 10 per day", async () => {
-      const consultantId = 8;
+      const consultantId = testConsultantId + 10;
       
       const availabilityId = await db.setConsultantAvailability({
         consultantId,

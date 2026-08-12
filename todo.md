@@ -815,3 +815,15 @@
   - Fix: Updated reset() calls to explicitly clear all form fields including consultantId
   - Affected buttons: "Register Patient" submit, "Skip for Now", "Register Another Patient"
   - All 155 tests passing after fix
+
+## Phase A: External Clinic Assistant Integration Foundation (NEW)
+- [x] Inspect repository state, schema, migrations, and appointment workflows; identify conflicts with the prior integration report
+- [x] Add secure external service authentication with key identifier, hashed/HMAC verification, constant-time comparison, scopes, rotation, rate limits, and security logs
+- [x] Add external-integration schema for enquiries, idempotency, and safe external mutation audit records
+- [x] Add versioned `/api/external/v1` health, patient, consultant, slot, and appointment endpoints using shared domain rules
+- [x] Add validation and normalization for Indian mobile numbers, dates, times, languages, identifiers, and Asia/Kolkata handling
+- [x] Add transactional/idempotent patient and appointment creation with double-booking protection
+- [x] Add external mutation audit logs, enquiry lifecycle tracking, and appointment check-in events
+- [x] Add API tests, migration validation, type checking, production build validation, and regression tests
+- [x] Add redacted API documentation and environment-variable names only
+- [x] Prepare a non-deployment implementation report including rollback procedure and git diff summary

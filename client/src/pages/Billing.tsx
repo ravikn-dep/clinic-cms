@@ -57,14 +57,14 @@ type PatientDetails = {
   email?: string;
   address?: string;
   dateOfBirth?: string | null;
-  lastConsultationDate: Date | null;
+  lastConsultationDate: string | null;
 };
 
 type ConsultationNotes = {
   consultationId: string;
   patientId: string;
   consultantId: number | null;
-  consultationDate: Date;
+  consultationDate: string;
   clinicalHistory: string | null;
   presentComplaints: string | null;
   advisedInvestigations: string | null;

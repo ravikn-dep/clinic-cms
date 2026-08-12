@@ -6,6 +6,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { appRouter } from "../routers";
+import { externalApiRouter } from "../external/router";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
@@ -32,7 +33,12 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
+  app.use(express.json({
+    limit: "50mb",
+    verify: (req, _res, buffer) => {
+      (req as typeof req & { rawBody?: string }).rawBody = buffer.toString("utf8");
+    },
+  }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   
   // Bypass OAuth for direct login routes and staff subdomain
@@ -60,6 +66,7 @@ async function startServer() {
   
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  app.use("/api/external/v1", externalApiRouter);
   // tRPC API
   app.use(
     "/api/trpc",

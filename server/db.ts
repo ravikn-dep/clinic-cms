@@ -1,10 +1,13 @@
-import { count, desc, eq, like, lte, inArray, sql, and } from "drizzle-orm";
+import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors } from "../drizzle/schema";
+import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
+import { nanoid } from "nanoid";
+import { normalizeIndianMobile } from "./external/validation";
 
 const SALT_ROUNDS = 10;
+type InsertUser = typeof users.$inferInsert;
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -64,11 +67,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     }
 
     if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
+      values.lastSignedIn = new Date().toISOString();
     }
 
     if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
+      updateSet.lastSignedIn = new Date().toISOString();
     }
 
     await db.insert(users).values(values).onDuplicateKeyUpdate({
@@ -98,7 +101,7 @@ export async function createPatient(patientData: typeof patients.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const now = new Date();
+  const now = new Date().toISOString();
   const dataWithTimestamps = {
     ...patientData,
     createdAt: patientData.createdAt || now,
@@ -139,10 +142,121 @@ export async function countPatientsByPatientIdPrefix(patientIdPrefix: string) {
 export async function searchPatients(query: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  // Simplified search - in production, use full-text search
-  // For now, return all patients and filter on client side
-  return db.select().from(patients).limit(50);
+
+  const trimmedQuery = query.trim();
+  if (!trimmedQuery) return [];
+
+  const mobile = normalizeIndianMobile(trimmedQuery);
+  const searchPattern = `%${trimmedQuery.replace(/[\\%_]/g, "\\$&")}%`;
+  const results = await db.select().from(patients).where(or(
+    like(patients.patientId, searchPattern),
+    like(patients.firstName, searchPattern),
+    like(patients.lastName, searchPattern),
+    ...(mobile ? [eq(patients.normalizedContactNumber, mobile)] : []),
+  )).limit(50);
+
+  const lowerQuery = trimmedQuery.toLocaleLowerCase("en-IN");
+  return results.filter((patient) => {
+    const fullName = `${patient.firstName} ${patient.lastName}`.toLocaleLowerCase("en-IN");
+    return patient.patientId.toLocaleLowerCase("en-IN").includes(lowerQuery)
+      || fullName.includes(lowerQuery)
+      || (mobile !== null && patient.normalizedContactNumber === mobile);
+  });
+}
+
+// ============ EXTERNAL INTEGRATION QUERIES ============
+
+export async function createEnquiry(data: typeof enquiries.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(enquiries).values(data);
+  return data;
+}
+
+export async function linkEnquiryToPatient(enquiryId: string, patientId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(enquiries).set({ patientId, updatedAt: new Date().toISOString() }).where(eq(enquiries.enquiryId, enquiryId));
+}
+
+export async function linkEnquiryToAppointment(enquiryId: string, appointmentId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(enquiries).set({ appointmentId, lifecycleStage: "BOOKED", updatedAt: new Date().toISOString() }).where(eq(enquiries.enquiryId, enquiryId));
+}
+
+export async function updateEnquiryStageForAppointment(
+  appointmentId: string,
+  lifecycleStage: typeof enquiries.$inferInsert.lifecycleStage,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(enquiries).set({ lifecycleStage, updatedAt: new Date().toISOString() }).where(eq(enquiries.appointmentId, appointmentId));
+}
+
+export async function createExternalApiAuditLog(data: typeof externalApiAuditLogs.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(externalApiAuditLogs).values(data);
+}
+
+export async function getExternalIdempotencyRecord(operation: string, idempotencyKey: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(externalIdempotencyKeys).where(and(
+    eq(externalIdempotencyKeys.operation, operation),
+    eq(externalIdempotencyKeys.idempotencyKey, idempotencyKey),
+  )).limit(1);
+  return result[0] ?? null;
+}
+
+export async function createExternalIdempotencyRecord(data: typeof externalIdempotencyKeys.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(externalIdempotencyKeys).values(data);
+  return data;
+}
+
+export async function completeExternalIdempotencyRecord(
+  operation: string,
+  idempotencyKey: string,
+  responseStatus: number,
+  responseBody: Record<string, unknown>,
+  resourceType: string,
+  resourceId: string,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(externalIdempotencyKeys).set({
+    responseStatus,
+    responseBody,
+    resourceType,
+    resourceId,
+  }).where(and(
+    eq(externalIdempotencyKeys.operation, operation),
+    eq(externalIdempotencyKeys.idempotencyKey, idempotencyKey),
+  ));
+}
+
+export async function deleteExternalIdempotencyReservation(operation: string, idempotencyKey: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.delete(externalIdempotencyKeys).where(and(
+    eq(externalIdempotencyKeys.operation, operation),
+    eq(externalIdempotencyKeys.idempotencyKey, idempotencyKey),
+  ));
+}
+
+export async function getActiveConsultants() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select({
+    id: users.id,
+    userId: users.userId,
+    name: users.name,
+    department: users.department,
+    registrationNumber: users.registrationNumber,
+  }).from(users).where(and(eq(users.role, "consultant"), eq(users.isActive, 1)));
 }
 
 // ============ CONSULTATION QUERIES ============
@@ -245,7 +359,7 @@ export async function updateReceiptDelivery(billId: string, status: "Not Sent" |
   await db.update(bills).set({
     receiptDeliveryStatus: status,
     receiptDeliveryMethod: method,
-    receiptDeliveryTimestamp: status === "Sent" ? new Date() : undefined,
+    receiptDeliveryTimestamp: status === "Sent" ? new Date().toISOString() : undefined,
   }).where(eq(bills.billId, billId));
 }
 
@@ -256,7 +370,7 @@ export async function approvePurchaseOrder(poId: string, approvedBy: string) {
   await db.update(purchaseOrders).set({
     approvalStatus: "Approved",
     approvedBy,
-    approvalTimestamp: new Date(),
+    approvalTimestamp: new Date().toISOString(),
   }).where(eq(purchaseOrders.purchaseOrderId, poId));
 }
 
@@ -268,7 +382,7 @@ export async function rejectPurchaseOrder(poId: string, rejectionReason: string,
     approvalStatus: "Rejected",
     rejectionReason,
     approvedBy,
-    approvalTimestamp: new Date(),
+    approvalTimestamp: new Date().toISOString(),
   }).where(eq(purchaseOrders.purchaseOrderId, poId));
 }
 
@@ -413,7 +527,7 @@ export async function markNotificationAsRead(notificationId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.update(notifications).set({ isRead: true }).where(eq(notifications.notificationId, notificationId));
+  await db.update(notifications).set({ isRead: 1 }).where(eq(notifications.notificationId, notificationId));
 }
 
 
@@ -495,7 +609,7 @@ export async function getRolePermissionByFeature(role: "admin" | "consultant" | 
   const result = await db
     .select()
     .from(rolePermissions)
-    .where(eq(rolePermissions.role, role) && eq(rolePermissions.featureKey, featureKey))
+    .where(and(eq(rolePermissions.role, role), eq(rolePermissions.featureKey, featureKey)))
     .limit(1);
   
   return result.length > 0 ? result[0] : null;
@@ -512,7 +626,7 @@ export async function updateRolePermission(role: "admin" | "consultant" | "staff
     // Update existing
     await db
       .update(rolePermissions)
-      .set({ isEnabled, updatedAt: new Date().toISOString() })
+      .set({ isEnabled: isEnabled ? 1 : 0, updatedAt: new Date().toISOString() })
       .where(eq(rolePermissions.permissionId, existing.permissionId));
   } else {
     // Create new
@@ -521,7 +635,7 @@ export async function updateRolePermission(role: "admin" | "consultant" | "staff
       permissionId,
       role,
       featureKey,
-      isEnabled,
+      isEnabled: isEnabled ? 1 : 0,
     });
   }
 }
@@ -581,17 +695,19 @@ export async function setFeaturePermissions(role: "consultant" | "staff", permis
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.delete(rolePermissions).where(eq(rolePermissions.role, role));
+  await db.transaction(async (transaction) => {
+    await transaction.delete(rolePermissions).where(eq(rolePermissions.role, role));
 
-  for (const [featureKey, isEnabled] of Object.entries(permissions)) {
-    const permissionId = `PERM-${Date.now()}-${Math.random()}`;
-    await db.insert(rolePermissions).values({
-      permissionId,
-      role,
-      featureKey,
-      isEnabled: isEnabled ? 1 : 0,
-    } as any);
-  }
+    for (const [featureKey, isEnabled] of Object.entries(permissions)) {
+      const permissionId = `PERM-${nanoid(20)}`;
+      await transaction.insert(rolePermissions).values({
+        permissionId,
+        role,
+        featureKey,
+        isEnabled: isEnabled ? 1 : 0,
+      } as any);
+    }
+  });
 }
 
 export async function checkFeatureAccess(role: "admin" | "consultant" | "staff", featureKey: string): Promise<boolean> {
@@ -707,7 +823,7 @@ export async function createAppointment(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const appointmentId = `APT-${Date.now()}`;
+  const appointmentId = `APT-${nanoid(16).toUpperCase()}`;
   
   await db.insert(appointments).values({
     appointmentId,
@@ -719,6 +835,86 @@ export async function createAppointment(data: {
     notes: data.notes,
     notificationMethod: data.notificationMethod ?? "SMS",
     status: "Scheduled",
+  });
+
+  return appointmentId;
+}
+
+const ACTIVE_APPOINTMENT_STATUSES = ["Scheduled", "Rescheduled"] as const;
+
+function rowsHaveAppointmentConflict(
+  rows: Array<{ appointmentTime: string; duration: number | null; appointmentId: string }>,
+  time: string,
+  duration: number,
+  excludedAppointmentId?: string,
+) {
+  const [hours, minutes] = time.split(":").map(Number);
+  const appointmentStart = hours * 60 + minutes;
+  const appointmentEnd = appointmentStart + duration;
+
+  return rows.some((appointment) => {
+    if (appointment.appointmentId === excludedAppointmentId) return false;
+    const [appointmentHours, appointmentMinutes] = appointment.appointmentTime.split(":").map(Number);
+    const existingStart = appointmentHours * 60 + appointmentMinutes;
+    const existingEnd = existingStart + (appointment.duration ?? 30);
+    return appointmentStart < existingEnd && appointmentEnd > existingStart;
+  });
+}
+
+async function lockConsultantDate(transaction: any, consultantId: number, appointmentDate: string) {
+  await transaction.execute(sql`
+    INSERT INTO ${appointmentBookingLocks} (${appointmentBookingLocks.consultantId}, ${appointmentBookingLocks.appointmentDate})
+    VALUES (${consultantId}, ${appointmentDate})
+    ON DUPLICATE KEY UPDATE ${appointmentBookingLocks.updatedAt} = NOW()
+  `);
+}
+
+async function getActiveAppointmentsForDate(transaction: any, consultantId: number, appointmentDate: string) {
+  return transaction.select().from(appointments).where(and(
+    eq(appointments.consultantId, consultantId),
+    eq(appointments.appointmentDate, appointmentDate),
+    inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES]),
+  ));
+}
+
+export async function createAppointmentSafely(data: {
+  patientId: string;
+  consultantId: number;
+  appointmentDate: string;
+  appointmentTime: string;
+  duration?: number;
+  notes?: string;
+  notificationMethod?: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const duration = data.duration ?? 30;
+  const appointmentId = `APT-${nanoid(16).toUpperCase()}`;
+
+  await db.transaction(async (transaction) => {
+    await lockConsultantDate(transaction, data.consultantId, data.appointmentDate);
+    const existingAppointments = await getActiveAppointmentsForDate(
+      transaction,
+      data.consultantId,
+      data.appointmentDate,
+    );
+
+    if (rowsHaveAppointmentConflict(existingAppointments, data.appointmentTime, duration)) {
+      throw new Error("Time slot already booked");
+    }
+
+    await transaction.insert(appointments).values({
+      appointmentId,
+      patientId: data.patientId,
+      consultantId: data.consultantId,
+      appointmentDate: data.appointmentDate,
+      appointmentTime: data.appointmentTime,
+      duration,
+      notes: data.notes,
+      notificationMethod: data.notificationMethod ?? "SMS",
+      status: "Scheduled",
+    });
   });
 
   return appointmentId;
@@ -777,14 +973,36 @@ export async function rescheduleAppointment(appointmentId: string, newDate: stri
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  await db.update(appointments)
-    .set({ 
-      appointmentDate: newDate,
-      appointmentTime: newTime,
-      status: "Rescheduled",
-      updatedAt: new Date().toISOString() 
-    })
-    .where(eq(appointments.appointmentId, appointmentId));
+  const appointment = await getAppointmentById(appointmentId);
+  if (!appointment) throw new Error("Appointment not found");
+  if (!ACTIVE_APPOINTMENT_STATUSES.includes(appointment.status as (typeof ACTIVE_APPOINTMENT_STATUSES)[number])) {
+    throw new Error("Only scheduled appointments can be rescheduled");
+  }
+
+  await db.transaction(async (transaction) => {
+    const datesToLock = [appointment.appointmentDate, newDate].sort();
+    for (const dateToLock of datesToLock) {
+      await lockConsultantDate(transaction, appointment.consultantId, dateToLock);
+    }
+
+    const existingAppointments = await getActiveAppointmentsForDate(
+      transaction,
+      appointment.consultantId,
+      newDate,
+    );
+    if (rowsHaveAppointmentConflict(existingAppointments, newTime, appointment.duration ?? 30, appointmentId)) {
+      throw new Error("New time slot already booked");
+    }
+
+    await transaction.update(appointments)
+      .set({
+        appointmentDate: newDate,
+        appointmentTime: newTime,
+        status: "Rescheduled",
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(appointments.appointmentId, appointmentId));
+  });
 }
 
 export async function checkAppointmentConflict(consultantId: number, date: string, time: string, duration: number = 30) {
@@ -795,25 +1013,28 @@ export async function checkAppointmentConflict(consultantId: number, date: strin
     and(
       eq(appointments.consultantId, consultantId),
       eq(appointments.appointmentDate, date),
-      eq(appointments.status, "Scheduled")
+      inArray(appointments.status, [...ACTIVE_APPOINTMENT_STATUSES])
     )
   );
 
-  const [hours, minutes] = time.split(":").map(Number);
-  const appointmentStart = hours * 60 + minutes;
-  const appointmentEnd = appointmentStart + duration;
+  return rowsHaveAppointmentConflict(existingAppointments, time, duration);
+}
 
-  for (const apt of existingAppointments as any[]) {
-    const [aptHours, aptMinutes] = apt.appointmentTime.split(":").map(Number);
-    const aptStart = aptHours * 60 + aptMinutes;
-    const aptEnd = aptStart + (apt.duration ?? 30);
+export async function checkInAppointment(appointmentId: string, checkedInBy: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
 
-    if (appointmentStart < aptEnd && appointmentEnd > aptStart) {
-      return true; // Conflict found
-    }
+  const appointment = await getAppointmentById(appointmentId);
+  if (!appointment) throw new Error("Appointment not found");
+  if (!ACTIVE_APPOINTMENT_STATUSES.includes(appointment.status as (typeof ACTIVE_APPOINTMENT_STATUSES)[number])) {
+    throw new Error("Only scheduled appointments can be checked in");
   }
 
-  return false; // No conflict
+  await db.update(appointments).set({
+    checkedInAt: new Date().toISOString(),
+    checkedInBy,
+    updatedAt: new Date().toISOString(),
+  }).where(eq(appointments.appointmentId, appointmentId));
 }
 
 export async function getConsultantAvailability(consultantId: number) {

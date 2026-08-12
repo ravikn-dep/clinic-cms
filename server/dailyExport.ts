@@ -1,5 +1,5 @@
 import { getDb } from "./db";
-import { eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte } from "drizzle-orm";
 import { patients, consultations, bills, inventory } from "../drizzle/schema";
 import { jsPDF } from "jspdf";
 import ExcelJS from "exceljs";
@@ -20,8 +20,8 @@ export async function getDailyData(date: string): Promise<DailyExportData> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  const startOfDay = new Date(`${date}T00:00:00Z`);
-  const endOfDay = new Date(`${date}T23:59:59Z`);
+  const startOfDay = `${date} 00:00:00`;
+  const endOfDay = `${date} 23:59:59`;
 
   try {
     // Fetch patients registered today
@@ -29,7 +29,7 @@ export async function getDailyData(date: string): Promise<DailyExportData> {
       .select()
       .from(patients)
       .where(
-        gte(patients.createdAt, startOfDay) && lte(patients.createdAt, endOfDay)
+        and(gte(patients.createdAt, startOfDay), lte(patients.createdAt, endOfDay))
       );
 
     // Fetch consultations today
@@ -37,15 +37,14 @@ export async function getDailyData(date: string): Promise<DailyExportData> {
       .select()
       .from(consultations)
       .where(
-        gte(consultations.createdAt, startOfDay) &&
-          lte(consultations.createdAt, endOfDay)
+        and(gte(consultations.createdAt, startOfDay), lte(consultations.createdAt, endOfDay))
       );
 
     // Fetch bills today
     const billsData = await db
       .select()
       .from(bills)
-      .where(gte(bills.createdAt, startOfDay) && lte(bills.createdAt, endOfDay));
+      .where(and(gte(bills.createdAt, startOfDay), lte(bills.createdAt, endOfDay)));
 
     // Calculate total billing
     const totalBilling = billsData.reduce(
