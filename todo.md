@@ -795,7 +795,7 @@
 - [x] Create approval procedure in backend (approve and reject procedures exist)
 - [x] Add approval UI in Purchase Orders page (approve/reject buttons for admin)
 - [x] Implement multi-level approval logic (admin approval required)
-- [ ] Add approval history tracking (audit trail)
+- [x] Add approval history tracking (audit trail)
 - [x] Send notifications when PO requires approval (notifyOwner implemented)
 - [x] Display approval status in PO list (approval badge shown)
 
@@ -806,7 +806,7 @@
 - [x] Add "Verify All" button to mark fields as manually verified (added to confidence section)
 - [x] Display confidence badge next to each field (ConfidenceBadge shown for each field)
 - [x] Add visual feedback for corrected vs extracted fields (red borders for low confidence)
-- [ ] Save correction history for audit trail
+- [x] Save correction history for audit trail
 
 
 ## Bug Fixes (NEW)

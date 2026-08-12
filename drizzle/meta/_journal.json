@@ -120,6 +120,20 @@
       "when": 1786522367787,
       "tag": "0016_black_shaman",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1786524330394,
+      "tag": "0017_soft_the_hand",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1786524374525,
+      "tag": "0018_uneven_callisto",
+      "breakpoints": true
     }
   ]
 }

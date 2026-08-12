@@ -1,0 +1,1 @@
+ALTER TABLE `purchaseOrderHistory` MODIFY COLUMN `createdAt` timestamp NOT NULL DEFAULT (now());

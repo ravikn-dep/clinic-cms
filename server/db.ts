@@ -1,6 +1,6 @@
 import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys } from "../drizzle/schema";
+import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 import { nanoid } from "nanoid";
@@ -336,6 +336,24 @@ export async function getPurchaseOrderItems(purchaseOrderId: string) {
   if (!db) throw new Error("Database not available");
   
   return db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, purchaseOrderId));
+}
+
+export async function createPurchaseOrderHistory(entry: typeof purchaseOrderHistory.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(purchaseOrderHistory).values(entry);
+  return entry;
+}
+
+export async function getPurchaseOrderHistory(purchaseOrderId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return db.select()
+    .from(purchaseOrderHistory)
+    .where(eq(purchaseOrderHistory.purchaseOrderId, purchaseOrderId))
+    .orderBy(desc(purchaseOrderHistory.createdAt));
 }
 
 export async function updateBillConsultationNotes(billId: string, consultationNotes: string | null) {

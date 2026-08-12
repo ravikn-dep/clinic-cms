@@ -1072,6 +1072,22 @@ export const appRouter = router({
           timestamp: new Date().toISOString(),
         });
 
+        await db.createPurchaseOrderHistory({
+          historyId: utils.generateAuditLogId(),
+          purchaseOrderId,
+          eventType: input.approvalStatus === "Approved" ? "CREATED_APPROVED" : "CREATED_PENDING_APPROVAL",
+          actorId: ctx.user.id.toString(),
+          actorName: ctx.user.name ?? null,
+          eventSummary: input.approvalStatus === "Approved"
+            ? "Purchase order created and authorized."
+            : "Purchase order created and submitted for approval.",
+          details: JSON.stringify({
+            vendorName: input.vendorName,
+            totalAmount,
+            authorizationNotes: input.authorizationNotes ?? null,
+          }),
+        });
+
         await safeNotifyOwner(
           "New Purchase Order Created",
           `Purchase order for ${input.vendorName} (${purchaseOrderId}) has been created with total amount ${totalAmount}.`,
@@ -1099,6 +1115,14 @@ export const appRouter = router({
         return { ...po, items };
       }),
 
+    getHistory: protectedProcedure
+      .input(z.object({ purchaseOrderId: z.string() }))
+      .query(async ({ input }) => {
+        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
+        if (!po) throw new Error("Purchase Order not found");
+        return db.getPurchaseOrderHistory(input.purchaseOrderId);
+      }),
+
     updatePaymentStatus: protectedProcedure
       .input(z.object({
         purchaseOrderId: z.string(),
@@ -1118,6 +1142,16 @@ export const appRouter = router({
           recordId: input.purchaseOrderId,
           newValue: JSON.stringify({ paymentStatus: input.paymentStatus }),
           timestamp: new Date().toISOString(),
+        });
+
+        await db.createPurchaseOrderHistory({
+          historyId: utils.generateAuditLogId(),
+          purchaseOrderId: input.purchaseOrderId,
+          eventType: "PAYMENT_STATUS_CHANGED",
+          actorId: ctx.user.id.toString(),
+          actorName: ctx.user.name ?? null,
+          eventSummary: `Payment status set to ${input.paymentStatus}.`,
+          details: JSON.stringify({ paymentStatus: input.paymentStatus }),
         });
 
         return { success: true };
@@ -1150,6 +1184,16 @@ export const appRouter = router({
           recordId: input.purchaseOrderId,
           newValue: JSON.stringify({ approvalStatus: "Approved" }),
           timestamp: new Date().toISOString(),
+        });
+
+        await db.createPurchaseOrderHistory({
+          historyId: utils.generateAuditLogId(),
+          purchaseOrderId: input.purchaseOrderId,
+          eventType: "APPROVED",
+          actorId: ctx.user.id.toString(),
+          actorName: ctx.user.name ?? null,
+          eventSummary: "Purchase order approved.",
+          details: JSON.stringify({ previousStatus: po.approvalStatus, approvalStatus: "Approved" }),
         });
 
         return { success: true };
@@ -1189,6 +1233,39 @@ export const appRouter = router({
           recordId: input.purchaseOrderId,
           newValue: JSON.stringify({ approvalStatus: "Rejected", rejectionReason: input.rejectionReason }),
           timestamp: new Date().toISOString(),
+        });
+
+        await db.createPurchaseOrderHistory({
+          historyId: utils.generateAuditLogId(),
+          purchaseOrderId: input.purchaseOrderId,
+          eventType: "REJECTED",
+          actorId: ctx.user.id.toString(),
+          actorName: ctx.user.name ?? null,
+          eventSummary: "Purchase order rejected.",
+          details: JSON.stringify({ previousStatus: po.approvalStatus, approvalStatus: "Rejected", rejectionReason: input.rejectionReason }),
+        });
+
+        return { success: true };
+      }),
+
+    recordCorrectionReview: protectedProcedure
+      .input(z.object({
+        purchaseOrderId: z.string(),
+        verifiedFields: z.array(z.string().min(1).max(100)).min(1).max(100),
+        confidenceSnapshot: z.record(z.string(), z.unknown()).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
+        if (!po) throw new Error("Purchase Order not found");
+
+        await db.createPurchaseOrderHistory({
+          historyId: utils.generateAuditLogId(),
+          purchaseOrderId: input.purchaseOrderId,
+          eventType: "OCR_CORRECTION_REVIEWED",
+          actorId: ctx.user.id.toString(),
+          actorName: ctx.user.name ?? null,
+          eventSummary: `${input.verifiedFields.length} OCR field(s) manually verified before PO submission.`,
+          details: JSON.stringify({ verifiedFields: input.verifiedFields, confidenceSnapshot: input.confidenceSnapshot ?? null }),
         });
 
         return { success: true };

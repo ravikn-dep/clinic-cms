@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap } from "lucide-react";
+import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap, History } from "lucide-react";
 import { ConfidenceBadge, ConfidenceTooltip } from "@/components/ConfidenceBadge";
 
 export default function PurchaseOrders() {
@@ -35,6 +35,7 @@ export default function PurchaseOrders() {
   const [validationErrors, setValidationErrors] = useState<any[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<any[]>([]);
   const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set());
+  const [historyPurchaseOrder, setHistoryPurchaseOrder] = useState<{ id: string; vendorName: string } | null>(null);
 
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
@@ -42,6 +43,11 @@ export default function PurchaseOrders() {
   const uploadPOImage = trpc.purchaseOrders.uploadPoImage.useMutation();
   const extractPO = trpc.purchaseOrders.extractFromImage.useMutation();
   const validateExtractedData = trpc.purchaseOrders.validateExtractedData.useMutation();
+  const recordCorrectionReview = trpc.purchaseOrders.recordCorrectionReview.useMutation();
+  const { data: purchaseOrderHistory, isLoading: isHistoryLoading } = trpc.purchaseOrders.getHistory.useQuery(
+    { purchaseOrderId: historyPurchaseOrder?.id ?? "" },
+    { enabled: Boolean(historyPurchaseOrder) },
+  );
   const approvePO = trpc.purchaseOrders.approve.useMutation({
     onSuccess: () => {
       showAlert("Success", "Purchase Order approved");
@@ -144,7 +150,7 @@ export default function PurchaseOrders() {
     }
 
     try {
-      await createPO.mutateAsync({
+      const createdPurchaseOrder = await createPO.mutateAsync({
         vendorName: formData.vendorName,
         vendorContactNumber: formData.vendorContactNumber,
         vendorEmail: formData.vendorEmail || undefined,
@@ -163,6 +169,14 @@ export default function PurchaseOrders() {
         approvalStatus: "Approved",
       });
 
+      if (verifiedFields.size > 0) {
+        await recordCorrectionReview.mutateAsync({
+          purchaseOrderId: createdPurchaseOrder.purchaseOrderId,
+          verifiedFields: Array.from(verifiedFields),
+          confidenceSnapshot: confidenceScores || undefined,
+        });
+      }
+
       showAlert("Success", "Purchase order created successfully");
       setFormData({
         vendorName: "",
@@ -175,6 +189,10 @@ export default function PurchaseOrders() {
         notes: "",
         items: [{ itemName: "", quantity: 1, unitPrice: "" }],
       });
+      setConfidenceScores(null);
+      setVerifiedFields(new Set());
+      setValidationErrors([]);
+      setValidationWarnings([]);
       setShowForm(false);
       refetch();
     } catch (error) {
@@ -630,6 +648,37 @@ export default function PurchaseOrders() {
         </Card>
       )}
 
+      <Dialog open={Boolean(historyPurchaseOrder)} onOpenChange={(open) => !open && setHistoryPurchaseOrder(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Purchase Order History</DialogTitle>
+            <DialogDescription>
+              {historyPurchaseOrder ? `Recorded approval and review events for ${historyPurchaseOrder.vendorName}.` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+            {isHistoryLoading ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">Loading history…</div>
+            ) : !purchaseOrderHistory || purchaseOrderHistory.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No recorded history is available for this purchase order.</div>
+            ) : (
+              purchaseOrderHistory.map((entry: any) => (
+                <div key={entry.historyId} className="rounded-lg border bg-slate-50 p-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-medium text-slate-900">{entry.eventSummary}</p>
+                      <p className="mt-1 text-xs text-slate-600">{entry.actorName || entry.actorId} · {new Date(entry.createdAt).toLocaleString()}</p>
+                    </div>
+                    <Badge variant="outline" className="shrink-0">{entry.eventType.replaceAll("_", " ")}</Badge>
+                  </div>
+                  {entry.details && <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-slate-600">{entry.details}</pre>}
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardHeader>
           <CardTitle>Purchase Orders List</CardTitle>
@@ -673,6 +722,7 @@ export default function PurchaseOrders() {
                     <TableHead>Total Amount</TableHead>
                     <TableHead>Payment Status</TableHead>
                     <TableHead>Order Date</TableHead>
+                    <TableHead>Approval</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -705,6 +755,14 @@ export default function PurchaseOrders() {
                       <TableCell>{getApprovalBadge(po.approvalStatus)}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setHistoryPurchaseOrder({ id: po.purchaseOrderId, vendorName: po.vendorName })}
+                            title="View purchase order history"
+                          >
+                            <History className="w-4 h-4" />
+                          </Button>
                           {po.approvalStatus === "Pending Approval" && user?.role !== "admin" && (
                             <Badge className="bg-yellow-100 text-yellow-800">Awaiting Approval</Badge>
                           )}

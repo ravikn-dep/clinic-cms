@@ -200,6 +200,21 @@ export const purchaseOrders = mysqlTable("purchaseOrders", {
 	authorizationNotes: text(),
 });
 
+export const purchaseOrderHistory = mysqlTable("purchaseOrderHistory", {
+	historyId: varchar({ length: 50 }).notNull(),
+	purchaseOrderId: varchar({ length: 50 }).notNull(),
+	eventType: varchar({ length: 50 }).notNull(),
+	actorId: varchar({ length: 100 }).notNull(),
+	actorName: varchar({ length: 255 }),
+	eventSummary: varchar({ length: 500 }).notNull(),
+	details: text(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+},
+(table) => [
+	uniqueIndex("purchaseOrderHistory_historyId_unique").on(table.historyId),
+	index("purchaseOrderHistory_purchaseOrder_createdAt_idx").on(table.purchaseOrderId, table.createdAt),
+]);
+
 export const rolePermissions = mysqlTable("rolePermissions", {
 	permissionId: varchar({ length: 50 }).notNull(),
 	role: varchar({ length: 20 }).notNull(),
