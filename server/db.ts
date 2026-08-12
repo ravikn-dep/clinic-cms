@@ -1,6 +1,6 @@
 import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys } from "../drizzle/schema";
+import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 import { nanoid } from "nanoid";
@@ -1374,4 +1374,10 @@ export async function updateVendor(vendorId: string, vendorData: any): Promise<a
   }).where(eq(vendors.vendorId, vendorId));
   
   return { vendorId, ...vendorData };
+}
+
+export async function recordExternalRequestReplay(replayData: typeof externalRequestReplays.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(externalRequestReplays).values(replayData);
 }

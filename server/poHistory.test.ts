@@ -1,10 +1,34 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mockState = vi.hoisted(() => {
+  const historyStore: any[] = [];
+  return {
+    store: historyStore,
+    db: {
+      createPurchaseOrder: vi.fn().mockResolvedValue(undefined),
+      createPurchaseOrderHistory: vi.fn().mockImplementation(async (entry) => {
+        historyStore.push(entry);
+        return entry;
+      }),
+      getPurchaseOrderHistory: vi.fn().mockImplementation(async (poId) => {
+        return historyStore.filter((h) => h.purchaseOrderId === poId);
+      }),
+    },
+  };
+});
+
+vi.mock("./db", () => mockState.db);
 import * as db from "./db";
-import { beforeAll, describe, expect, it } from "vitest";
 
 describe("Purchase Order History", () => {
-  const purchaseOrderId = `PO-HISTORY-${Date.now()}`;
+  beforeEach(() => {
+    mockState.store.length = 0;
+    vi.clearAllMocks();
+  });
 
-  beforeAll(async () => {
+  it("persists approval and OCR correction-review events for one purchase order", async () => {
+    const purchaseOrderId = "PO-HISTORY-001";
+
     await db.createPurchaseOrder({
       purchaseOrderId,
       vendorName: "History Test Vendor",
@@ -13,11 +37,9 @@ describe("Purchase Order History", () => {
       paymentStatus: "Pending",
       approvalStatus: "Pending Approval",
     });
-  });
 
-  it("persists approval and OCR correction-review events for one purchase order", async () => {
     await db.createPurchaseOrderHistory({
-      historyId: `POH-${Date.now()}-APPROVED`,
+      historyId: "POH-001-APPROVED",
       purchaseOrderId,
       eventType: "APPROVED",
       actorId: "test-admin",
@@ -25,8 +47,9 @@ describe("Purchase Order History", () => {
       eventSummary: "Purchase order approved.",
       details: JSON.stringify({ approvalStatus: "Approved" }),
     });
+
     await db.createPurchaseOrderHistory({
-      historyId: `POH-${Date.now()}-CORRECTION`,
+      historyId: "POH-001-CORRECTION",
       purchaseOrderId,
       eventType: "OCR_CORRECTION_REVIEWED",
       actorId: "test-user",

@@ -24,9 +24,12 @@ const mockState = vi.hoisted(() => ({
     checkInAppointment: vi.fn(),
     updateAppointmentStatus: vi.fn(),
     updateEnquiryStageForAppointment: vi.fn(),
+    recordExternalRequestReplay: vi.fn(),
   },
   registration: vi.fn(),
 }));
+
+const activeReplays = new Set<string>();
 
 vi.mock("../db", () => mockState.db);
 vi.mock("../services/patientRegistration", () => ({
@@ -132,6 +135,14 @@ beforeEach(() => {
   mockState.db.completeExternalIdempotencyRecord.mockResolvedValue(undefined);
   mockState.db.deleteExternalIdempotencyReservation.mockResolvedValue(undefined);
   mockState.db.createExternalApiAuditLog.mockResolvedValue(undefined);
+  activeReplays.clear();
+  mockState.db.recordExternalRequestReplay.mockImplementation(async ({ serviceKeyId, requestId }: any) => {
+    const key = `${serviceKeyId}:${requestId}`;
+    if (activeReplays.has(key)) {
+      throw new Error("Duplicate request ID detected");
+    }
+    activeReplays.add(key);
+  });
   mockState.db.getPatientById.mockResolvedValue({ patientId: "P-TEST-001" });
   mockState.db.getUserById.mockResolvedValue({ id: 7, role: "consultant", isActive: 1 });
   mockState.db.getAppointmentById.mockResolvedValue(baseAppointment);
@@ -275,5 +286,24 @@ describe("external API appointment flows", () => {
     const read = await signedRequest("GET", "/appointments/APT-TEST-001");
     expect(read.response.status).toBe(200);
     expect(mockState.db.createExternalApiAuditLog).toHaveBeenCalledWith(expect.objectContaining({ action: "appointments.read", result: "SUCCESS" }));
+  });
+
+  it("enforces atomic request-ID replay protection across GET and POST endpoints", async () => {
+    const fixedRequestId = "req_fixed_12345678";
+    
+    // First request succeeds
+    const first = await signedRequest("GET", "/health", undefined, { requestId: fixedRequestId });
+    expect(first.response.status).toBe(200);
+
+    // Identical signed replay with same request ID is rejected with 409 REPLAY_DETECTED
+    const replay = await signedRequest("GET", "/health", undefined, { requestId: fixedRequestId });
+    expect(replay.response.status).toBe(409);
+    const body = await replay.response.json();
+    expect(body.error.code).toBe("REPLAY_DETECTED");
+
+    // Replay against another endpoint with same request ID is also rejected
+    const replayOther = await signedRequest("GET", "/consultants", undefined, { requestId: fixedRequestId });
+    expect(replayOther.response.status).toBe(409);
+    expect((await replayOther.response.json()).error.code).toBe("REPLAY_DETECTED");
   });
 });

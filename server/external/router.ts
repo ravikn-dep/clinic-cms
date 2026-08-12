@@ -35,6 +35,7 @@ type ApiErrorCode =
   | "IDEMPOTENCY_REQUIRED"
   | "IDEMPOTENCY_CONFLICT"
   | "IDEMPOTENCY_IN_PROGRESS"
+  | "REPLAY_DETECTED"
   | "INTERNAL_ERROR";
 
 const REQUEST_TOLERANCE_MS = 5 * 60 * 1000;
@@ -184,6 +185,18 @@ async function authenticateExternalRequest(req: ExternalRequest, res: Response, 
   if (!signaturesMatch(expectedSignature, signature)) {
     await recordAudit(req, "authentication", "external_api", "DENIED", undefined, { reason: "signature_mismatch" });
     return apiError(res, requestId, 401, "AUTH_INVALID", "Authentication could not be verified.");
+  }
+
+  try {
+    await db.recordExternalRequestReplay({
+      replayId: `rep_${nanoid(20)}`,
+      serviceKeyId: keyId,
+      requestId,
+      endpoint: path,
+    });
+  } catch {
+    await recordAudit(req, "authentication", "external_api", "DENIED", undefined, { reason: "replay_detected" });
+    return apiError(res, requestId, 409, "REPLAY_DETECTED", "Duplicate request ID detected for this service key.", true);
   }
 
   req.externalAuth = { keyId, scopes: key.scopes };

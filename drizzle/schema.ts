@@ -331,3 +331,15 @@ export const appointmentBookingLocks = mysqlTable("appointmentBookingLocks", {
 
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
+
+export const externalRequestReplays = mysqlTable("externalRequestReplays", {
+	replayId: varchar({ length: 64 }).notNull(),
+	serviceKeyId: varchar({ length: 100 }).notNull(),
+	requestId: varchar({ length: 64 }).notNull(),
+	endpoint: varchar({ length: 255 }).notNull(),
+	createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
+},
+(table) => [
+	uniqueIndex("externalRequestReplays_key_request_unique").on(table.serviceKeyId, table.requestId),
+	index("externalRequestReplays_createdAt_idx").on(table.createdAt),
+]);

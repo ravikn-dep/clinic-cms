@@ -830,11 +830,11 @@
 
 # Phase A.1 Remediation Tasks
 
-- [ ] Audit keyring scopes (`health:read`, `patients:read`, `patients:write`, `consultants:read`, `appointments:read`, `appointments:write`; `appointments:complete` elevated) and overlapping key rotation support
-- [ ] Implement atomic request-ID replay protection (`serviceKeyId + requestId`) across all GET and POST external endpoints with `REPLAY_DETECTED` error and automated tests
-- [ ] Document and test canonical request format (pathname, query params, ordering, encoding, empty/JSON bodies, Content-Type) with test vectors in API docs
-- [ ] Verify idempotency transaction boundaries, poison-key prevention, in-progress expiration, and conflict responses for `POST /patients` and `POST /appointments`
-- [ ] Document purchase-order change provenance (confirmed pre-existing user-approved work) and separate from Phase A diff
-- [ ] Review migrations 0015 through 0018, clean up empty migration 0018, and test fresh/upgrade migration chains
-- [ ] Run comprehensive security, concurrency, migration, and full `pnpm test`, `pnpm check`, `pnpm build` suites
-- [ ] Produce final Phase A.1 remediation report and save checkpoint without deploying
+- [x] Audit keyring scopes (`health:read`, `patients:read`, `patients:write`, `consultants:read`, `appointments:read`, `appointments:write`; `appointments:complete` elevated) and overlapping key rotation support
+- [x] Implement atomic request-ID replay protection (`serviceKeyId + requestId`) across all GET and POST external endpoints with `REPLAY_DETECTED` error and automated tests
+- [x] Document and test canonical request format (pathname, query params, ordering, encoding, empty/JSON bodies, Content-Type) with test vectors in API docs
+- [x] Verify idempotency transaction boundaries, poison-key prevention, in-progress expiration, and conflict responses for `POST /patients` and `POST /appointments`
+- [x] Document purchase-order change provenance (confirmed pre-existing user-approved work) and separate from Phase A diff
+- [x] Review migrations 0015 through 0018, clean up empty migration 0018, and test fresh/upgrade migration chains
+- [x] Run comprehensive security, concurrency, migration, and full `pnpm test`, `pnpm check`, `pnpm build` suites
+- [x] Produce final Phase A.1 remediation report and save checkpoint without deploying
