@@ -60,22 +60,24 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply CI database migrations via Drizzle migrate
+      - name: Apply CI database migrations with diagnostic
         run: |
           npx tsx -e "
             import { drizzle } from 'drizzle-orm/mysql2';
             import { migrate } from 'drizzle-orm/mysql2/migrator';
             import mysql from 'mysql2/promise';
             try {
-              console.log('Connecting to database:', process.env.DATABASE_URL);
+              console.log('Connecting to:', process.env.DATABASE_URL);
               const connection = await mysql.createConnection(process.env.DATABASE_URL);
+              const [rows] = await connection.execute('SELECT 1 as connected');
+              console.log('DB connection test:', rows);
               const db = drizzle(connection);
-              console.log('Running drizzle migrations from ./drizzle...');
+              console.log('Running migrate(db, { migrationsFolder: \"./drizzle\" })');
               await migrate(db, { migrationsFolder: './drizzle' });
-              console.log('Database migrations applied successfully.');
+              console.log('Migration completed successfully!');
               await connection.end();
             } catch (err) {
-              console.error('Migration execution failed:', err);
+              console.error('Migration failed with error:', err);
               process.exit(1);
             }
           "
