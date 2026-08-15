@@ -61,7 +61,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Apply CI database migrations
-        run: pnpm exec drizzle-kit migrate
+        run: npx drizzle-kit migrate
 
       - name: Run TypeScript check
         run: pnpm check
