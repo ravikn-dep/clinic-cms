@@ -838,3 +838,20 @@
 - [x] Review migrations 0015 through 0018, clean up empty migration 0018, and test fresh/upgrade migration chains
 - [x] Run comprehensive security, concurrency, migration, and full `pnpm test`, `pnpm check`, `pnpm build` suites
 - [x] Produce final Phase A.1 remediation report and save checkpoint without deploying
+
+# Step 1 Approval and GitHub Governance
+
+- [ ] Publish the Step 1 CI workflow to GitHub main so the required branch-protection check can execute remotely
+- [ ] Configure and verify main branch protection requiring `CI Validation / validate`
+- [ ] Record that no external production database was connected or modified
+
+- [x] Configure and verify main branch protection requiring `CI Validation / validate`
+- [x] Record that no external production database was connected or modified
+
+This section records the user-authorized GitHub governance action; the migration approval gate remains separate from external production database access.
+
+> Note: The first item remains pending until `.github/workflows/ci.yml` is present on GitHub main and a remote CI run is observed.
+
+- [ ] Update GitHub CI to provision an ephemeral MySQL service, apply repository migrations only in CI, and rerun the required validation check
+
+> This is an ephemeral CI-only database; no production database connection or migration is authorized in this task.
