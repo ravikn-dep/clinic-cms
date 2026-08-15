@@ -60,8 +60,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify CI database connection
-        run: node -e "import('mysql2/promise').then(async m => { const c = await m.createConnection(process.env.DATABASE_URL); console.log('Connected to CI MySQL'); await c.end(); })"
+
 
       - name: Run TypeScript check
         run: pnpm check
