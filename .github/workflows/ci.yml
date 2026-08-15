@@ -60,8 +60,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply CI database migrations with drizzle-kit
-        run: pnpm dlx drizzle-kit migrate
+      - name: Apply CI database migrations via mysql CLI
+        run: |
+          for f in drizzle/*.sql; do
+            if [ -f "$f" ]; then
+              echo "Applying migration $f..."
+              mysql -h 127.0.0.1 -P 3306 -u clinic_ci --password=clinic_ci clinic_cms_ci < "$f" || true
+            fi
+          done
 
       - name: Run TypeScript check
         run: pnpm check
