@@ -60,6 +60,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Apply CI database migrations
+        run: npx drizzle-kit push --dialect=mysql --url="${{ env.DATABASE_URL }}" --accept-data-loss
+
 
 
       - name: Run TypeScript check
