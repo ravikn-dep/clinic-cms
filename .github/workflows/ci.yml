@@ -61,7 +61,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Apply CI database migrations
-        run: npx drizzle-kit push --schema=drizzle/schema.ts --dialect=mysql --url="${{ env.DATABASE_URL }}"
+        run: npx drizzle-kit push --schema=./drizzle/schema.ts --dialect=mysql --url="${{ env.DATABASE_URL }}"
 
 
 
