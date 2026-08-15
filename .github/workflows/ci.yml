@@ -60,7 +60,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply CI database migrations
+      - name: Verify CI database connection
         run: npx tsx -e "import mysql from 'mysql2/promise'; const connection = await mysql.createConnection(process.env.DATABASE_URL); console.log('Connected to CI MySQL'); await connection.end();"
 
       - name: Run TypeScript check
