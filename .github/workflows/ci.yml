@@ -61,7 +61,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Apply CI database migrations
-        run: pnpm exec drizzle-kit push --config=drizzle.config.ts
+        run: pnpm exec drizzle-kit migrate --config=drizzle.config.ts
 
 
 
