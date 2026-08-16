@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap, History, PackageCheck } from "lucide-react";
+import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap, History, PackageCheck, Download, FileText } from "lucide-react";
+import { jsPDF } from "jspdf";
 import { ConfidenceBadge, ConfidenceTooltip } from "@/components/ConfidenceBadge";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
@@ -73,6 +74,10 @@ export default function PurchaseOrders() {
     },
   });
   const { data: purchaseOrderHistory, isLoading: isHistoryLoading } = trpc.purchaseOrders.getHistory.useQuery(
+    { purchaseOrderId: historyPurchaseOrder?.id ?? "" },
+    { enabled: Boolean(historyPurchaseOrder) },
+  );
+  const { data: purchaseOrderReceipts, isLoading: isReceiptsLoading } = trpc.purchaseOrders.getGoodsReceipts.useQuery(
     { purchaseOrderId: historyPurchaseOrder?.id ?? "" },
     { enabled: Boolean(historyPurchaseOrder) },
   );
@@ -145,6 +150,71 @@ export default function PurchaseOrders() {
     const matchesApproval = !filterApprovalStatus || filterApprovalStatus === "all" || po.approvalStatus === filterApprovalStatus;
     return matchesSearch && matchesStatus && matchesApproval;
   });
+
+  const escapeCsv = (value: unknown) => `"${String(value ?? "").replace(/"/g, '""')}"`;
+
+  const handleExportCsv = () => {
+    if (filteredPOs.length === 0) {
+      showAlert("Export", "There are no purchase orders matching the current filters.");
+      return;
+    }
+    const headers = ["PO ID", "Vendor Name", "Contact", "Total Amount", "Payment Status", "Order Date", "Approval Status"];
+    const rows = filteredPOs.map((po: any) => [
+      po.purchaseOrderId,
+      po.vendorName,
+      po.vendorContactNumber,
+      po.totalAmount,
+      po.paymentStatus,
+      po.orderDate,
+      po.approvalStatus,
+    ]);
+    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(",")).join("\n");
+    const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `purchase-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    showAlert("Success", `${filteredPOs.length} filtered purchase order(s) exported as CSV.`);
+  };
+
+  const handleExportPdf = () => {
+    if (filteredPOs.length === 0) {
+      showAlert("Export", "There are no purchase orders matching the current filters.");
+      return;
+    }
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    doc.setFontSize(16);
+    doc.text("Purchase Orders Export", 14, 16);
+    doc.setFontSize(9);
+    doc.text(`Generated ${new Date().toLocaleString()} · ${filteredPOs.length} filtered order(s)`, 14, 23);
+    const columns = ["PO ID", "Vendor", "Contact", "Total", "Payment", "Order Date", "Approval"];
+    const xPositions = [14, 48, 105, 145, 178, 214, 250];
+    doc.setFont("helvetica", "bold");
+    columns.forEach((column, index) => doc.text(column, xPositions[index], 33));
+    doc.setFont("helvetica", "normal");
+    let y = 40;
+    filteredPOs.forEach((po: any) => {
+      if (y > 190) {
+        doc.addPage();
+        y = 18;
+      }
+      const values = [
+        String(po.purchaseOrderId ?? "").substring(0, 16),
+        String(po.vendorName ?? "").substring(0, 28),
+        String(po.vendorContactNumber ?? "").substring(0, 18),
+        String(po.totalAmount ?? ""),
+        String(po.paymentStatus ?? ""),
+        String(po.orderDate ?? "").substring(0, 10),
+        String(po.approvalStatus ?? "").substring(0, 18),
+      ];
+      values.forEach((value, index) => doc.text(value, xPositions[index], y));
+      y += 7;
+    });
+    doc.save(`purchase-orders-${new Date().toISOString().slice(0, 10)}.pdf`);
+    showAlert("Success", `${filteredPOs.length} filtered purchase order(s) exported as PDF.`);
+  };
 
   const getApprovalBadge = (status: string) => {
     switch (status) {
@@ -759,23 +829,58 @@ export default function PurchaseOrders() {
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] space-y-3 overflow-y-auto pr-1">
-            {isHistoryLoading ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">Loading history…</div>
-            ) : !purchaseOrderHistory || purchaseOrderHistory.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No recorded history is available for this purchase order.</div>
+            {isHistoryLoading || isReceiptsLoading ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground" role="status">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading status and stock receipt timeline…
+              </div>
+            ) : (!purchaseOrderHistory || purchaseOrderHistory.length === 0) && (!purchaseOrderReceipts || purchaseOrderReceipts.length === 0) ? (
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">No status changes or stock receipts are recorded for this purchase order.</div>
             ) : (
-              purchaseOrderHistory.map((entry: any) => (
-                <div key={entry.historyId} className="rounded-lg border bg-slate-50 p-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="font-medium text-slate-900">{entry.eventSummary}</p>
-                      <p className="mt-1 text-xs text-slate-600">{entry.actorName || entry.actorId} · {new Date(entry.createdAt).toLocaleString()}</p>
+              <div className="relative space-y-4 pl-7 before:absolute before:bottom-3 before:left-[11px] before:top-3 before:w-px before:bg-teal-200">
+                {[
+                  ...(purchaseOrderHistory ?? []).map((entry: any) => ({
+                    key: `history-${entry.historyId}`,
+                    date: entry.createdAt,
+                    title: entry.eventSummary,
+                    actor: entry.actorName || entry.actorId,
+                    type: entry.eventType.replaceAll("_", " "),
+                    details: entry.details,
+                    tone: "bg-teal-600",
+                  })),
+                  ...(purchaseOrderReceipts ?? []).flatMap((receipt: any) => [
+                    {
+                      key: `receipt-${receipt.goodsReceiptId}`,
+                      date: receipt.receivedAt || receipt.createdAt,
+                      title: `Goods receipt ${receipt.goodsReceiptId} posted`,
+                      actor: receipt.receivedBy,
+                      type: "STOCK RECEIPT",
+                      details: null,
+                      tone: "bg-emerald-600",
+                    },
+                    ...((receipt.lines ?? []).map((line: any) => ({
+                      key: `receipt-line-${line.goodsReceiptItemId}`,
+                      date: line.createdAt || receipt.receivedAt || receipt.createdAt,
+                      title: `${line.receivedQuantity} × ${line.itemName} received`,
+                      actor: `Batch ${line.batchNumber} · Expiry ${line.expiryDate}`,
+                      type: "RECEIPT LINE",
+                      details: null,
+                      tone: "bg-emerald-400",
+                    }))),
+                  ]),
+                ].sort((a, b) => new Date(a.date ?? 0).getTime() - new Date(b.date ?? 0).getTime()).map((entry) => (
+                  <div key={entry.key} className="relative rounded-lg border bg-white p-3 shadow-sm">
+                    <span className={`absolute -left-[29px] top-4 h-3 w-3 rounded-full ring-4 ring-white ${entry.tone}`} />
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-slate-900">{entry.title}</p>
+                        <p className="mt-1 text-xs text-slate-600">{entry.actor} · {new Date(entry.date).toLocaleString()}</p>
+                      </div>
+                      <Badge variant="outline" className="shrink-0">{entry.type}</Badge>
                     </div>
-                    <Badge variant="outline" className="shrink-0">{entry.eventType.replaceAll("_", " ")}</Badge>
+                    {entry.details && <pre className="mt-2 overflow-x-auto rounded bg-slate-50 p-2 text-xs text-slate-600">{entry.details}</pre>}
                   </div>
-                  {entry.details && <pre className="mt-2 overflow-x-auto rounded bg-white p-2 text-xs text-slate-600">{entry.details}</pre>}
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </div>
         </DialogContent>
@@ -863,6 +968,12 @@ export default function PurchaseOrders() {
                 Clear Filters
               </Button>
             )}
+            <Button variant="outline" size="sm" onClick={handleExportCsv} disabled={filteredPOs.length === 0}>
+              <Download className="mr-2 h-4 w-4" /> CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportPdf} disabled={filteredPOs.length === 0}>
+              <FileText className="mr-2 h-4 w-4" /> PDF
+            </Button>
           </div>
         </CardHeader>
         <CardContent>

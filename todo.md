@@ -881,3 +881,10 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Implement receipt success toast and summary confirmation view in Purchase Orders page
 - [x] Add searchable and filterable Purchase Orders list controls (vendor name, PO ID, status filter)
 - [x] Verify test suite and production build pass cleanly
+
+## Step 5 Purchase Orders CSV/PDF Export and Combined Timeline Enhancements
+- [x] Outline Step 5 remediation roadmap and UI verification criteria
+- [x] Implement filtered Purchase Orders CSV export functionality
+- [x] Implement filtered Purchase Orders PDF export functionality
+- [x] Extend purchase order history dialog into a combined status and stock receipt timeline
+- [x] Verify test suite and production build pass cleanly
