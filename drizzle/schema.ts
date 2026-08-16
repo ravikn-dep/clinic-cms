@@ -117,10 +117,15 @@ export const inventory = mysqlTable("inventory", {
 	quantityAvailable: int().default(0),
 	reorderLevel: int().default(10),
 	unitPrice: decimal({ precision: 10, scale: 2 }).notNull(),
+	sourcePurchaseOrderId: varchar({ length: 50 }),
+	sourceGoodsReceiptId: varchar({ length: 50 }),
 	lastRestocked: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP'),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
+},
+	(table) => [
+		uniqueIndex("inventory_item_batch_expiry_unique").on(table.itemName, table.batchNumber, table.expiryDate),
+	]);
 
 export const notificationPreferences = mysqlTable("notificationPreferences", {
 	preferenceId: varchar({ length: 50 }).notNull(),
@@ -173,6 +178,7 @@ export const purchaseOrderItems = mysqlTable("purchaseOrderItems", {
 	purchaseOrderId: varchar({ length: 50 }).notNull(),
 	itemName: varchar({ length: 255 }).notNull(),
 	quantity: int().default(1),
+	receivedQuantity: int().default(0).notNull(),
 	unitPrice: decimal({ precision: 10, scale: 2 }).notNull(),
 	subtotal: decimal({ precision: 10, scale: 2 }).notNull(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
@@ -199,6 +205,59 @@ export const purchaseOrders = mysqlTable("purchaseOrders", {
 	approvalTimestamp: timestamp({ mode: 'string' }),
 	authorizationNotes: text(),
 });
+
+export const goodsReceipts = mysqlTable("goodsReceipts", {
+	goodsReceiptId: varchar({ length: 50 }).notNull(),
+	purchaseOrderId: varchar({ length: 50 }).notNull(),
+	receivedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	receivedBy: varchar({ length: 100 }).notNull(),
+	status: mysqlEnum(['Posted','Voided']).default('Posted').notNull(),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+	(table) => [
+		uniqueIndex("goodsReceipts_goodsReceiptId_unique").on(table.goodsReceiptId),
+		index("goodsReceipts_purchaseOrderId_idx").on(table.purchaseOrderId),
+	]);
+
+export const goodsReceiptItems = mysqlTable("goodsReceiptItems", {
+	goodsReceiptItemId: varchar({ length: 50 }).notNull(),
+	goodsReceiptId: varchar({ length: 50 }).notNull(),
+	purchaseOrderId: varchar({ length: 50 }).notNull(),
+	poItemId: varchar({ length: 50 }).notNull(),
+	itemName: varchar({ length: 255 }).notNull(),
+	receivedQuantity: int().notNull(),
+	batchNumber: varchar({ length: 100 }).notNull(),
+	expiryDate: varchar({ length: 10 }).notNull(),
+	unitCost: decimal({ precision: 10, scale: 2 }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+	(table) => [
+		uniqueIndex("goodsReceiptItems_goodsReceiptItemId_unique").on(table.goodsReceiptItemId),
+		uniqueIndex("goodsReceiptItems_receipt_poItem_batch_unique").on(table.goodsReceiptId, table.poItemId, table.batchNumber),
+		index("goodsReceiptItems_purchaseOrderId_idx").on(table.purchaseOrderId),
+		index("goodsReceiptItems_poItemId_idx").on(table.poItemId),
+	]);
+
+export const stockMovements = mysqlTable("stockMovements", {
+	movementId: varchar({ length: 50 }).notNull(),
+	goodsReceiptId: varchar({ length: 50 }).notNull(),
+	goodsReceiptItemId: varchar({ length: 50 }).notNull(),
+	purchaseOrderId: varchar({ length: 50 }).notNull(),
+	inventoryItemId: varchar({ length: 50 }).notNull(),
+	itemName: varchar({ length: 255 }).notNull(),
+	batchNumber: varchar({ length: 100 }).notNull(),
+	quantityAdded: int().notNull(),
+	previousQuantity: int().notNull(),
+	resultingQuantity: int().notNull(),
+	actorId: varchar({ length: 100 }).notNull(),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+	(table) => [
+		uniqueIndex("stockMovements_movementId_unique").on(table.movementId),
+		uniqueIndex("stockMovements_receiptItem_unique").on(table.goodsReceiptItemId),
+		index("stockMovements_goodsReceiptId_idx").on(table.goodsReceiptId),
+		index("stockMovements_purchaseOrderId_idx").on(table.purchaseOrderId),
+	]);
 
 export const purchaseOrderHistory = mysqlTable("purchaseOrderHistory", {
 	historyId: varchar({ length: 50 }).notNull(),

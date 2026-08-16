@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap, History } from "lucide-react";
+import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap, History, PackageCheck } from "lucide-react";
 import { ConfidenceBadge, ConfidenceTooltip } from "@/components/ConfidenceBadge";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 export default function PurchaseOrders() {
   const { user } = useAuth();
+  const { hasAccess } = useFeatureAccess();
+  const canReceiveStock = hasAccess("purchase_orders");
   const showAlert = (title: string, message: string) => {
     console.log(`${title}: ${message}`);
   };
@@ -36,6 +39,8 @@ export default function PurchaseOrders() {
   const [validationWarnings, setValidationWarnings] = useState<any[]>([]);
   const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set());
   const [historyPurchaseOrder, setHistoryPurchaseOrder] = useState<{ id: string; vendorName: string } | null>(null);
+  const [receivePurchaseOrderId, setReceivePurchaseOrderId] = useState<string | null>(null);
+  const [receiveForm, setReceiveForm] = useState<{ goodsReceiptId: string; lines: Record<string, { receivedQuantity: string; batchNumber: string; expiryDate: string; unitCost: string }> }>({ goodsReceiptId: "", lines: {} });
 
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
@@ -44,6 +49,19 @@ export default function PurchaseOrders() {
   const extractPO = trpc.purchaseOrders.extractFromImage.useMutation();
   const validateExtractedData = trpc.purchaseOrders.validateExtractedData.useMutation();
   const recordCorrectionReview = trpc.purchaseOrders.recordCorrectionReview.useMutation();
+  const { data: receiptSummary, isLoading: isReceiptSummaryLoading } = trpc.purchaseOrders.getReceiptSummary.useQuery(
+    { purchaseOrderId: receivePurchaseOrderId ?? "" },
+    { enabled: Boolean(receivePurchaseOrderId) },
+  );
+  const receiveStock = trpc.purchaseOrders.receiveStock.useMutation({
+    onSuccess: () => {
+      showAlert("Success", "Goods receipt posted and inventory updated");
+      setReceivePurchaseOrderId(null);
+      setReceiveForm({ goodsReceiptId: "", lines: {} });
+      refetch();
+    },
+    onError: (error) => showAlert("Error", error.message || "Failed to post goods receipt"),
+  });
   const { data: purchaseOrderHistory, isLoading: isHistoryLoading } = trpc.purchaseOrders.getHistory.useQuery(
     { purchaseOrderId: historyPurchaseOrder?.id ?? "" },
     { enabled: Boolean(historyPurchaseOrder) },
@@ -77,6 +95,19 @@ export default function PurchaseOrders() {
   const [authorizationNotes, setAuthorizationNotes] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!receiptSummary) return;
+    setReceiveForm((current) => ({
+      goodsReceiptId: current.goodsReceiptId || `GR-${Date.now()}`,
+      lines: Object.fromEntries(receiptSummary.items.map((item: any) => [item.poItemId, {
+        receivedQuantity: item.remainingQuantity > 0 ? String(item.remainingQuantity) : "0",
+        batchNumber: "",
+        expiryDate: "",
+        unitCost: String(item.unitPrice ?? ""),
+      }])),
+    }));
+  }, [receiptSummary]);
 
   const handleImageSelect = (file: File | null) => {
     setOcrImageFile(file);
@@ -166,7 +197,6 @@ export default function PurchaseOrders() {
           unitPrice: item.unitPrice,
         })),
         authorizationNotes: authorizationNotes || undefined,
-        approvalStatus: "Approved",
       });
 
       if (verifiedFields.size > 0) {
@@ -211,6 +241,44 @@ export default function PurchaseOrders() {
     } catch (error) {
       showAlert("Error", "Failed to update payment status");
     }
+  };
+
+  const openReceiveStock = (purchaseOrderId: string) => {
+    setReceivePurchaseOrderId(purchaseOrderId);
+    setReceiveForm({ goodsReceiptId: `GR-${Date.now()}`, lines: {} });
+  };
+
+  const handleReceiveStockSubmit = () => {
+    if (!receivePurchaseOrderId || !receiptSummary) return;
+    const lines = receiptSummary.items
+      .map((item: any) => ({ item, formLine: receiveForm.lines[item.poItemId] }))
+      .filter(({ formLine }) => Number(formLine?.receivedQuantity ?? 0) > 0)
+      .map(({ item, formLine }) => ({
+        poItemId: item.poItemId,
+        receivedQuantity: Number(formLine.receivedQuantity),
+        batchNumber: formLine.batchNumber.trim(),
+        expiryDate: formLine.expiryDate,
+        unitCost: formLine.unitCost || undefined,
+      }));
+
+    if (!receiveForm.goodsReceiptId.trim()) {
+      showAlert("Error", "Goods receipt ID is required");
+      return;
+    }
+    if (lines.length === 0) {
+      showAlert("Error", "Enter a positive quantity for at least one item");
+      return;
+    }
+    if (lines.some((line) => !line.batchNumber || !line.expiryDate)) {
+      showAlert("Error", "Batch number and expiry date are required for every received item");
+      return;
+    }
+
+    receiveStock.mutate({
+      goodsReceiptId: receiveForm.goodsReceiptId.trim(),
+      purchaseOrderId: receivePurchaseOrderId,
+      lines,
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -763,6 +831,17 @@ export default function PurchaseOrders() {
                           >
                             <History className="w-4 h-4" />
                           </Button>
+                          {po.approvalStatus === "Approved" && canReceiveStock && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openReceiveStock(po.purchaseOrderId)}
+                              className="border-teal-200 text-teal-800 hover:bg-teal-50"
+                              title="Receive delivered stock against this approved purchase order"
+                            >
+                              <PackageCheck className="w-4 h-4" />
+                            </Button>
+                          )}
                           {po.approvalStatus === "Pending Approval" && user?.role !== "admin" && (
                             <Badge className="bg-yellow-100 text-yellow-800">Awaiting Approval</Badge>
                           )}
@@ -813,6 +892,106 @@ export default function PurchaseOrders() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={Boolean(receivePurchaseOrderId)} onOpenChange={(open) => !open && setReceivePurchaseOrderId(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Receive Stock</DialogTitle>
+            <DialogDescription>
+              Receive only goods physically delivered against this approved purchase order. Batch number and expiry date are required.
+            </DialogDescription>
+          </DialogHeader>
+          {isReceiptSummaryLoading || !receiptSummary ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Loading ordered quantities...</div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="goods-receipt-id">Goods receipt ID</Label>
+                <Input
+                  id="goods-receipt-id"
+                  value={receiveForm.goodsReceiptId}
+                  onChange={(event) => setReceiveForm((current) => ({ ...current, goodsReceiptId: event.target.value }))}
+                  placeholder="GR-2026-0001"
+                />
+              </div>
+              <div className="overflow-x-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Ordered</TableHead>
+                      <TableHead>Received</TableHead>
+                      <TableHead>Remaining</TableHead>
+                      <TableHead>Receive now</TableHead>
+                      <TableHead>Batch</TableHead>
+                      <TableHead>Expiry</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {receiptSummary.items.map((item: any) => {
+                      const line = receiveForm.lines[item.poItemId] ?? { receivedQuantity: "0", batchNumber: "", expiryDate: "", unitCost: String(item.unitPrice ?? "") };
+                      const disabled = item.remainingQuantity <= 0;
+                      return (
+                        <TableRow key={item.poItemId}>
+                          <TableCell className="font-medium">{item.itemName}</TableCell>
+                          <TableCell>{item.orderedQuantity}</TableCell>
+                          <TableCell>{item.receivedQuantity}</TableCell>
+                          <TableCell>{item.remainingQuantity}</TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="0"
+                              max={item.remainingQuantity}
+                              value={line.receivedQuantity}
+                              disabled={disabled}
+                              onChange={(event) => setReceiveForm((current) => ({
+                                ...current,
+                                lines: { ...current.lines, [item.poItemId]: { ...line, receivedQuantity: event.target.value } },
+                              }))}
+                              className="w-24"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              value={line.batchNumber}
+                              disabled={disabled}
+                              onChange={(event) => setReceiveForm((current) => ({
+                                ...current,
+                                lines: { ...current.lines, [item.poItemId]: { ...line, batchNumber: event.target.value } },
+                              }))}
+                              placeholder="Batch"
+                              className="w-28"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="date"
+                              value={line.expiryDate}
+                              disabled={disabled}
+                              onChange={(event) => setReceiveForm((current) => ({
+                                ...current,
+                                lines: { ...current.lines, [item.poItemId]: { ...line, expiryDate: event.target.value } },
+                              }))}
+                              className="w-36"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setReceivePurchaseOrderId(null)}>Cancel</Button>
+                <Button onClick={handleReceiveStockSubmit} disabled={receiveStock.isPending || !canReceiveStock}>
+                  {receiveStock.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
+                  Post goods receipt
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

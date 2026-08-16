@@ -1,6 +1,6 @@
 import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays } from "../drizzle/schema";
+import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 import { nanoid } from "nanoid";
@@ -331,6 +331,22 @@ export async function createPurchaseOrderItem(poItemData: typeof purchaseOrderIt
   return poItemData;
 }
 
+export async function createPurchaseOrderWithItems(
+  poData: typeof purchaseOrders.$inferInsert,
+  items: Array<typeof purchaseOrderItems.$inferInsert>,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.transaction(async (transaction) => {
+    await transaction.insert(purchaseOrders).values(poData);
+    if (items.length > 0) {
+      await transaction.insert(purchaseOrderItems).values(items);
+    }
+  });
+  return poData;
+}
+
 export async function getPurchaseOrderItems(purchaseOrderId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -354,6 +370,224 @@ export async function getPurchaseOrderHistory(purchaseOrderId: string) {
     .from(purchaseOrderHistory)
     .where(eq(purchaseOrderHistory.purchaseOrderId, purchaseOrderId))
     .orderBy(desc(purchaseOrderHistory.createdAt));
+}
+
+export async function getPurchaseOrderReceiptSummary(purchaseOrderId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const items = await db.select().from(purchaseOrderItems).where(eq(purchaseOrderItems.purchaseOrderId, purchaseOrderId));
+  return items.map((item) => ({
+    ...item,
+    orderedQuantity: Number(item.quantity ?? 0),
+    receivedQuantity: Number(item.receivedQuantity ?? 0),
+    remainingQuantity: Math.max(0, Number(item.quantity ?? 0) - Number(item.receivedQuantity ?? 0)),
+  }));
+}
+
+export type GoodsReceiptLineInput = {
+  poItemId: string;
+  receivedQuantity: number;
+  batchNumber: string;
+  expiryDate: string;
+  unitCost?: string;
+};
+
+export async function createGoodsReceipt(input: {
+  goodsReceiptId: string;
+  purchaseOrderId: string;
+  receivedBy: string;
+  lines: GoodsReceiptLineInput[];
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return db.transaction(async (transaction) => {
+    const existingReceipt = await transaction.select()
+      .from(goodsReceipts)
+      .where(eq(goodsReceipts.goodsReceiptId, input.goodsReceiptId))
+      .limit(1);
+    if (existingReceipt.length > 0) {
+      throw new Error("Goods receipt ID has already been posted");
+    }
+
+    const poRows = await transaction.select()
+      .from(purchaseOrders)
+      .where(eq(purchaseOrders.purchaseOrderId, input.purchaseOrderId))
+      .limit(1);
+    const po = poRows[0];
+    if (!po) throw new Error("Purchase Order not found");
+    if (po.approvalStatus !== "Approved") {
+      throw new Error("Goods can only be received against an approved purchase order");
+    }
+    if (input.lines.length === 0) throw new Error("At least one goods receipt line is required");
+
+    const poItems = await transaction.select()
+      .from(purchaseOrderItems)
+      .where(eq(purchaseOrderItems.purchaseOrderId, input.purchaseOrderId));
+    const poItemById = new Map(poItems.map((item) => [item.poItemId, item]));
+    const seenItems = new Set<string>();
+
+    await transaction.insert(goodsReceipts).values({
+      goodsReceiptId: input.goodsReceiptId,
+      purchaseOrderId: input.purchaseOrderId,
+      receivedBy: input.receivedBy,
+      status: "Posted",
+    });
+
+    const postedLines: Array<{
+      goodsReceiptItemId: string;
+      poItemId: string;
+      itemName: string;
+      receivedQuantity: number;
+      batchNumber: string;
+      expiryDate: string;
+      resultingQuantity: number;
+    }> = [];
+
+    for (const line of input.lines) {
+      if (seenItems.has(line.poItemId)) {
+        throw new Error(`Duplicate receipt line for PO item ${line.poItemId}`);
+      }
+      seenItems.add(line.poItemId);
+
+      const poItem = poItemById.get(line.poItemId);
+      if (!poItem) throw new Error(`PO item ${line.poItemId} does not belong to this purchase order`);
+      const orderedQuantity = Number(poItem.quantity ?? 0);
+      const previouslyReceived = Number(poItem.receivedQuantity ?? 0);
+      if (!Number.isInteger(line.receivedQuantity) || line.receivedQuantity <= 0) {
+        throw new Error("Received quantity must be a positive whole number");
+      }
+      if (previouslyReceived + line.receivedQuantity > orderedQuantity) {
+        throw new Error(`Receipt quantity exceeds the remaining quantity for ${poItem.itemName}`);
+      }
+      if (!line.batchNumber.trim()) throw new Error(`Batch number is required for ${poItem.itemName}`);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(line.expiryDate)) {
+        throw new Error(`Expiry date must use YYYY-MM-DD for ${poItem.itemName}`);
+      }
+      const expiry = new Date(`${line.expiryDate}T00:00:00.000Z`);
+      if (Number.isNaN(expiry.getTime()) || expiry.toISOString().slice(0, 10) !== line.expiryDate) {
+        throw new Error(`Expiry date is invalid for ${poItem.itemName}`);
+      }
+
+      const matchingInventory = await transaction.select()
+        .from(inventory)
+        .where(and(
+          eq(inventory.itemName, poItem.itemName),
+          eq(inventory.batchNumber, line.batchNumber.trim()),
+          eq(inventory.expiryDate, line.expiryDate),
+        ))
+        .limit(1);
+      const currentInventory = matchingInventory[0];
+      const previousQuantity = Number(currentInventory?.quantityAvailable ?? 0);
+      const resultingQuantity = previousQuantity + line.receivedQuantity;
+      const inventoryItemId = currentInventory?.itemId ?? nanoid(20);
+      const unitPrice = line.unitCost ?? String(poItem.unitPrice ?? "0");
+
+      if (currentInventory) {
+        await transaction.update(inventory)
+          .set({
+            quantityAvailable: resultingQuantity,
+            unitPrice: unitPrice as any,
+            sourcePurchaseOrderId: input.purchaseOrderId,
+            sourceGoodsReceiptId: input.goodsReceiptId,
+            lastRestocked: new Date().toISOString(),
+          })
+          .where(eq(inventory.itemId, currentInventory.itemId));
+      } else {
+        await transaction.insert(inventory).values({
+          itemId: inventoryItemId,
+          itemName: poItem.itemName,
+          batchNumber: line.batchNumber.trim(),
+          expiryDate: line.expiryDate,
+          quantityAvailable: line.receivedQuantity,
+          unitPrice: unitPrice as any,
+          reorderLevel: 10,
+          sourcePurchaseOrderId: input.purchaseOrderId,
+          sourceGoodsReceiptId: input.goodsReceiptId,
+          lastRestocked: new Date().toISOString(),
+        });
+      }
+
+      const goodsReceiptItemId = nanoid(20);
+      await transaction.insert(goodsReceiptItems).values({
+        goodsReceiptItemId,
+        goodsReceiptId: input.goodsReceiptId,
+        purchaseOrderId: input.purchaseOrderId,
+        poItemId: line.poItemId,
+        itemName: poItem.itemName,
+        receivedQuantity: line.receivedQuantity,
+        batchNumber: line.batchNumber.trim(),
+        expiryDate: line.expiryDate,
+        unitCost: unitPrice as any,
+      });
+
+      await transaction.update(purchaseOrderItems)
+        .set({ receivedQuantity: previouslyReceived + line.receivedQuantity })
+        .where(eq(purchaseOrderItems.poItemId, line.poItemId));
+
+      await transaction.insert(stockMovements).values({
+        movementId: nanoid(20),
+        goodsReceiptId: input.goodsReceiptId,
+        goodsReceiptItemId,
+        purchaseOrderId: input.purchaseOrderId,
+        inventoryItemId,
+        itemName: poItem.itemName,
+        batchNumber: line.batchNumber.trim(),
+        quantityAdded: line.receivedQuantity,
+        previousQuantity,
+        resultingQuantity,
+        actorId: input.receivedBy,
+      });
+
+      postedLines.push({
+        goodsReceiptItemId,
+        poItemId: line.poItemId,
+        itemName: poItem.itemName,
+        receivedQuantity: line.receivedQuantity,
+        batchNumber: line.batchNumber.trim(),
+        expiryDate: line.expiryDate,
+        resultingQuantity,
+      });
+    }
+
+    await transaction.insert(purchaseOrderHistory).values({
+      historyId: nanoid(20),
+      purchaseOrderId: input.purchaseOrderId,
+      eventType: "GOODS_RECEIPT_POSTED",
+      actorId: input.receivedBy,
+      eventSummary: `Goods receipt ${input.goodsReceiptId} posted for ${postedLines.length} item(s).`,
+      details: JSON.stringify({ goodsReceiptId: input.goodsReceiptId, lines: postedLines }),
+    });
+
+    await transaction.insert(auditLogs).values({
+      logId: nanoid(20),
+      userId: input.receivedBy,
+      actionType: "CREATE",
+      tableName: "goodsReceipts",
+      recordId: input.goodsReceiptId,
+      newValue: JSON.stringify({ purchaseOrderId: input.purchaseOrderId, lines: postedLines }),
+      timestamp: new Date().toISOString(),
+    });
+
+    return {
+      success: true,
+      goodsReceiptId: input.goodsReceiptId,
+      purchaseOrderId: input.purchaseOrderId,
+      lines: postedLines,
+    };
+  });
+}
+
+export async function getGoodsReceiptsByPurchaseOrderId(purchaseOrderId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const receipts = await db.select().from(goodsReceipts).where(eq(goodsReceipts.purchaseOrderId, purchaseOrderId));
+  const lines = await db.select().from(goodsReceiptItems).where(eq(goodsReceiptItems.purchaseOrderId, purchaseOrderId));
+  return receipts.map((receipt) => ({
+    ...receipt,
+    lines: lines.filter((line) => line.goodsReceiptId === receipt.goodsReceiptId),
+  }));
 }
 
 export async function updateBillConsultationNotes(billId: string, consultationNotes: string | null) {

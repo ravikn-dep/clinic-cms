@@ -974,22 +974,33 @@ export const appRouter = router({
         vendorGSTNumber: z.string().optional(),
         vendorBankDetails: z.string().optional(),
         vendorAddress: z.string().optional(),
-        totalAmount: z.string(),
+        totalAmount: z.string().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Total amount must be a valid non-negative number"),
         expectedDeliveryDate: z.string().optional(),
         notes: z.string().optional(),
         authorizationNotes: z.string().optional(),
-        approvalStatus: z.enum(["Pending", "Approved", "Rejected"]).optional(),
         items: z.array(z.object({
-          itemName: z.string(),
-          quantity: z.number(),
-          unitPrice: z.string(),
-        })),
+          itemName: z.string().min(1),
+          quantity: z.number().int().positive(),
+          unitPrice: z.string().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Unit price must be a valid non-negative number"),
+        })).min(1),
       }))
       .mutation(async ({ input, ctx }) => {
         const purchaseOrderId = utils.generateAuditLogId();
-        const totalAmount = parseFloat(input.totalAmount);
+        const totalAmount = Number(input.totalAmount);
+        const items = input.items.map((item) => {
+          const poItemId = utils.generateAuditLogId();
+          const unitPrice = Number(item.unitPrice);
+          return {
+            poItemId,
+            purchaseOrderId,
+            itemName: item.itemName.trim(),
+            quantity: item.quantity,
+            unitPrice: unitPrice.toString() as any,
+            subtotal: (unitPrice * item.quantity).toString() as any,
+          };
+        });
 
-        const po = await db.createPurchaseOrder({
+        await db.createPurchaseOrderWithItems({
           purchaseOrderId,
           vendorName: input.vendorName,
           vendorContactNumber: input.vendorContactNumber,
@@ -999,107 +1010,38 @@ export const appRouter = router({
           vendorAddress: input.vendorAddress,
           totalAmount: totalAmount.toString() as any,
           paymentStatus: "Pending",
-          approvalStatus: input.approvalStatus === "Approved" ? "Approved" : "Pending Approval",
+          approvalStatus: "Pending Approval",
           authorizationNotes: input.authorizationNotes,
-          approvedBy: input.approvalStatus === "Approved" ? ctx.user.name : undefined,
-          approvalTimestamp: input.approvalStatus === "Approved" ? new Date().toISOString() : undefined,
           expectedDeliveryDate: input.expectedDeliveryDate,
           notes: input.notes,
-        });
+        }, items);
 
-        for (const item of input.items) {
-          const poItemId = utils.generateAuditLogId();
-          const unitPrice = parseFloat(item.unitPrice);
-          const subtotal = unitPrice * item.quantity;
-
-          await db.createPurchaseOrderItem({
-            poItemId,
-            purchaseOrderId,
-            itemName: item.itemName,
-            quantity: item.quantity,
-            unitPrice: unitPrice.toString() as any,
-            subtotal: subtotal.toString() as any,
-          });
-
-          // Auto-add to pharmacy inventory when PO is created (Pending status)
-          try {
-            const existingItem = await db.getInventoryByName(item.itemName);
-            
-            if (existingItem) {
-              // Update existing item quantity (even if current quantity is 0)
-              const currentQuantity = existingItem.quantityAvailable || 0;
-              const newQuantity = currentQuantity + item.quantity;
-              await db.updateInventoryItem(existingItem.itemId, { quantityAvailable: newQuantity });
-            } else {
-              // Create new inventory item
-              const itemId = utils.generateAuditLogId();
-              const futureDate = new Date();
-              futureDate.setFullYear(futureDate.getFullYear() + 1);
-              await db.createInventoryItem({
-                itemId,
-                itemName: item.itemName,
-                quantityAvailable: item.quantity,
-                unitPrice: unitPrice.toString() as any,
-                reorderLevel: Math.ceil(item.quantity * 0.2),
-                batchNumber: `PO-${purchaseOrderId}`,
-                expiryDate: futureDate.toISOString().split('T')[0],
-              });
-            }
-
-            // Log inventory addition
-            await db.createAuditLog({
-              logId: utils.generateAuditLogId(),
-              userId: ctx.user.id.toString(),
-              actionType: "CREATE",
-              tableName: "inventory",
-              recordId: item.itemName,
-              newValue: JSON.stringify({ itemName: item.itemName, quantity: item.quantity, source: `PO-${purchaseOrderId}` }),
-              timestamp: new Date().toISOString(),
-            });
-          } catch (error) {
-            console.error(`Failed to add inventory for ${item.itemName}:`, error);
-          }
-        }
-
-        // Log audit trail
         await db.createAuditLog({
           logId: utils.generateAuditLogId(),
           userId: ctx.user.id.toString(),
           actionType: "CREATE",
           tableName: "purchaseOrders",
           recordId: purchaseOrderId,
-          newValue: JSON.stringify({ vendorName: input.vendorName, totalAmount }),
+          newValue: JSON.stringify({ vendorName: input.vendorName, totalAmount, approvalStatus: "Pending Approval" }),
           timestamp: new Date().toISOString(),
         });
 
         await db.createPurchaseOrderHistory({
           historyId: utils.generateAuditLogId(),
           purchaseOrderId,
-          eventType: input.approvalStatus === "Approved" ? "CREATED_APPROVED" : "CREATED_PENDING_APPROVAL",
+          eventType: "CREATED_PENDING_APPROVAL",
           actorId: ctx.user.id.toString(),
           actorName: ctx.user.name ?? null,
-          eventSummary: input.approvalStatus === "Approved"
-            ? "Purchase order created and authorized."
-            : "Purchase order created and submitted for approval.",
-          details: JSON.stringify({
-            vendorName: input.vendorName,
-            totalAmount,
-            authorizationNotes: input.authorizationNotes ?? null,
-          }),
+          eventSummary: "Purchase order created and submitted for approval.",
+          details: JSON.stringify({ vendorName: input.vendorName, totalAmount, authorizationNotes: input.authorizationNotes ?? null }),
         });
 
-        await safeNotifyOwner(
-          "New Purchase Order Created",
-          `Purchase order for ${input.vendorName} (${purchaseOrderId}) has been created with total amount ${totalAmount}.`,
-        );
-
-        // Notify owner that PO requires approval
         await safeNotifyOwner(
           "Purchase Order Pending Approval",
           `PO #${purchaseOrderId} from ${input.vendorName} for ₹${totalAmount} is awaiting approval.`,
         );
 
-        return { success: true, purchaseOrderId };
+        return { success: true, purchaseOrderId, approvalStatus: "Pending Approval" as const };
       }),
 
     getAll: protectedProcedure.query(async () => {
@@ -1113,6 +1055,49 @@ export const appRouter = router({
         if (!po) return null;
         const items = await db.getPurchaseOrderItems(input.purchaseOrderId);
         return { ...po, items };
+      }),
+
+    getReceiptSummary: protectedProcedure
+      .input(z.object({ purchaseOrderId: z.string() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role === "user" || !(await db.checkFeatureAccess(ctx.user.role, "purchase_orders"))) {
+          throw new Error("You do not have permission to receive stock");
+        }
+        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
+        if (!po) throw new Error("Purchase Order not found");
+        const items = await db.getPurchaseOrderReceiptSummary(input.purchaseOrderId);
+        return { purchaseOrder: po, items };
+      }),
+
+    getGoodsReceipts: protectedProcedure
+      .input(z.object({ purchaseOrderId: z.string() }))
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role === "user" || !(await db.checkFeatureAccess(ctx.user.role, "purchase_orders"))) {
+          throw new Error("You do not have permission to view goods receipts");
+        }
+        return db.getGoodsReceiptsByPurchaseOrderId(input.purchaseOrderId);
+      }),
+
+    receiveStock: protectedProcedure
+      .input(z.object({
+        goodsReceiptId: z.string().min(8).max(64),
+        purchaseOrderId: z.string().min(1),
+        lines: z.array(z.object({
+          poItemId: z.string().min(1),
+          receivedQuantity: z.number().int().positive(),
+          batchNumber: z.string().trim().min(1).max(100),
+          expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+          unitCost: z.string().optional(),
+        })).min(1).max(100),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        if (ctx.user.role === "user" || !(await db.checkFeatureAccess(ctx.user.role, "purchase_orders"))) {
+          throw new Error("You do not have permission to receive stock");
+        }
+        return db.createGoodsReceipt({
+          ...input,
+          receivedBy: ctx.user.id.toString(),
+        });
       }),
 
     getHistory: protectedProcedure

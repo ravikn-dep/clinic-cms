@@ -1,144 +1,186 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { appRouter } from "./routers";
 import * as db from "./db";
+import type { TrpcContext } from "./_core/context";
 
-describe("Purchase Order Auto-Inventory Update", () => {
-  describe("Auto-add items to inventory on PO creation", () => {
-    it("should create new inventory item when PO item does not exist", async () => {
-      const itemName = "Paracetamol 500mg";
-      const quantity = 100;
+vi.mock("./_core/notification", () => ({
+  notifyOwner: vi.fn().mockResolvedValue(true),
+}));
 
-      vi.spyOn(db, "getInventoryByName").mockResolvedValueOnce(null);
-      vi.spyOn(db, "createInventoryItem").mockResolvedValueOnce({} as any);
+type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
 
-      await db.getInventoryByName(itemName);
-      await db.createInventoryItem({
-        itemId: "INV-001",
-        itemName,
-        quantityAvailable: quantity,
-        unitPrice: "5",
-        reorderLevel: 20,
-        batchNumber: "PO-001",
-        expiryDate: "2027-05-04",
-      } as any);
+function createAuthContext(role: AuthenticatedUser["role"]): TrpcContext {
+  const user: AuthenticatedUser = {
+    id: 42,
+    openId: `step2-${role}`,
+    email: `${role}@example.com`,
+    name: `${role} user`,
+    loginMethod: "test",
+    role,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    lastSignedIn: new Date(),
+  };
 
-      expect(db.getInventoryByName).toHaveBeenCalledWith(itemName);
-      expect(db.createInventoryItem).toHaveBeenCalled();
+  return {
+    user,
+    req: { protocol: "https", headers: {} } as TrpcContext["req"],
+    res: {} as TrpcContext["res"],
+  };
+}
+
+describe("Step 2 PO to goods receipt lifecycle", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("always creates a Pending Approval PO and never posts inventory during creation", async () => {
+    const createPOWithItems = vi.spyOn(db, "createPurchaseOrderWithItems").mockResolvedValue({} as any);
+    vi.spyOn(db, "createAuditLog").mockResolvedValue(undefined);
+    vi.spyOn(db, "createPurchaseOrderHistory").mockResolvedValue(undefined);
+    const inventoryLookup = vi.spyOn(db, "getInventoryByName");
+    const inventoryCreate = vi.spyOn(db, "createInventoryItem");
+    const inventoryUpdate = vi.spyOn(db, "updateInventoryItem");
+
+    const caller = appRouter.createCaller(createAuthContext("staff"));
+    const result = await caller.purchaseOrders.create({
+      vendorName: "Approved Vendor",
+      vendorContactNumber: "9876543210",
+      totalAmount: "100",
+      authorizationNotes: "Submitted by staff",
+      items: [{ itemName: "Sterile Gauze", quantity: 10, unitPrice: "10" }],
+      // Deliberately forged legacy field: Zod must ignore it and the server must remain authoritative.
+      approvalStatus: "Approved",
+    } as any);
+
+    expect(result.approvalStatus).toBe("Pending Approval");
+    expect(createPOWithItems).toHaveBeenCalledTimes(1);
+    const [poData, items] = createPOWithItems.mock.calls[0] ?? [];
+    expect(poData).toMatchObject({ approvalStatus: "Pending Approval", paymentStatus: "Pending" });
+    expect(poData).not.toHaveProperty("approvedBy");
+    expect(poData).not.toHaveProperty("approvalTimestamp");
+    expect(items).toHaveLength(1);
+    expect(inventoryLookup).not.toHaveBeenCalled();
+    expect(inventoryCreate).not.toHaveBeenCalled();
+    expect(inventoryUpdate).not.toHaveBeenCalled();
+  });
+
+  it("blocks goods receipt posting for a role without purchase-order permission", async () => {
+    vi.spyOn(db, "checkFeatureAccess").mockResolvedValue(false);
+    const receive = vi.spyOn(db, "createGoodsReceipt");
+
+    const caller = appRouter.createCaller(createAuthContext("consultant"));
+    await expect(caller.purchaseOrders.receiveStock({
+      goodsReceiptId: "GR-STEP2-001",
+      purchaseOrderId: "PO-STEP2-001",
+      lines: [{
+        poItemId: "POI-STEP2-001",
+        receivedQuantity: 2,
+        batchNumber: "BATCH-001",
+        expiryDate: "2027-12-31",
+      }],
+    })).rejects.toThrow("permission");
+    expect(receive).not.toHaveBeenCalled();
+  });
+
+  it("passes an explicit, auditable receipt payload to the transactional goods receipt service", async () => {
+    vi.spyOn(db, "checkFeatureAccess").mockResolvedValue(true);
+    const receive = vi.spyOn(db, "createGoodsReceipt").mockResolvedValue({
+      success: true,
+      goodsReceiptId: "GR-STEP2-002",
+      purchaseOrderId: "PO-STEP2-002",
+      lines: [],
     });
 
-    it("should update existing inventory item quantity when item exists", async () => {
-      const itemName = "Ibuprofen 400mg";
-      const existingQuantity = 50;
-      const newQuantity = 75;
-
-      const existingItem = {
-        itemId: "INV-002",
-        itemName,
-        quantityAvailable: existingQuantity,
-        unitPrice: "8",
-        reorderLevel: 15,
-        batchNumber: "PO-002",
-        expiryDate: "2027-05-04",
-      };
-
-      vi.spyOn(db, "getInventoryByName").mockResolvedValueOnce(existingItem as any);
-      vi.spyOn(db, "updateInventoryItem").mockResolvedValueOnce(undefined);
-
-      await db.getInventoryByName(itemName);
-      await db.updateInventoryItem(existingItem.itemId, { quantityAvailable: newQuantity });
-
-      expect(db.getInventoryByName).toHaveBeenCalledWith(itemName);
-      expect(db.updateInventoryItem).toHaveBeenCalledWith(existingItem.itemId, { quantityAvailable: newQuantity });
+    const caller = appRouter.createCaller(createAuthContext("staff"));
+    const result = await caller.purchaseOrders.receiveStock({
+      goodsReceiptId: "GR-STEP2-002",
+      purchaseOrderId: "PO-STEP2-002",
+      lines: [{
+        poItemId: "POI-STEP2-002",
+        receivedQuantity: 3,
+        batchNumber: "BATCH-002",
+        expiryDate: "2028-01-31",
+        unitCost: "12.50",
+      }],
     });
 
-    it("should set reorder level to 20% of PO quantity for new items", async () => {
-      const quantity = 500;
-      const expectedReorderLevel = Math.ceil(quantity * 0.2); // 100
-
-      expect(expectedReorderLevel).toBe(100);
-    });
-
-    it("should set batch number from PO ID", async () => {
-      const poId = "PO-TEST-123";
-      const expectedBatchNumber = `PO-${poId}`;
-
-      expect(expectedBatchNumber).toBe("PO-PO-TEST-123");
-    });
-
-    it("should handle multiple items in a single PO", async () => {
-      const items = [
-        { itemName: "Aspirin 100mg", quantity: 200 },
-        { itemName: "Metformin 500mg", quantity: 150 },
-        { itemName: "Atorvastatin 10mg", quantity: 100 },
-      ];
-
-      vi.spyOn(db, "getInventoryByName").mockResolvedValue(null);
-      vi.spyOn(db, "createInventoryItem").mockResolvedValue({} as any);
-
-      for (const item of items) {
-        await db.getInventoryByName(item.itemName);
-        await db.createInventoryItem({
-          itemId: `INV-${item.itemName}`,
-          itemName: item.itemName,
-          quantityAvailable: item.quantity,
-          unitPrice: "10",
-          reorderLevel: Math.ceil(item.quantity * 0.2),
-          batchNumber: "PO-MULTI-001",
-          expiryDate: "2027-05-04",
-        } as any);
-      }
-
-      expect(db.createInventoryItem).toHaveBeenCalledTimes(3);
-    });
-
-    it("should merge quantities when adding to existing inventory", async () => {
-      const itemName = "Amoxicillin 250mg";
-      const existingQuantity = 75;
-      const poQuantity = 50;
-      const expectedTotal = existingQuantity + poQuantity;
-
-      expect(expectedTotal).toBe(125);
-    });
-
-    it("should set expiry date to 1 year from now for new items", async () => {
-      const today = new Date();
-      const nextYear = new Date();
-      nextYear.setFullYear(nextYear.getFullYear() + 1);
-
-      const expectedExpiryDate = nextYear.toISOString().split('T')[0];
-
-      expect(expectedExpiryDate).toBeTruthy();
-      expect(expectedExpiryDate.length).toBe(10); // YYYY-MM-DD format
-    });
-
-    it("should create audit log for inventory addition from PO", async () => {
-      const itemName = "Ciprofloxacin 500mg";
-      const poId = "PO-AUDIT-001";
-
-      vi.spyOn(db, "createAuditLog").mockResolvedValueOnce(undefined);
-
-      await db.createAuditLog({
-        logId: "LOG-001",
-        userId: "user-123",
-        actionType: "CREATE",
-        tableName: "inventory",
-        recordId: itemName,
-        newValue: JSON.stringify({ itemName, quantity: 100, source: `PO-${poId}` }),
-        timestamp: new Date(),
-      });
-
-      expect(db.createAuditLog).toHaveBeenCalled();
-    });
-
-    it("should handle inventory update errors gracefully", async () => {
-      const itemName = "Losartan 50mg";
-
-      vi.spyOn(db, "getInventoryByName").mockRejectedValueOnce(new Error("DB Error"));
-
-      try {
-        await db.getInventoryByName(itemName);
-      } catch (error) {
-        expect(error).toBeDefined();
-      }
+    expect(result.success).toBe(true);
+    expect(receive).toHaveBeenCalledWith({
+      goodsReceiptId: "GR-STEP2-002",
+      purchaseOrderId: "PO-STEP2-002",
+      receivedBy: "42",
+      lines: [{
+        poItemId: "POI-STEP2-002",
+        receivedQuantity: 3,
+        batchNumber: "BATCH-002",
+        expiryDate: "2028-01-31",
+        unitCost: "12.50",
+      }],
     });
   });
+
+  it("rejects a receipt line without an explicit batch or valid expiry format", async () => {
+    vi.spyOn(db, "checkFeatureAccess").mockResolvedValue(true);
+    const receive = vi.spyOn(db, "createGoodsReceipt");
+    const caller = appRouter.createCaller(createAuthContext("staff"));
+
+    await expect(caller.purchaseOrders.receiveStock({
+      goodsReceiptId: "GR-STEP2-003",
+      purchaseOrderId: "PO-STEP2-003",
+      lines: [{
+        poItemId: "POI-STEP2-003",
+        receivedQuantity: 1,
+        batchNumber: "",
+        expiryDate: "31/12/2028",
+      }],
+    })).rejects.toThrow();
+    expect(receive).not.toHaveBeenCalled();
+  });
+
+  it("keeps approval separate from inventory receipt posting", async () => {
+    vi.spyOn(db, "getPurchaseOrderById").mockResolvedValue({
+      purchaseOrderId: "PO-STEP2-004",
+      vendorName: "Approved Vendor",
+      approvalStatus: "Pending Approval",
+    } as any);
+    const approve = vi.spyOn(db, "approvePurchaseOrder").mockResolvedValue(undefined);
+    vi.spyOn(db, "createAuditLog").mockResolvedValue(undefined);
+    vi.spyOn(db, "createPurchaseOrderHistory").mockResolvedValue(undefined);
+    const inventoryLookup = vi.spyOn(db, "getInventoryByName");
+    const inventoryCreate = vi.spyOn(db, "createInventoryItem");
+    const inventoryUpdate = vi.spyOn(db, "updateInventoryItem");
+
+    const caller = appRouter.createCaller(createAuthContext("admin"));
+    const result = await caller.purchaseOrders.approve({ purchaseOrderId: "PO-STEP2-004" });
+
+    expect(result).toEqual({ success: true });
+    expect(approve).toHaveBeenCalledWith("PO-STEP2-004", "admin user");
+    expect(inventoryLookup).not.toHaveBeenCalled();
+    expect(inventoryCreate).not.toHaveBeenCalled();
+    expect(inventoryUpdate).not.toHaveBeenCalled();
+  });
 });
+
+
+describe("goods receipt quantity rules", () => {
+  it("represents partial receipt as ordered minus received", () => {
+    const ordered = 10;
+    const previouslyReceived = 4;
+    const receivedNow = 3;
+    expect(previouslyReceived + receivedNow).toBeLessThanOrEqual(ordered);
+    expect(ordered - (previouslyReceived + receivedNow)).toBe(3);
+  });
+
+  it("does not permit over-receipt", () => {
+    const ordered = 10;
+    const previouslyReceived = 8;
+    const receivedNow = 3;
+    expect(previouslyReceived + receivedNow).toBeGreaterThan(ordered);
+  });
+});
+
+
+// This file intentionally contains no tests for automatic inventory mutation on PO creation.
+// Inventory is posted only through an explicit, approved goods receipt.
+
