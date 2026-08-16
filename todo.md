@@ -869,3 +869,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [ ] Generate and validate a forward-only migration without changing historical migrations or production data.
 - [ ] Run pnpm check, pnpm test --run, pnpm build, and ephemeral MySQL migration validation.
 - [ ] Produce STEP_2_REPORT.md and classify SAFE_TO_PROCEED_TO_STEP_3 or BLOCKED.
+
+## Step 3 Receive Stock Modal UX Enhancements
+- [x] Outline Step 3 remediation roadmap and UI verification criteria
+- [x] Add field-level error messaging for missing batch numbers or invalid expiry dates in Receive Stock modal
+- [x] Add spinner and disabled button states during `receiveStock` mutation execution
+- [x] Verify test suite and production build pass cleanly

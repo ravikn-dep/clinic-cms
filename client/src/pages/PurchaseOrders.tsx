@@ -41,6 +41,8 @@ export default function PurchaseOrders() {
   const [historyPurchaseOrder, setHistoryPurchaseOrder] = useState<{ id: string; vendorName: string } | null>(null);
   const [receivePurchaseOrderId, setReceivePurchaseOrderId] = useState<string | null>(null);
   const [receiveForm, setReceiveForm] = useState<{ goodsReceiptId: string; lines: Record<string, { receivedQuantity: string; batchNumber: string; expiryDate: string; unitCost: string }> }>({ goodsReceiptId: "", lines: {} });
+  const [receiveErrors, setReceiveErrors] = useState<Record<string, { batch?: string; expiry?: string }>>({});
+  const [receiveFormError, setReceiveFormError] = useState("");
 
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
@@ -58,9 +60,14 @@ export default function PurchaseOrders() {
       showAlert("Success", "Goods receipt posted and inventory updated");
       setReceivePurchaseOrderId(null);
       setReceiveForm({ goodsReceiptId: "", lines: {} });
+      setReceiveErrors({});
+      setReceiveFormError("");
       refetch();
     },
-    onError: (error) => showAlert("Error", error.message || "Failed to post goods receipt"),
+    onError: (error) => {
+      setReceiveFormError(error.message || "Unable to post the goods receipt. Check the receipt ID and try again.");
+      showAlert("Error", error.message || "Failed to post goods receipt");
+    },
   });
   const { data: purchaseOrderHistory, isLoading: isHistoryLoading } = trpc.purchaseOrders.getHistory.useQuery(
     { purchaseOrderId: historyPurchaseOrder?.id ?? "" },
@@ -246,6 +253,8 @@ export default function PurchaseOrders() {
   const openReceiveStock = (purchaseOrderId: string) => {
     setReceivePurchaseOrderId(purchaseOrderId);
     setReceiveForm({ goodsReceiptId: `GR-${Date.now()}`, lines: {} });
+    setReceiveErrors({});
+    setReceiveFormError("");
   };
 
   const handleReceiveStockSubmit = () => {
@@ -262,17 +271,36 @@ export default function PurchaseOrders() {
       }));
 
     if (!receiveForm.goodsReceiptId.trim()) {
-      showAlert("Error", "Goods receipt ID is required");
+      setReceiveFormError("Enter a goods receipt ID before posting.");
       return;
     }
     if (lines.length === 0) {
-      showAlert("Error", "Enter a positive quantity for at least one item");
+      setReceiveFormError("Enter a positive quantity for at least one item.");
       return;
     }
-    if (lines.some((line) => !line.batchNumber || !line.expiryDate)) {
-      showAlert("Error", "Batch number and expiry date are required for every received item");
+
+    const nextErrors: Record<string, { batch?: string; expiry?: string }> = {};
+    for (const line of lines) {
+      const errors: { batch?: string; expiry?: string } = {};
+      if (!line.batchNumber) errors.batch = "Batch number is required.";
+      if (!line.expiryDate) {
+        errors.expiry = "Expiry date is required.";
+      } else if (!/^\d{4}-\d{2}-\d{2}$/.test(line.expiryDate)) {
+        errors.expiry = "Use a valid expiry date in YYYY-MM-DD format.";
+      } else {
+        const expiry = new Date(`${line.expiryDate}T00:00:00.000Z`);
+        if (Number.isNaN(expiry.getTime()) || expiry.toISOString().slice(0, 10) !== line.expiryDate) {
+          errors.expiry = "Enter a real calendar date.";
+        }
+      }
+      if (errors.batch || errors.expiry) nextErrors[line.poItemId] = errors;
+    }
+    setReceiveErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setReceiveFormError("Fix the highlighted batch and expiry fields before posting.");
       return;
     }
+    setReceiveFormError("");
 
     receiveStock.mutate({
       goodsReceiptId: receiveForm.goodsReceiptId.trim(),
@@ -893,7 +921,13 @@ export default function PurchaseOrders() {
         </CardContent>
       </Card>
 
-      <Dialog open={Boolean(receivePurchaseOrderId)} onOpenChange={(open) => !open && setReceivePurchaseOrderId(null)}>
+      <Dialog open={Boolean(receivePurchaseOrderId)} onOpenChange={(open) => {
+        if (!open) {
+          setReceivePurchaseOrderId(null);
+          setReceiveErrors({});
+          setReceiveFormError("");
+        }
+      }}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Receive Stock</DialogTitle>
@@ -902,7 +936,10 @@ export default function PurchaseOrders() {
             </DialogDescription>
           </DialogHeader>
           {isReceiptSummaryLoading || !receiptSummary ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">Loading ordered quantities...</div>
+            <div className="space-y-3 py-8 text-center text-sm text-muted-foreground" role="status" aria-live="polite">
+              <Loader2 className="mx-auto h-7 w-7 animate-spin text-teal-600" />
+              <div className="animate-pulse">Loading ordered quantities and previous receipts…</div>
+            </div>
           ) : (
             <div className="space-y-4">
               <div className="grid gap-2">
@@ -944,10 +981,13 @@ export default function PurchaseOrders() {
                               max={item.remainingQuantity}
                               value={line.receivedQuantity}
                               disabled={disabled}
-                              onChange={(event) => setReceiveForm((current) => ({
-                                ...current,
-                                lines: { ...current.lines, [item.poItemId]: { ...line, receivedQuantity: event.target.value } },
-                              }))}
+                              onChange={(event) => {
+                                setReceiveForm((current) => ({
+                                  ...current,
+                                  lines: { ...current.lines, [item.poItemId]: { ...line, receivedQuantity: event.target.value } },
+                                }));
+                                setReceiveFormError("");
+                              }}
                               className="w-24"
                             />
                           </TableCell>
@@ -955,25 +995,37 @@ export default function PurchaseOrders() {
                             <Input
                               value={line.batchNumber}
                               disabled={disabled}
-                              onChange={(event) => setReceiveForm((current) => ({
-                                ...current,
-                                lines: { ...current.lines, [item.poItemId]: { ...line, batchNumber: event.target.value } },
-                              }))}
+                              aria-invalid={Boolean(receiveErrors[item.poItemId]?.batch)}
+                              onChange={(event) => {
+                                setReceiveForm((current) => ({
+                                  ...current,
+                                  lines: { ...current.lines, [item.poItemId]: { ...line, batchNumber: event.target.value } },
+                                }));
+                                setReceiveErrors((current) => ({ ...current, [item.poItemId]: { ...current[item.poItemId], batch: undefined } }));
+                                setReceiveFormError("");
+                              }}
                               placeholder="Batch"
-                              className="w-28"
+                              className={`w-28 ${receiveErrors[item.poItemId]?.batch ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                             />
+                            {receiveErrors[item.poItemId]?.batch && <p className="mt-1 text-xs text-red-600" role="alert">{receiveErrors[item.poItemId]?.batch}</p>}
                           </TableCell>
                           <TableCell>
                             <Input
                               type="date"
                               value={line.expiryDate}
                               disabled={disabled}
-                              onChange={(event) => setReceiveForm((current) => ({
-                                ...current,
-                                lines: { ...current.lines, [item.poItemId]: { ...line, expiryDate: event.target.value } },
-                              }))}
-                              className="w-36"
+                              aria-invalid={Boolean(receiveErrors[item.poItemId]?.expiry)}
+                              onChange={(event) => {
+                                setReceiveForm((current) => ({
+                                  ...current,
+                                  lines: { ...current.lines, [item.poItemId]: { ...line, expiryDate: event.target.value } },
+                                }));
+                                setReceiveErrors((current) => ({ ...current, [item.poItemId]: { ...current[item.poItemId], expiry: undefined } }));
+                                setReceiveFormError("");
+                              }}
+                              className={`w-36 ${receiveErrors[item.poItemId]?.expiry ? "border-red-500 focus-visible:ring-red-500" : ""}`}
                             />
+                            {receiveErrors[item.poItemId]?.expiry && <p className="mt-1 text-xs text-red-600" role="alert">{receiveErrors[item.poItemId]?.expiry}</p>}
                           </TableCell>
                         </TableRow>
                       );
@@ -981,11 +1033,12 @@ export default function PurchaseOrders() {
                   </TableBody>
                 </Table>
               </div>
+              {receiveFormError && <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{receiveFormError}</p>}
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setReceivePurchaseOrderId(null)}>Cancel</Button>
+                <Button variant="outline" onClick={() => setReceivePurchaseOrderId(null)} disabled={receiveStock.isPending}>Cancel</Button>
                 <Button onClick={handleReceiveStockSubmit} disabled={receiveStock.isPending || !canReceiveStock}>
                   {receiveStock.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackageCheck className="mr-2 h-4 w-4" />}
-                  Post goods receipt
+                  {receiveStock.isPending ? "Posting receipt…" : "Post goods receipt"}
                 </Button>
               </div>
             </div>
