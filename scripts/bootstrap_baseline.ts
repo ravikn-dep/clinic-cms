@@ -1,80 +1,147 @@
 import mysql from 'mysql2/promise';
+import fs from 'fs';
+import path from 'path';
 
 async function bootstrap() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
-    console.error("DATABASE_URL not set");
+    console.error("[Bootstrap Error] DATABASE_URL not set");
     process.exit(1);
   }
 
-  console.log("[Bootstrap] Connecting to MySQL...");
+  console.log("[Bootstrap] Connecting to MySQL 8 database...");
   const connection = await mysql.createConnection(connectionString);
 
-  const fs = await import('fs');
-  const path = await import('path');
-  
-  const drizzleDir = path.join(process.cwd(), 'drizzle');
-  const journalPath = path.join(drizzleDir, 'meta/_journal.json');
-  
-  if (!fs.existsSync(journalPath)) {
-    console.error("Migration journal not found");
+  await connection.query("SET SESSION sql_mode = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'");
+
+  const baselinePath = path.join(process.cwd(), 'drizzle/baseline/current_schema.sql');
+  if (!fs.existsSync(baselinePath)) {
+    console.error(`[Bootstrap Error] Baseline SQL file not found at: ${baselinePath}`);
     process.exit(1);
   }
 
-  const journal = JSON.parse(fs.readFileSync(journalPath, 'utf8'));
-  const entries = journal.entries || [];
+  console.log("[Bootstrap] Reading deterministic current schema baseline...");
+  const sqlContent = fs.readFileSync(baselinePath, 'utf8');
 
-  console.log(`[Bootstrap] Found ${entries.length} migrations to apply sequentially...`);
+  const statements = sqlContent
+    .split(';')
+    .map(s => s.trim())
+    .filter(s => s.length > 0 && !s.startsWith('--'));
 
-  for (const entry of entries) {
-    const migrationName = entry.tag;
-    const sqlFileName = `${migrationName}.sql`;
-    const sqlFilePath = path.join(drizzleDir, sqlFileName);
+  console.log(`[Bootstrap] Executing ${statements.length} baseline SQL statements with fail-closed semantics...`);
 
-    if (!fs.existsSync(sqlFilePath)) {
-      console.warn(`[Bootstrap Warning] Migration file not found: ${sqlFileName}`);
-      continue;
-    }
-
-    console.log(`[Bootstrap] Applying migration: ${migrationName}`);
-    const sqlContent = fs.readFileSync(sqlFilePath, 'utf8');
-    
-    let sanitized = sqlContent.replace(/DEFAULT\s+'CURRENT_TIMESTAMP'/gi, 'DEFAULT CURRENT_TIMESTAMP');
-    
-    const blocks = sanitized.split('--> statement-breakpoint');
-    for (const block of blocks) {
-      const cleanBlock = block.trim();
-      if (!cleanBlock) continue;
-      const statements = cleanBlock.split(';');
-      for (const stmt of statements) {
-        let cleanStmt = stmt.trim();
-        if (!cleanStmt) continue;
-        
-        if (cleanStmt.toLowerCase().includes('drop primary key') && cleanStmt.toLowerCase().includes('users')) {
-          continue;
-        }
-
-        try {
-          await connection.query(cleanStmt);
-        } catch (err: any) {
-          // 1050: Table already exists, 1061: Duplicate key/index name, 1060: Duplicate column name
-          if (err.errno === 1050 || err.errno === 1061 || err.errno === 1060 || err.errno === 1091) {
-            console.log(`[Bootstrap Notice] Ignored benign schema duplication error (${err.errno}): ${cleanStmt}`);
-            continue;
-          }
-          console.error(`[Bootstrap Error] Failed statement: ${cleanStmt}`);
-          console.error(err.message);
-          process.exit(1);
-        }
-      }
+  for (let i = 0; i < statements.length; i++) {
+    const stmt = statements[i];
+    try {
+      await connection.query(stmt);
+    } catch (err: any) {
+      console.error(`[Bootstrap Error] Failed at statement #${i + 1}:`);
+      console.error(stmt);
+      console.error(err.message);
+      await connection.end();
+      process.exit(1);
     }
   }
 
-  console.log("[Bootstrap] SUCCESS: All migrations applied successfully to MySQL 8.");
+  console.log("[Bootstrap] SUCCESS: Baseline SQL executed successfully with zero errors.");
+
+  // ============ PROGRAMMATIC SCHEMA VERIFICATION ============
+  console.log("[Verification] Running comprehensive schema verification against required invariants...");
+
+  const [tablesResult] = await connection.query("SHOW TABLES");
+  const tables = (tablesResult as any[]).map(row => Object.values(row)[0] as string);
+  console.log(`[Verification] Found ${tables.length} tables in database:`, tables.sort());
+
+  const requiredTables = [
+    "users",
+    "patients",
+    "consultations",
+    "inventory",
+    "bills",
+    "billItems",
+    "billTemplates",
+    "auditLogs",
+    "notifications",
+    "purchaseOrders",
+    "purchaseOrderItems",
+    "purchaseOrderHistory",
+    "goodsReceipts",
+    "goodsReceiptItems",
+    "stockMovements",
+    "appointments",
+    "consultantAvailability",
+    "notificationPreferences",
+    "rolePermissions",
+    "vendors",
+    "appointmentBookingLocks",
+    "enquiries",
+    "externalApiAuditLogs",
+    "externalIdempotencyKeys",
+    "externalRequestReplays"
+  ];
+
+  for (const reqTable of requiredTables) {
+    if (!tables.includes(reqTable)) {
+      console.error(`[Verification Error] Required table missing: ${reqTable}`);
+      await connection.end();
+      process.exit(1);
+    }
+  }
+  console.log("[Verification] All 25 required tables verified successfully.");
+
+  const coreTablesWithPK = [
+    "users",
+    "patients",
+    "consultations",
+    "inventory",
+    "bills",
+    "purchaseOrders",
+    "goodsReceipts",
+    "goodsReceiptItems",
+    "stockMovements",
+    "appointments",
+    "externalRequestReplays"
+  ];
+
+  for (const t of coreTablesWithPK) {
+    const [cols] = await connection.query(`SHOW COLUMNS FROM \`${t}\``);
+    const primaryKeyCols = (cols as any[]).filter(c => c.Key === 'PRI');
+    if (primaryKeyCols.length === 0) {
+      console.error(`[Verification Error] Table '${t}' is missing a PRIMARY KEY.`);
+      await connection.end();
+      process.exit(1);
+    }
+  }
+  console.log("[Verification] Primary keys verified on all core tables.");
+
+  const [usersCols] = await connection.query("SHOW COLUMNS FROM `users` WHERE Field = 'id'");
+  const usersIdCol = (usersCols as any[])[0];
+  if (!usersIdCol || !usersIdCol.Key.includes('PRI') || !usersIdCol.Extra.includes('auto_increment')) {
+    console.error("[Verification Error] users.id must be primary key with auto_increment.");
+    await connection.end();
+    process.exit(1);
+  }
+  console.log("[Verification] users.id AUTO_INCREMENT + PRIMARY KEY verified.");
+
+  const [poItemCols] = await connection.query("SHOW COLUMNS FROM `purchaseOrderItems` WHERE Field = 'receivedQuantity'");
+  if ((poItemCols as any[]).length === 0) {
+    console.error("[Verification Error] purchaseOrderItems.receivedQuantity column missing.");
+    await connection.end();
+    process.exit(1);
+  }
+  console.log("[Verification] purchaseOrderItems.receivedQuantity verified.");
+
+  const specificEntities = ["goodsReceipts", "goodsReceiptItems", "stockMovements", "externalRequestReplays"];
+  for (const entity of specificEntities) {
+    await connection.query(`SELECT COUNT(*) as cnt FROM \`${entity}\``);
+    console.log(`[Verification] Entity table '${entity}' is accessible and queryable.`);
+  }
+
+  console.log("[Verification] SUCCESS: All schema verifications passed successfully with strict fail-closed guarantees.");
   await connection.end();
 }
 
 bootstrap().catch((err) => {
-  console.error(err);
+  console.error("[Bootstrap Fatal]", err);
   process.exit(1);
 });
