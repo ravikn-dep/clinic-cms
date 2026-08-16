@@ -893,3 +893,5 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Outline Step 6 remediation roadmap and UI verification criteria
 - [x] Implement visual metrics cards for total orders, pending approvals, and received stock in Purchase Orders list
 - [x] Verify test suite and production build pass cleanly
+
+- [ ] Publish and independently verify the deterministic current-schema baseline on validation/manus-step2-ci
