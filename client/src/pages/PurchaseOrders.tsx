@@ -55,13 +55,16 @@ export default function PurchaseOrders() {
     { purchaseOrderId: receivePurchaseOrderId ?? "" },
     { enabled: Boolean(receivePurchaseOrderId) },
   );
+  const [lastPostedReceipt, setLastPostedReceipt] = useState<{ goodsReceiptId: string; purchaseOrderId: string; lines: any[] } | null>(null);
+
   const receiveStock = trpc.purchaseOrders.receiveStock.useMutation({
-    onSuccess: () => {
-      showAlert("Success", "Goods receipt posted and inventory updated");
+    onSuccess: (data) => {
+      setLastPostedReceipt(data);
       setReceivePurchaseOrderId(null);
       setReceiveForm({ goodsReceiptId: "", lines: {} });
       setReceiveErrors({});
       setReceiveFormError("");
+      showAlert("Success", "Goods receipt posted and pharmacy inventory updated successfully.");
       refetch();
     },
     onError: (error) => {
@@ -93,6 +96,7 @@ export default function PurchaseOrders() {
   });
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [filterApprovalStatus, setFilterApprovalStatus] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState<{[key: string]: string}>({});
   const [showOCRDialog, setShowOCRDialog] = useState(false);
   const [ocrLoading, setOcrLoading] = useState(false);
@@ -133,11 +137,13 @@ export default function PurchaseOrders() {
 
   const filteredPOs = (purchaseOrders || []).filter((po: any) => {
     const matchesSearch =
+      !searchTerm.trim() ||
       po.vendorName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       po.purchaseOrderId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       po.vendorContactNumber.includes(searchTerm);
-    const matchesStatus = !filterStatus || po.paymentStatus === filterStatus;
-    return matchesSearch && matchesStatus;
+    const matchesStatus = !filterStatus || filterStatus === "all" || po.paymentStatus === filterStatus;
+    const matchesApproval = !filterApprovalStatus || filterApprovalStatus === "all" || po.approvalStatus === filterApprovalStatus;
+    return matchesSearch && matchesStatus && matchesApproval;
   });
 
   const getApprovalBadge = (status: string) => {
@@ -775,12 +781,55 @@ export default function PurchaseOrders() {
         </DialogContent>
       </Dialog>
 
+      {lastPostedReceipt && (
+        <Card className="mb-6 border-teal-200 bg-teal-50/50">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-teal-600" />
+                <CardTitle className="text-base text-teal-900">Goods Receipt Posted Successfully</CardTitle>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setLastPostedReceipt(null)}>Dismiss</Button>
+            </div>
+            <CardDescription className="text-teal-700">
+              Receipt ID: <span className="font-mono font-medium">{lastPostedReceipt.goodsReceiptId}</span> recorded against PO <span className="font-mono font-medium">{lastPostedReceipt.purchaseOrderId.substring(0, 8)}</span>. Pharmacy inventory has been updated.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="rounded-md border bg-white overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item Name</TableHead>
+                    <TableHead>Received Qty</TableHead>
+                    <TableHead>Batch</TableHead>
+                    <TableHead>Expiry</TableHead>
+                    <TableHead>New Stock Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {lastPostedReceipt.lines.map((l: any) => (
+                    <TableRow key={l.goodsReceiptItemId}>
+                      <TableCell className="font-medium text-slate-900">{l.itemName}</TableCell>
+                      <TableCell>{l.receivedQuantity}</TableCell>
+                      <TableCell className="font-mono">{l.batchNumber}</TableCell>
+                      <TableCell>{l.expiryDate}</TableCell>
+                      <TableCell className="font-semibold text-teal-800">{l.resultingQuantity}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Purchase Orders List</CardTitle>
           <CardDescription>All vendor purchase orders and their payment status</CardDescription>
-          <div className="mt-4 flex gap-4">
-            <div className="flex-1">
+          <div className="mt-4 flex flex-wrap gap-3">
+            <div className="min-w-[260px] flex-1">
               <Input
                 placeholder="Search by vendor name, PO ID, or contact..."
                 value={searchTerm}
@@ -788,16 +837,32 @@ export default function PurchaseOrders() {
               />
             </div>
             <Select value={filterStatus || "all"} onValueChange={(value) => setFilterStatus(value === "all" ? null : value)}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Payment Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="all">All Payments</SelectItem>
                 <SelectItem value="Pending">Pending</SelectItem>
                 <SelectItem value="Partial">Partial</SelectItem>
                 <SelectItem value="Paid">Paid</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={filterApprovalStatus || "all"} onValueChange={(value) => setFilterApprovalStatus(value === "all" ? null : value)}>
+              <SelectTrigger className="w-[175px]">
+                <SelectValue placeholder="Approval Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Approvals</SelectItem>
+                <SelectItem value="Pending Approval">Pending Approval</SelectItem>
+                <SelectItem value="Approved">Approved</SelectItem>
+                <SelectItem value="Rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+            {(searchTerm || (filterStatus && filterStatus !== "all") || (filterApprovalStatus && filterApprovalStatus !== "all")) && (
+              <Button variant="outline" size="sm" onClick={() => { setSearchTerm(""); setFilterStatus(null); setFilterApprovalStatus(null); }}>
+                Clear Filters
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
