@@ -105,9 +105,8 @@ async function bootstrap() {
   ];
 
   for (const t of coreTablesWithPK) {
-    const [cols] = await connection.query(`SHOW COLUMNS FROM \`${t}\``);
-    const primaryKeyCols = (cols as any[]).filter(c => c.Key === 'PRI' || c.key === 'PRI');
-    if (primaryKeyCols.length === 0) {
+    const [keys] = await connection.query(`SHOW KEYS FROM \`${t}\` WHERE Key_name = 'PRIMARY'`);
+    if ((keys as any[]).length === 0) {
       console.error(`[Verification Error] Table '${t}' is missing a PRIMARY KEY.`);
       await connection.end();
       process.exit(1);
