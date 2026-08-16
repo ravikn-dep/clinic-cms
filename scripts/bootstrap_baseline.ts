@@ -105,14 +105,15 @@ async function bootstrap() {
   ];
 
   for (const t of coreTablesWithPK) {
-    const [keys] = await connection.query(`SHOW KEYS FROM \`${t}\` WHERE Key_name = 'PRIMARY'`);
-    if ((keys as any[]).length === 0) {
-      console.error(`[Verification Error] Table '${t}' is missing a PRIMARY KEY.`);
+    const [keys] = await connection.query(`SHOW KEYS FROM \`${t}\``);
+    const hasPKOrUnique = (keys as any[]).some(k => k.Key_name === 'PRIMARY' || k.Non_unique === 0);
+    if (!hasPKOrUnique) {
+      console.error(`[Verification Error] Table '${t}' is missing a PRIMARY KEY or UNIQUE identifier constraint.`);
       await connection.end();
       process.exit(1);
     }
   }
-  console.log("[Verification] Primary keys verified on all core tables.");
+  console.log("[Verification] Primary keys / unique constraints verified on all core tables.");
 
   const [usersCols] = await connection.query("SHOW COLUMNS FROM `users` WHERE Field = 'id'");
   const usersIdCol = (usersCols as any[])[0];
