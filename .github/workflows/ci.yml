@@ -2,13 +2,23 @@ name: CI Validation
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, validation/manus-step2-ci ]
   pull_request:
     branches: [ main ]
 
 jobs:
   validate:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+          MYSQL_DATABASE: clinic_test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping -h localhost -uroot -prootpassword" --health-interval=10s --health-timeout=5s --health-retries=5
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -40,10 +50,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Bootstrap current-schema baseline on fresh MySQL 8
+        env:
+          DATABASE_URL: mysql://root:rootpassword@localhost:3306/clinic_test
+          EXTERNAL_API_HMAC_KEYS: '{"key-1": {"secret": "12345678901234567890123456789012", "scopes": ["appointments:read"], "active": true}}'
+        run: pnpm db:bootstrap
+
       - name: Run TypeScript check
         run: pnpm check
 
       - name: Run unit tests
+        env:
+          DATABASE_URL: mysql://root:rootpassword@localhost:3306/clinic_test
+          EXTERNAL_API_HMAC_KEYS: '{"key-1": {"secret": "12345678901234567890123456789012", "scopes": ["appointments:read"], "active": true}}'
         run: pnpm test --run
 
       - name: Run production build
