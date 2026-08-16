@@ -855,3 +855,17 @@ This section records the user-authorized GitHub governance action; the migration
 - [ ] Update GitHub CI to provision an ephemeral MySQL service, apply repository migrations only in CI, and rerun the required validation check
 
 > This is an ephemeral CI-only database; no production database connection or migration is authorized in this task.
+
+## Step 2 Purchase Order to Goods Receipt Remediation
+- [ ] Enforce server-side PO creation as Pending Approval and ignore client-supplied approvalStatus values.
+- [ ] Remove inventory mutation and fabricated batch/expiry data from PO creation.
+- [ ] Verify PO approval changes only PO state and audit/history records.
+- [ ] Add goods receipt schema for receipt identity, lines, partial receipts, and stock movements.
+- [ ] Add authenticated goods receipt operation requiring an Approved PO, positive quantity, batch, and valid expiry.
+- [ ] Add duplicate receipt protection and database uniqueness enforcement.
+- [ ] Preserve separate inventory rows for distinct batches and reject over-receipt.
+- [ ] Add minimal Receive Stock UI with ordered, received, remaining, quantity, batch, expiry, and confirmation.
+- [ ] Rewrite unsafe PO auto-inventory tests and add goods receipt lifecycle and RBAC tests.
+- [ ] Generate and validate a forward-only migration without changing historical migrations or production data.
+- [ ] Run pnpm check, pnpm test --run, pnpm build, and ephemeral MySQL migration validation.
+- [ ] Produce STEP_2_REPORT.md and classify SAFE_TO_PROCEED_TO_STEP_3 or BLOCKED.
