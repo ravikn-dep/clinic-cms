@@ -81,7 +81,8 @@ async function bootstrap() {
   ];
 
   for (const reqTable of requiredTables) {
-    if (!tables.includes(reqTable)) {
+    const found = tables.some(t => t.toLowerCase() === reqTable.toLowerCase());
+    if (!found) {
       console.error(`[Verification Error] Required table missing: ${reqTable}`);
       await connection.end();
       process.exit(1);
@@ -105,7 +106,7 @@ async function bootstrap() {
 
   for (const t of coreTablesWithPK) {
     const [cols] = await connection.query(`SHOW COLUMNS FROM \`${t}\``);
-    const primaryKeyCols = (cols as any[]).filter(c => c.Key === 'PRI');
+    const primaryKeyCols = (cols as any[]).filter(c => c.Key === 'PRI' || c.key === 'PRI');
     if (primaryKeyCols.length === 0) {
       console.error(`[Verification Error] Table '${t}' is missing a PRIMARY KEY.`);
       await connection.end();
@@ -116,7 +117,7 @@ async function bootstrap() {
 
   const [usersCols] = await connection.query("SHOW COLUMNS FROM `users` WHERE Field = 'id'");
   const usersIdCol = (usersCols as any[])[0];
-  if (!usersIdCol || !usersIdCol.Key.includes('PRI') || !usersIdCol.Extra.includes('auto_increment')) {
+  if (!usersIdCol || (!usersIdCol.Key?.includes('PRI') && !usersIdCol.key?.includes('PRI')) || (!usersIdCol.Extra?.includes('auto_increment') && !usersIdCol.extra?.includes('auto_increment'))) {
     console.error("[Verification Error] users.id must be primary key with auto_increment.");
     await connection.end();
     process.exit(1);
