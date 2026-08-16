@@ -888,3 +888,8 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Implement filtered Purchase Orders PDF export functionality
 - [x] Extend purchase order history dialog into a combined status and stock receipt timeline
 - [x] Verify test suite and production build pass cleanly
+
+## Step 6 Purchase Orders Visual Metrics Dashboard
+- [x] Outline Step 6 remediation roadmap and UI verification criteria
+- [x] Implement visual metrics cards for total orders, pending approvals, and received stock in Purchase Orders list
+- [x] Verify test suite and production build pass cleanly

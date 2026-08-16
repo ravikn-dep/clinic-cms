@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
-import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap, History, PackageCheck, Download, FileText } from "lucide-react";
+import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap, History, PackageCheck, Download, FileText, ClipboardList, Clock3 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import { ConfidenceBadge, ConfidenceTooltip } from "@/components/ConfidenceBadge";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
@@ -46,6 +46,7 @@ export default function PurchaseOrders() {
   const [receiveFormError, setReceiveFormError] = useState("");
 
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
+  const { data: purchaseOrderMetrics, isLoading: isMetricsLoading } = trpc.purchaseOrders.getMetrics.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
   const updatePaymentStatus = trpc.purchaseOrders.updatePaymentStatus.useMutation();
   const uploadPOImage = trpc.purchaseOrders.uploadPoImage.useMutation();
@@ -928,6 +929,45 @@ export default function PurchaseOrders() {
           </CardContent>
         </Card>
       )}
+
+      <div className="grid gap-4 md:grid-cols-3" aria-label="Purchase order metrics">
+        <Card className="border-sky-100 bg-sky-50/60">
+          <CardContent className="flex items-start justify-between p-5">
+            <div>
+              <p className="text-sm font-medium text-sky-700">Total Orders</p>
+              <p className="mt-2 text-3xl font-bold text-sky-950">{isMetricsLoading ? <Loader2 className="h-7 w-7 animate-spin" /> : purchaseOrderMetrics?.totalOrders ?? 0}</p>
+              <p className="mt-1 text-xs text-sky-700">All purchase orders in this workspace</p>
+            </div>
+            <span className="rounded-xl bg-white p-3 text-sky-600 shadow-sm"><ClipboardList className="h-5 w-5" /></span>
+          </CardContent>
+        </Card>
+        <Card className="border-amber-100 bg-amber-50/70">
+          <CardContent className="flex items-start justify-between p-5">
+            <div>
+              <p className="text-sm font-medium text-amber-700">Pending Approvals</p>
+              <p className="mt-2 text-3xl font-bold text-amber-950">{isMetricsLoading ? <Loader2 className="h-7 w-7 animate-spin" /> : purchaseOrderMetrics?.pendingApprovals ?? 0}</p>
+              <p className="mt-1 text-xs text-amber-700">Orders waiting for admin review</p>
+            </div>
+            <span className="rounded-xl bg-white p-3 text-amber-600 shadow-sm"><Clock3 className="h-5 w-5" /></span>
+          </CardContent>
+        </Card>
+        <Card className="border-emerald-100 bg-emerald-50/70">
+          <CardContent className="p-5">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-emerald-700">Received Stock</p>
+                <p className="mt-2 text-3xl font-bold text-emerald-950">{isMetricsLoading ? <Loader2 className="h-7 w-7 animate-spin" /> : `${purchaseOrderMetrics?.receivedUnits ?? 0} / ${purchaseOrderMetrics?.orderedUnits ?? 0}`}</p>
+                <p className="mt-1 text-xs text-emerald-700">Units received against ordered quantity</p>
+              </div>
+              <span className="rounded-xl bg-white p-3 text-emerald-600 shadow-sm"><PackageCheck className="h-5 w-5" /></span>
+            </div>
+            <div className="mt-3 h-2 overflow-hidden rounded-full bg-emerald-100" aria-label={`${purchaseOrderMetrics?.receiptProgressPercent ?? 0}% received`}>
+              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${purchaseOrderMetrics?.receiptProgressPercent ?? 0}%` }} />
+            </div>
+            <p className="mt-1 text-right text-xs font-medium text-emerald-700">{purchaseOrderMetrics?.receiptProgressPercent ?? 0}% received</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>

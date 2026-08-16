@@ -316,6 +316,31 @@ export async function getAllPurchaseOrders() {
   return db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt));
 }
 
+export async function getPurchaseOrderMetrics() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const [metrics] = await db.select({
+    totalOrders: sql<number>`count(distinct ${purchaseOrders.purchaseOrderId})`,
+    pendingApprovals: sql<number>`coalesce(sum(case when ${purchaseOrders.approvalStatus} = 'Pending Approval' then 1 else 0 end), 0)`,
+    orderedUnits: sql<number>`coalesce(sum(${purchaseOrderItems.quantity}), 0)`,
+    receivedUnits: sql<number>`coalesce(sum(${purchaseOrderItems.receivedQuantity}), 0)`,
+  }).from(purchaseOrders).leftJoin(
+    purchaseOrderItems,
+    eq(purchaseOrderItems.purchaseOrderId, purchaseOrders.purchaseOrderId),
+  );
+
+  const orderedUnits = Number(metrics?.orderedUnits ?? 0);
+  const receivedUnits = Number(metrics?.receivedUnits ?? 0);
+  return {
+    totalOrders: Number(metrics?.totalOrders ?? 0),
+    pendingApprovals: Number(metrics?.pendingApprovals ?? 0),
+    orderedUnits,
+    receivedUnits,
+    receiptProgressPercent: orderedUnits > 0 ? Math.min(100, Math.round((receivedUnits / orderedUnits) * 100)) : 0,
+  };
+}
+
 export async function updatePurchaseOrder(purchaseOrderId: string, updates: Partial<typeof purchaseOrders.$inferInsert>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

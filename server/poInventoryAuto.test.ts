@@ -138,6 +138,26 @@ describe("Step 2 PO to goods receipt lifecycle", () => {
     expect(receive).not.toHaveBeenCalled();
   });
 
+  it("returns the aggregated purchase order metrics for the dashboard", async () => {
+    const metrics = vi.spyOn(db, "getPurchaseOrderMetrics").mockResolvedValue({
+      totalOrders: 8,
+      pendingApprovals: 3,
+      orderedUnits: 100,
+      receivedUnits: 65,
+      receiptProgressPercent: 65,
+    });
+
+    const caller = appRouter.createCaller(createAuthContext("staff"));
+    await expect(caller.purchaseOrders.getMetrics()).resolves.toEqual({
+      totalOrders: 8,
+      pendingApprovals: 3,
+      orderedUnits: 100,
+      receivedUnits: 65,
+      receiptProgressPercent: 65,
+    });
+    expect(metrics).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps approval separate from inventory receipt posting", async () => {
     vi.spyOn(db, "getPurchaseOrderById").mockResolvedValue({
       purchaseOrderId: "PO-STEP2-004",

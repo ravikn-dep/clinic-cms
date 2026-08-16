@@ -1048,6 +1048,10 @@ export const appRouter = router({
       return db.getAllPurchaseOrders();
     }),
 
+    getMetrics: protectedProcedure.query(async () => {
+      return db.getPurchaseOrderMetrics();
+    }),
+
     getById: protectedProcedure
       .input(z.object({ purchaseOrderId: z.string() }))
       .query(async ({ input }) => {
