@@ -60,7 +60,19 @@ export const appRouter = router({
         } catch (error) {
           const errMessage = error instanceof Error ? error.message : String(error);
           console.error("[OCR Router] Extraction failed:", errMessage);
-          throw new Error(errMessage || "OCR extraction failed");
+          // Preserve safe known validation errors (MIME, size, PDF deferral, empty), mask raw provider/SDK internal errors
+          const isSafeValidation =
+            errMessage.includes("Unsupported MIME type") ||
+            errMessage.includes("PDF OCR is not supported") ||
+            errMessage.includes("Cannot process empty file") ||
+            errMessage.includes("exceeds maximum allowed limit") ||
+            errMessage.includes("OCR input data is required") ||
+            errMessage.includes("Malformed data URI");
+
+          if (isSafeValidation) {
+            throw new Error(errMessage);
+          }
+          throw new Error("OCR extraction failed");
         }
       }),
   }),

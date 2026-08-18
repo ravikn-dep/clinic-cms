@@ -1,21 +1,31 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { validateOcrInput, setOcrProvider, getOcrProvider } from "./ocr/provider";
+import { GoogleVisionProvider } from "./ocr/googleVisionProvider";
 import { OcrProvider, OcrInput, OcrResult } from "./ocr/types";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
-describe("Phase 3 Step 1: OCR Foundation & Security Validation", () => {
-  describe("Input Validation & Security Limits", () => {
-    it("should accept valid JPEG/PNG/PDF mime types and buffer/base64 data", () => {
+describe("Phase 3 Step 1: OCR Security Hardening & Input Validation", () => {
+  describe("MIME Validation & PDF Deferral", () => {
+    it("should accept valid JPEG and PNG mime types", () => {
       const validInputs: OcrInput[] = [
-        { data: Buffer.from("fake-image-bytes"), mimeType: "image/jpeg" },
-        { data: "ZmFrZS1pbWFnZS1ieXRlcw==", mimeType: "image/png" },
-        { data: "data:application/pdf;base64,ZmFrZS1wZGYtYnl0ZXM=", mimeType: "application/pdf" },
+        { data: Buffer.from("fake-jpeg-bytes"), mimeType: "image/jpeg" },
+        { data: Buffer.from("fake-png-bytes"), mimeType: "image/png" },
+        { data: "ZmFrZS1pbWFnZS1ieXRlcw==", mimeType: "image/jpg" },
       ];
 
       validInputs.forEach((input) => {
         expect(() => validateOcrInput(input)).not.toThrow();
       });
+    });
+
+    it("should safely reject PDF with deferred message", () => {
+      const pdfInput: OcrInput = {
+        data: Buffer.from("fake-pdf-bytes"),
+        mimeType: "application/pdf",
+      };
+
+      expect(() => validateOcrInput(pdfInput)).toThrow(/PDF OCR is not supported in this release/i);
     });
 
     it("should reject unsupported MIME types", () => {
@@ -24,7 +34,7 @@ describe("Phase 3 Step 1: OCR Foundation & Security Validation", () => {
         mimeType: "text/plain",
       };
 
-      expect(() => validateOcrInput(invalidInput)).toThrow(/unsupported mime type/i);
+      expect(() => validateOcrInput(invalidInput)).toThrow(/Unsupported MIME type/i);
     });
 
     it("should reject empty files", () => {
@@ -33,13 +43,13 @@ describe("Phase 3 Step 1: OCR Foundation & Security Validation", () => {
         mimeType: "image/jpeg",
       };
 
-      expect(() => validateOcrInput(emptyInput)).toThrow(/empty file/i);
+      expect(() => validateOcrInput(emptyInput)).toThrow(/Cannot process empty file/i);
     });
 
     it("should reject documents exceeding maximum size limit", () => {
       const oversizeInput: OcrInput = {
         data: Buffer.alloc(11 * 1024 * 1024), // 11MB
-        mimeType: "application/pdf",
+        mimeType: "image/jpeg",
         maxSizeMb: 10,
       };
 
@@ -47,76 +57,123 @@ describe("Phase 3 Step 1: OCR Foundation & Security Validation", () => {
     });
   });
 
-  describe("OCR Provider Interface & Mock Execution", () => {
-    it("should extract document text correctly via mock provider", async () => {
+  describe("Confidence & Provider Error Sanitization", () => {
+    it("should not fabricate confidence in provider result", async () => {
       const provider = getOcrProvider();
       const result = await provider.extractDocument({
         data: Buffer.from("invoice-data"),
         mimeType: "image/jpeg",
       });
 
-      expect(result.provider).toBeDefined();
-      expect(result.fullText).toContain("MOCK GST INVOICE");
-      expect(result.pages.length).toBeGreaterThan(0);
-      expect(result.confidence).toBeGreaterThan(0.9);
+      expect(result.confidence).toBeUndefined();
     });
 
-    it("should handle custom provider implementations safely", async () => {
-      const customProvider: OcrProvider = {
-        async extractDocument(input: OcrInput): Promise<OcrResult> {
-          validateOcrInput(input);
-          return {
-            provider: "google-cloud-vision",
-            fullText: "CUSTOM EXTRACTED INVOICE TEXT",
-            pages: [{ pageNumber: 1, text: "CUSTOM EXTRACTED INVOICE TEXT" }],
-            confidence: 0.98,
-          };
+    it("should sanitize raw Google SDK errors inside GoogleVisionProvider", async () => {
+      const provider = new GoogleVisionProvider() as any;
+      provider.client = {
+        documentTextDetection: async () => {
+          throw new Error("Google quota exceeded for project clinic-prod with credential path /etc/secrets/google.json");
         },
       };
 
-      setOcrProvider(customProvider);
-      const provider = getOcrProvider();
-      const res = await provider.extractDocument({
-        data: Buffer.from("test"),
-        mimeType: "image/png",
-      });
+      await expect(
+        provider.extractDocument({ data: Buffer.from("test"), mimeType: "image/png" })
+      ).rejects.toThrow("OCR_PROVIDER_PROCESSING_FAILED");
+    });
 
-      expect(res.fullText).toBe("CUSTOM EXTRACTED INVOICE TEXT");
-      expect(res.provider).toBe("google-cloud-vision");
-      setOcrProvider(null); // reset
+    it("should sanitize raw provider errors and throw stable application error codes", async () => {
+      const failingProvider: OcrProvider = {
+        async extractDocument(): Promise<OcrResult> {
+          throw new Error("Internal Google SDK error: credentials file /secrets/sa.json not found in project my-secret-proj-999");
+        },
+      };
+
+      setOcrProvider(failingProvider);
+      const provider = getOcrProvider();
+
+      await expect(
+        provider.extractDocument({ data: Buffer.from("test"), mimeType: "image/png" })
+      ).rejects.toThrow("OCR_PROVIDER_PROCESSING_FAILED");
+
+      setOcrProvider(null);
     });
   });
 
-  describe("OCR-Only Boundary Guarantee", () => {
-    it("should not trigger any inventory or PO mutation when calling OCR extraction", async () => {
+  describe("OCR-Only Boundary & Side-Effect Guarantee", () => {
+    it("should not trigger any purchase order, goods receipt, or inventory mutation", async () => {
       const user = {
         id: 1,
         openId: "test-user-1",
         email: "test@clinic.com",
         name: "Test Doctor",
-        loginMethod: "manus",
+        loginMethod: "manus" as const,
         role: "admin" as const,
         createdAt: new Date(),
         updatedAt: new Date(),
-        lastSignedIn: new Date(),
       };
 
       const ctx: TrpcContext = {
         user,
-        req: { protocol: "https", headers: {} } as any,
+        req: {} as any,
         res: {} as any,
       };
 
       const caller = appRouter.createCaller(ctx);
 
-      const ocrRes = await caller.ocr.extractDocument({
-        data: Buffer.from("invoice-bytes").toString("base64"),
+      const res = await caller.ocr.extractDocument({
+        data: "ZmFrZS1pbWFnZS1ieXRlcw==",
         mimeType: "image/jpeg",
       });
 
-      expect(ocrRes).toBeDefined();
-      expect(ocrRes.fullText).toBeTruthy();
-      // Verify no side effects on PO or inventory
+      expect(res.fullText).toBeDefined();
+      expect(res.provider).toBeDefined();
+    });
+
+    it("should mask raw provider error through tRPC router boundary with generic message", async () => {
+      const secretFailingProvider: OcrProvider = {
+        async extractDocument(): Promise<OcrResult> {
+          throw new Error("Sensitive cloud storage failure at gs://private-bucket/secret.key");
+        },
+      };
+
+      setOcrProvider(secretFailingProvider);
+
+      const ctx: TrpcContext = {
+        user: {
+          id: 1,
+          openId: "test-user-1",
+          email: "test@clinic.com",
+          name: "Test Doctor",
+          loginMethod: "manus",
+          role: "admin",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        req: {} as any,
+        res: {} as any,
+      };
+
+      const caller = appRouter.createCaller(ctx);
+
+      await expect(
+        caller.ocr.extractDocument({
+          data: "ZmFrZS1pbWFnZS1ieXRlcw==",
+          mimeType: "image/jpeg",
+        })
+      ).rejects.toThrow(/OCR extraction failed/i);
+
+      // Verify sensitive path is not leaked to client
+      try {
+        await caller.ocr.extractDocument({
+          data: "ZmFrZS1pbWFnZS1ieXRlcw==",
+          mimeType: "image/jpeg",
+        });
+      } catch (err: any) {
+        expect(err.message).not.toContain("private-bucket");
+        expect(err.message).not.toContain("secret.key");
+      }
+
+      setOcrProvider(null);
     });
   });
 });
