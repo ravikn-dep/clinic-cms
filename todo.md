@@ -902,3 +902,25 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Validate fresh MySQL 8 bootstrap, pnpm check, pnpm test --run, and pnpm build.
 - [x] Publish verification-only changes through fix/schema-baseline-verification-hardening and a protected PR to main.
 - [x] Verify the required CI validate check and report STEP2_SCHEMA_VERIFICATION_HARDENED only after it passes.
+
+## Login Database Query Error Remediation (2026-08-18)
+- [ ] Investigate user lookup query failure `select ... from users where users.email = ?`
+- [ ] Inspect server/db.ts connection helper and pool health / reconnect behavior
+- [ ] Add unit test covering user lookup by email with robust connection handling
+- [ ] Validate pnpm check, test suite (169+ tests), and production build
+
+## Inventory Low-Stock Query Error Remediation (2026-08-18)
+- [x] Investigate low-stock inventory query `select ... from inventory where inventory.quantityAvailable <= inventory.reorderLevel`
+- [x] Fix connection pool / lazy database client reconnection handling in server/db.ts
+- [x] Validate pnpm check, 169+ tests, and production build
+
+## Phase 3 Step 1 — Google Cloud Vision OCR Foundation (2026-08-18)
+- [ ] Verify clean baseline, type check, tests (169/169), and build
+- [ ] Audit existing scan-PO pipeline and document BEFORE architecture
+- [ ] Implement provider-neutral OCR interface (server/ocr/types.ts, server/ocr/provider.ts)
+- [ ] Implement Google Cloud Vision provider and mock wrapper (server/ocr/googleVisionProvider.ts)
+- [ ] Add secure server-side input validation (MIME types, size limits, error wrapping)
+- [ ] Add tRPC OCR-only endpoint in server/routers.ts without business mutation
+- [ ] Add unit tests for OCR provider, validation, and boundary guarantees
+- [ ] Deliver PHASE_3_STEP_1_OCR_FOUNDATION_REPORT.md
+- [ ] Push branch feature/phase3-po-ocr and open protected pull request
