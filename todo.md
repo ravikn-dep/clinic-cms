@@ -841,9 +841,9 @@
 
 # Step 1 Approval and GitHub Governance
 
-- [ ] Publish the Step 1 CI workflow to GitHub main so the required branch-protection check can execute remotely
-- [ ] Configure and verify main branch protection requiring `CI Validation / validate`
-- [ ] Record that no external production database was connected or modified
+- [x] Publish the Step 1 CI workflow to GitHub main so the required branch-protection check can execute remotely
+- [x] Configure and verify main branch protection requiring `CI Validation / validate`
+- [x] Record that no external production database was connected or modified
 
 - [x] Configure and verify main branch protection requiring `CI Validation / validate`
 - [x] Record that no external production database was connected or modified
@@ -852,23 +852,23 @@ This section records the user-authorized GitHub governance action; the migration
 
 > Note: The first item remains pending until `.github/workflows/ci.yml` is present on GitHub main and a remote CI run is observed.
 
-- [ ] Update GitHub CI to provision an ephemeral MySQL service, apply repository migrations only in CI, and rerun the required validation check
+- [x] Update GitHub CI to provision an ephemeral MySQL service, apply repository migrations only in CI, and rerun the required validation check
 
 > This is an ephemeral CI-only database; no production database connection or migration is authorized in this task.
 
 ## Step 2 Purchase Order to Goods Receipt Remediation
-- [ ] Enforce server-side PO creation as Pending Approval and ignore client-supplied approvalStatus values.
-- [ ] Remove inventory mutation and fabricated batch/expiry data from PO creation.
-- [ ] Verify PO approval changes only PO state and audit/history records.
-- [ ] Add goods receipt schema for receipt identity, lines, partial receipts, and stock movements.
-- [ ] Add authenticated goods receipt operation requiring an Approved PO, positive quantity, batch, and valid expiry.
-- [ ] Add duplicate receipt protection and database uniqueness enforcement.
-- [ ] Preserve separate inventory rows for distinct batches and reject over-receipt.
-- [ ] Add minimal Receive Stock UI with ordered, received, remaining, quantity, batch, expiry, and confirmation.
-- [ ] Rewrite unsafe PO auto-inventory tests and add goods receipt lifecycle and RBAC tests.
-- [ ] Generate and validate a forward-only migration without changing historical migrations or production data.
-- [ ] Run pnpm check, pnpm test --run, pnpm build, and ephemeral MySQL migration validation.
-- [ ] Produce STEP_2_REPORT.md and classify SAFE_TO_PROCEED_TO_STEP_3 or BLOCKED.
+- [x] Enforce server-side PO creation as Pending Approval and ignore client-supplied approvalStatus values.
+- [x] Remove inventory mutation and fabricated batch/expiry data from PO creation.
+- [x] Verify PO approval changes only PO state and audit/history records.
+- [x] Add goods receipt schema for receipt identity, lines, partial receipts, and stock movements.
+- [x] Add authenticated goods receipt operation requiring an Approved PO, positive quantity, batch, and valid expiry.
+- [x] Add duplicate receipt protection and database uniqueness enforcement.
+- [x] Preserve separate inventory rows for distinct batches and reject over-receipt.
+- [x] Add minimal Receive Stock UI with ordered, received, remaining, quantity, batch, expiry, and confirmation.
+- [x] Rewrite unsafe PO auto-inventory tests and add goods receipt lifecycle and RBAC tests.
+- [x] Generate and validate a forward-only migration without changing historical migrations or production data.
+- [x] Run pnpm check, pnpm test --run, pnpm build, and ephemeral MySQL migration validation.
+- [x] Produce STEP_2_REPORT.md and classify SAFE_TO_PROCEED_TO_STEP_3 or BLOCKED.
 
 ## Step 3 Receive Stock Modal UX Enhancements
 - [x] Outline Step 3 remediation roadmap and UI verification criteria
@@ -904,10 +904,10 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Verify the required CI validate check and report STEP2_SCHEMA_VERIFICATION_HARDENED only after it passes.
 
 ## Login Database Query Error Remediation (2026-08-18)
-- [ ] Investigate user lookup query failure `select ... from users where users.email = ?`
-- [ ] Inspect server/db.ts connection helper and pool health / reconnect behavior
-- [ ] Add unit test covering user lookup by email with robust connection handling
-- [ ] Validate pnpm check, test suite (169+ tests), and production build
+- [x] Investigate user lookup query failure `select ... from users where users.email = ?`
+- [x] Inspect server/db.ts connection helper and pool health / reconnect behavior
+- [x] Add unit test covering user lookup by email with robust connection handling
+- [x] Validate pnpm check, test suite (169+ tests), and production build
 
 ## Inventory Low-Stock Query Error Remediation (2026-08-18)
 - [x] Investigate low-stock inventory query `select ... from inventory where inventory.quantityAvailable <= inventory.reorderLevel`
@@ -915,12 +915,19 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Validate pnpm check, 169+ tests, and production build
 
 ## Phase 3 Step 1 — Google Cloud Vision OCR Foundation (2026-08-18)
-- [ ] Verify clean baseline, type check, tests (169/169), and build
-- [ ] Audit existing scan-PO pipeline and document BEFORE architecture
-- [ ] Implement provider-neutral OCR interface (server/ocr/types.ts, server/ocr/provider.ts)
-- [ ] Implement Google Cloud Vision provider and mock wrapper (server/ocr/googleVisionProvider.ts)
-- [ ] Add secure server-side input validation (MIME types, size limits, error wrapping)
-- [ ] Add tRPC OCR-only endpoint in server/routers.ts without business mutation
-- [ ] Add unit tests for OCR provider, validation, and boundary guarantees
-- [ ] Deliver PHASE_3_STEP_1_OCR_FOUNDATION_REPORT.md
-- [ ] Push branch feature/phase3-po-ocr and open protected pull request
+- [x] Verify clean baseline, type check, tests (177/177), and build
+- [x] Audit existing scan-PO pipeline and document BEFORE architecture
+- [x] Implement provider-neutral OCR interface (server/ocr/types.ts, server/ocr/provider.ts)
+- [x] Implement Google Cloud Vision provider and mock wrapper (server/ocr/googleVisionProvider.ts)
+- [x] Add secure server-side input validation (MIME types, size limits, error wrapping)
+- [x] Add tRPC OCR-only endpoint in server/routers.ts without business mutation
+- [x] Add unit tests for OCR provider, validation, and boundary guarantees
+- [x] Deliver PHASE_3_STEP_1_OCR_FOUNDATION_REPORT.md
+- [x] Push branch feature/phase3-po-ocr and open protected pull request
+
+## Phase 3 Step 1 Bundle Export (2026-08-18)
+- [x] Identify exact validated Phase 3 Step 1 commit and confirm ancestry relative to 09ec0d9d0e6c1738f466562362f84603d134650d
+- [x] Verify clean validation on target commit (pnpm check, pnpm test --run 177/177, pnpm build)
+- [x] Create export branch export/phase3-phase1-ocr
+- [x] Create and verify self-contained Git bundle CLINIC_CMS_PHASE3_STEP1_OCR.bundle
+- [x] Produce PHASE3_STEP1_GIT_HISTORY_REPORT.md
