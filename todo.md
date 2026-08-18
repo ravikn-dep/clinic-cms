@@ -893,3 +893,12 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Outline Step 6 remediation roadmap and UI verification criteria
 - [x] Implement visual metrics cards for total orders, pending approvals, and received stock in Purchase Orders list
 - [x] Verify test suite and production build pass cleanly
+
+## Step 2 Schema Verification Hardening (2026-08-18)
+- [ ] Restore explicit primary-key assertions for all required core tables in scripts/bootstrap_baseline.ts.
+- [ ] Add explicit users.id PRIMARY KEY + AUTO_INCREMENT assertion.
+- [ ] Add explicit required UNIQUE-index assertions for Phase A, Goods Receipt, and schema-defined duplicate protection.
+- [ ] Add explicit foreign-key assertions for every foreign key defined by the current schema.
+- [ ] Validate fresh MySQL 8 bootstrap, pnpm check, pnpm test --run, and pnpm build.
+- [ ] Publish verification-only changes through fix/schema-baseline-verification-hardening and a protected PR to main.
+- [ ] Verify the required CI validate check and report STEP2_SCHEMA_VERIFICATION_HARDENED only after it passes.

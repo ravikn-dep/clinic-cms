@@ -239,21 +239,6 @@ ALTER TABLE `purchaseOrders` ADD `authorizationNotes` text;
 ALTER TABLE `patients` DROP INDEX `patients_barcodeData_unique`;
 ALTER TABLE `users` DROP INDEX `users_userId_unique`;
 ALTER TABLE `users` DROP INDEX `users_username_unique`;
-ALTER TABLE `appointments` DROP PRIMARY KEY;
-ALTER TABLE `auditLogs` DROP PRIMARY KEY;
-ALTER TABLE `billItems` DROP PRIMARY KEY;
-ALTER TABLE `billTemplates` DROP PRIMARY KEY;
-ALTER TABLE `bills` DROP PRIMARY KEY;
-ALTER TABLE `consultantAvailability` DROP PRIMARY KEY;
-ALTER TABLE `consultations` DROP PRIMARY KEY;
-ALTER TABLE `inventory` DROP PRIMARY KEY;
-ALTER TABLE `notificationPreferences` DROP PRIMARY KEY;
-ALTER TABLE `notifications` DROP PRIMARY KEY;
-ALTER TABLE `patients` DROP PRIMARY KEY;
-ALTER TABLE `purchaseOrderItems` DROP PRIMARY KEY;
-ALTER TABLE `purchaseOrders` DROP PRIMARY KEY;
-ALTER TABLE `rolePermissions` DROP PRIMARY KEY;
-ALTER TABLE `vendors` DROP PRIMARY KEY;
 ALTER TABLE `appointments` MODIFY COLUMN `reminderSent` tinyint;
 ALTER TABLE `appointments` MODIFY COLUMN `reminderSent` tinyint DEFAULT 0;
 ALTER TABLE `appointments` MODIFY COLUMN `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP;
@@ -302,7 +287,8 @@ CREATE TABLE IF NOT EXISTS `appointmentBookingLocks` (
 	`consultantId` int NOT NULL,
 	`appointmentDate` varchar(10) NOT NULL,
 	`updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-	CONSTRAINT `appointmentBookingLocks_consultant_date_unique` UNIQUE(`consultantId`,`appointmentDate`)
+		CONSTRAINT `appointmentBookingLocks_pk` PRIMARY KEY(`consultantId`,`appointmentDate`),
+		CONSTRAINT `appointmentBookingLocks_consultant_date_unique` UNIQUE(`consultantId`,`appointmentDate`)
 );
 CREATE TABLE IF NOT EXISTS `enquiries` (
 	`enquiryId` varchar(64) NOT NULL,
@@ -314,7 +300,8 @@ CREATE TABLE IF NOT EXISTS `enquiries` (
 	`preferredLanguage` enum('en-IN','hi-IN','te-IN','mixed') NOT NULL DEFAULT 'mixed',
 	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-	CONSTRAINT `enquiries_enquiryId_unique` UNIQUE(`enquiryId`)
+		CONSTRAINT `enquiries_enquiryId` PRIMARY KEY(`enquiryId`),
+		CONSTRAINT `enquiries_enquiryId_unique` UNIQUE(`enquiryId`)
 );
 CREATE TABLE IF NOT EXISTS `externalApiAuditLogs` (
 	`auditId` varchar(64) NOT NULL,
@@ -326,7 +313,8 @@ CREATE TABLE IF NOT EXISTS `externalApiAuditLogs` (
 	`result` enum('SUCCESS','DENIED','ERROR','IDEMPOTENT_REPLAY') NOT NULL,
 	`safeMetadata` json,
 	`timestamp` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT `externalApiAuditLogs_auditId_unique` UNIQUE(`auditId`)
+		CONSTRAINT `externalApiAuditLogs_auditId` PRIMARY KEY(`auditId`),
+		CONSTRAINT `externalApiAuditLogs_auditId_unique` UNIQUE(`auditId`)
 );
 CREATE TABLE IF NOT EXISTS `externalIdempotencyKeys` (
 	`idempotencyId` varchar(64) NOT NULL,
@@ -340,8 +328,9 @@ CREATE TABLE IF NOT EXISTS `externalIdempotencyKeys` (
 	`responseBody` json NOT NULL,
 	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	`expiresAt` timestamp,
-	CONSTRAINT `externalIdempotency_operation_key_unique` UNIQUE(`operation`,`idempotencyKey`),
-	CONSTRAINT `externalIdempotency_idempotencyId_unique` UNIQUE(`idempotencyId`)
+		CONSTRAINT `externalIdempotency_idempotencyId` PRIMARY KEY(`idempotencyId`),
+		CONSTRAINT `externalIdempotency_operation_key_unique` UNIQUE(`operation`,`idempotencyKey`),
+		CONSTRAINT `externalIdempotency_idempotencyId_unique` UNIQUE(`idempotencyId`)
 );
 ALTER TABLE `appointments` ADD `checkedInAt` timestamp;
 ALTER TABLE `appointments` ADD `checkedInBy` varchar(100);
@@ -368,7 +357,8 @@ CREATE TABLE `purchaseOrderHistory` (
 	`eventSummary` varchar(500) NOT NULL,
 	`details` text,
 	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT `purchaseOrderHistory_historyId_unique` UNIQUE(`historyId`)
+		CONSTRAINT `purchaseOrderHistory_historyId` PRIMARY KEY(`historyId`),
+		CONSTRAINT `purchaseOrderHistory_historyId_unique` UNIQUE(`historyId`)
 );
 CREATE INDEX `purchaseOrderHistory_purchaseOrder_createdAt_idx` ON `purchaseOrderHistory` (`purchaseOrderId`,`createdAt`);
 ALTER TABLE `purchaseOrderHistory` MODIFY COLUMN `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP;
@@ -378,7 +368,8 @@ CREATE TABLE `externalRequestReplays` (
 	`requestId` varchar(64) NOT NULL,
 	`endpoint` varchar(255) NOT NULL,
 	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT `externalRequestReplays_key_request_unique` UNIQUE(`serviceKeyId`,`requestId`)
+		CONSTRAINT `externalRequestReplays_replayId` PRIMARY KEY(`replayId`),
+		CONSTRAINT `externalRequestReplays_key_request_unique` UNIQUE(`serviceKeyId`,`requestId`)
 );
 CREATE INDEX `externalRequestReplays_createdAt_idx` ON `externalRequestReplays` (`createdAt`);
 CREATE TABLE `goodsReceiptItems` (
@@ -392,8 +383,9 @@ CREATE TABLE `goodsReceiptItems` (
 	`expiryDate` varchar(10) NOT NULL,
 	`unitCost` decimal(10,2),
 	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT `goodsReceiptItems_goodsReceiptItemId_unique` UNIQUE(`goodsReceiptItemId`),
-	CONSTRAINT `goodsReceiptItems_receipt_poItem_batch_unique` UNIQUE(`goodsReceiptId`,`poItemId`,`batchNumber`)
+		CONSTRAINT `goodsReceiptItems_goodsReceiptItemId` PRIMARY KEY(`goodsReceiptItemId`),
+		CONSTRAINT `goodsReceiptItems_goodsReceiptItemId_unique` UNIQUE(`goodsReceiptItemId`),
+		CONSTRAINT `goodsReceiptItems_receipt_poItem_batch_unique` UNIQUE(`goodsReceiptId`,`poItemId`,`batchNumber`)
 );
 CREATE TABLE `goodsReceipts` (
 	`goodsReceiptId` varchar(50) NOT NULL,
@@ -402,7 +394,8 @@ CREATE TABLE `goodsReceipts` (
 	`receivedBy` varchar(100) NOT NULL,
 	`status` enum('Posted','Voided') NOT NULL DEFAULT 'Posted',
 	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT `goodsReceipts_goodsReceiptId_unique` UNIQUE(`goodsReceiptId`)
+		CONSTRAINT `goodsReceipts_goodsReceiptId` PRIMARY KEY(`goodsReceiptId`),
+		CONSTRAINT `goodsReceipts_goodsReceiptId_unique` UNIQUE(`goodsReceiptId`)
 );
 CREATE TABLE `stockMovements` (
 	`movementId` varchar(50) NOT NULL,
@@ -417,8 +410,9 @@ CREATE TABLE `stockMovements` (
 	`resultingQuantity` int NOT NULL,
 	`actorId` varchar(100) NOT NULL,
 	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT `stockMovements_movementId_unique` UNIQUE(`movementId`),
-	CONSTRAINT `stockMovements_receiptItem_unique` UNIQUE(`goodsReceiptItemId`)
+		CONSTRAINT `stockMovements_movementId` PRIMARY KEY(`movementId`),
+		CONSTRAINT `stockMovements_movementId_unique` UNIQUE(`movementId`),
+		CONSTRAINT `stockMovements_receiptItem_unique` UNIQUE(`goodsReceiptItemId`)
 );
 ALTER TABLE `inventory` ADD `sourcePurchaseOrderId` varchar(50);
 ALTER TABLE `inventory` ADD `sourceGoodsReceiptId` varchar(50);
