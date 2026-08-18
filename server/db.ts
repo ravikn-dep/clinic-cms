@@ -11,16 +11,23 @@ const SALT_ROUNDS = 10;
 type InsertUser = typeof users.$inferInsert;
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pool: mysql.Pool | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
+// Lazily create a managed pool so idle or dropped MySQL connections are replaced automatically.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      const connection = await mysql.createConnection(process.env.DATABASE_URL);
-      await connection.query("SET SESSION sql_mode = ''");
-      _db = drizzle(connection as any);
+      _pool = mysql.createPool({
+        uri: process.env.DATABASE_URL,
+        waitForConnections: true,
+        connectionLimit: 10,
+        enableKeepAlive: true,
+        keepAliveInitialDelay: 0,
+      });
+      _db = drizzle(_pool as any);
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.warn("[Database] Failed to create connection pool:", error);
+      _pool = null;
       _db = null;
     }
   }
