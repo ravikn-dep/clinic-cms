@@ -3,7 +3,7 @@
 **Repository:** `ravikn-dep/clinic-cms`  
 **Baseline:** Protected main (Step 2 schema verification hardened baseline)  
 **Milestone:** `step2-stable-verified` / `phase3-step1`  
-**Classification:** `PHASE3_STEP1_OCR_FOUNDATION_READY`
+**Classification:** `PHASE3_STEP1_OCR_FOUNDATION_SECURITY_HARDENED`
 
 ---
 
@@ -43,7 +43,8 @@ Before initiating Phase 3 Step 1 implementation, the workspace was validated aga
 
 Server-side validation enforces strict input safety before OCR execution:
 - **Authentication:** Protected tRPC procedure (`protectedProcedure`) requires a valid session token.
-- **MIME Type Validation:** Allowed types restricted strictly to `image/jpeg`, `image/jpg`, `image/png`, and `application/pdf`.
+- - **MIME Type Validation:** Allowed types are restricted strictly to `image/jpeg` and `image/png`.
+- **PDF Handling:** PDF OCR is intentionally deferred to a later implementation using the appropriate Google Vision file/PDF processing path.
 - **Payload Size Limits:** Default 10MB limit (configurable via `maxSizeMb`).
 - **Empty File & Malformed Input Rejection:** Validates non-empty buffers and base64 payloads.
 - **Error Wrapping:** Suppresses raw Google API stack traces and exposes safe user-facing error messages.
@@ -62,14 +63,22 @@ This task introduced **OCR Foundation Only**.
 ## 6. Testing & Validation
 
 - **Tests Added (`server/ocr.test.ts`):**
-  - Valid document OCR extraction (mocked)
+  - JPEG OCR input acceptance
+  - PNG OCR input acceptance
+  - PDF rejection with the safe message: `PDF OCR is not supported in this release`
   - Unsupported MIME type rejection
   - Oversize document rejection
   - Empty file rejection
-  - Custom provider injection and mock fallback
-  - OCR-only boundary guarantee (verifying zero side-effects on POs or inventory)
-- **Test Results:** 177/177 tests passed successfully.
-- **Build Result:** Production build successful (`dist/index.js` compiled cleanly).
+  - Malformed input rejection
+  - Custom provider injection and deterministic mock fallback
+  - Raw Google/provider error masking so internal SDK, credential, project, or infrastructure details cannot escape through the OCR API boundary
+  - Confidence omission when no provider-derived confidence value is available
+  - OCR-only boundary verification confirming zero Purchase Order, Goods Receipt, inventory, or stock-movement mutations
+
+- **Targeted OCR Tests:** 10/10 passed.
+- **TypeScript Check (`pnpm check`):** 0 errors.
+- **Production Build (`pnpm build`):** Successful.
+- **GitHub CI:** `validate` completed successfully on the PR branch.
 
 ---
 
@@ -79,5 +88,5 @@ This task introduced **OCR Foundation Only**.
 2. `server/ocr/provider.ts` — Created OCR provider manager, validation helpers, and mock fallback.
 3. `server/ocr/googleVisionProvider.ts` — Created official Google Cloud Vision integration wrapper.
 4. `server/routers.ts` — Added authenticated `ocr.extractDocument` endpoint.
-5. `server/ocr.test.ts` — Added comprehensive unit tests (177/177 passing).
+5. `server/ocr.test.ts` — Added 10 targeted OCR/security/boundary tests; all 10 passed.
 6. `package.json` — Added `@google-cloud/vision` dependency.
