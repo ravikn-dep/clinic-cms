@@ -12,7 +12,8 @@
 Before initiating Phase 3 Step 1 implementation, the workspace was validated against the protected main branch:
 - **Local HEAD:** Synchronized with Step 2 schema-verification hardened baseline.
 - **TypeScript Check (`pnpm check`):** 0 errors.
-- **Unit Tests (`pnpm test --run`):** 170/170 tests passing (extended to 177/177 passing with OCR tests).
+- **Baseline Unit Tests:** Baseline regression suite was green before Phase 3 Step 1 implementation.
+- **Phase 3 Validation:** Final hardened OCR validation is documented in Section 6.
 - **Production Build (`pnpm build`):** Successful compilation.
 
 ---
@@ -43,7 +44,7 @@ Before initiating Phase 3 Step 1 implementation, the workspace was validated aga
 
 Server-side validation enforces strict input safety before OCR execution:
 - **Authentication:** Protected tRPC procedure (`protectedProcedure`) requires a valid session token.
-- - **MIME Type Validation:** Allowed types are restricted strictly to `image/jpeg` and `image/png`.
+- **MIME Type Validation:** Allowed types are restricted strictly to `image/jpeg` and `image/png`.
 - **PDF Handling:** PDF OCR is intentionally deferred to a later implementation using the appropriate Google Vision file/PDF processing path.
 - **Payload Size Limits:** Default 10MB limit (configurable via `maxSizeMb`).
 - **Empty File & Malformed Input Rejection:** Validates non-empty buffers and base64 payloads.
