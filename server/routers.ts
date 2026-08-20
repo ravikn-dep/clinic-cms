@@ -17,6 +17,7 @@ import { notifyOwner } from "./_core/notification";
 import { resolveArtifactStorageKey } from "./artifactAccess";
 import { hashPassword, verifyPassword, generateRandomPassword } from "./_core/auth";
 import { registerPatientWithTracking } from "./services/patientRegistration";
+import { getOcrProvider } from "./ocr/provider";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -40,6 +41,29 @@ const safeNotifyOwner = async (title: string, content: string) => {
 
 export const appRouter = router({
   system: systemRouter,
+  ocr: router({
+    extractDocument: protectedProcedure
+      .input(z.object({
+        data: z.string(),
+        mimeType: z.string(),
+        maxSizeMb: z.number().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        try {
+          const provider = getOcrProvider();
+          const result = await provider.extractDocument({
+            data: input.data,
+            mimeType: input.mimeType,
+            maxSizeMb: input.maxSizeMb,
+          });
+          return result;
+        } catch (error) {
+          const errMessage = error instanceof Error ? error.message : String(error);
+          console.error("[OCR Router] Extraction failed:", errMessage);
+          throw new Error(errMessage || "OCR extraction failed");
+        }
+      }),
+  }),
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
