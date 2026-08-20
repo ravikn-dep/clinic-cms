@@ -18,6 +18,8 @@ import { resolveArtifactStorageKey } from "./artifactAccess";
 import { hashPassword, verifyPassword, generateRandomPassword } from "./_core/auth";
 import { registerPatientWithTracking } from "./services/patientRegistration";
 import { getOcrProvider } from "./ocr/provider";
+import { parseOcrText } from "./poParsing/parser";
+import { reconcileDocument } from "./poParsing/reconcile";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -74,6 +76,16 @@ export const appRouter = router({
           }
           throw new Error("OCR extraction failed");
         }
+      }),
+  }),
+  poParsing: router({
+    parseOcrText: protectedProcedure
+      .input(z.object({
+        fullText: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const parsed = parseOcrText(input.fullText);
+        return reconcileDocument(parsed);
       }),
   }),
   auth: router({

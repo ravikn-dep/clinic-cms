@@ -933,10 +933,16 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Produce PHASE3_STEP1_GIT_HISTORY_REPORT.md
 
 ## Phase 3 Step 1 OCR Security Hardening (2026-08-18)
-- [ ] Sanitize Google Cloud Vision provider errors to throw stable application codes (OCR_PROVIDER_INITIALIZATION_FAILED, OCR_PROVIDER_PROCESSING_FAILED) and log raw details server-side
-- [ ] Sanitize router response to return generic client error ("OCR extraction failed") on internal failures without exposing raw SDK strings
-- [ ] Restrict MIME validation to image/jpeg and image/png; safely reject application/pdf with "PDF OCR is not supported in this release"
-- [ ] Remove hardcoded confidence: 0.95 and omit/return undefined when uncalculated
-- [ ] Add unit tests proving JPEG/PNG acceptance, safe PDF rejection, unsupported MIME rejection, raw error masking, and zero PO/GR/inventory mutations
-- [ ] Run pnpm check, pnpm test --run server/ocr.test.ts, and pnpm build
-- [ ] Update PHASE_3_STEP_1_OCR_FOUNDATION_REPORT.md stating JPEG/PNG supported in Step 1 and PDF deferred
+- [x] Sanitize Google Cloud Vision provider errors to throw stable application codes (OCR_PROVIDER_INITIALIZATION_FAILED, OCR_PROVIDER_PROCESSING_FAILED) and log raw details server-side
+- [x] Sanitize router response to return generic client error ("OCR extraction failed") on internal failures without exposing raw SDK strings
+- [x] Restrict MIME validation to image/jpeg and image/png; safely reject application/pdf with "PDF OCR is not supported in this release"
+- [x] Remove hardcoded confidence: 0.95 and omit/return undefined when uncalculated
+- [x] Add unit tests proving JPEG/PNG acceptance, safe PDF rejection, unsupported MIME rejection, raw error masking, and zero PO/GR/inventory mutations
+- [x] Run pnpm check, pnpm test --run server/ocr.test.ts, and pnpm build
+- [x] Update PHASE_3_STEP_1_OCR_FOUNDATION_REPORT.md stating JPEG/PNG supported in Step 1 and PDF deferred
+
+## Attachment Processing (pasted_content_14.txt)
+- [x] Read and summarize pasted_content_14.txt
+- [x] Verify claims against repository state
+- [x] Apply safe supported changes with tests
+- [x] Validate and deliver four-part report
