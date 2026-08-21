@@ -18,6 +18,8 @@ import { resolveArtifactStorageKey } from "./artifactAccess";
 import { hashPassword, verifyPassword, generateRandomPassword } from "./_core/auth";
 import { registerPatientWithTracking } from "./services/patientRegistration";
 import { getOcrProvider } from "./ocr/provider";
+import { parseOcrText } from "./poParsing/parser";
+import { reconcileDocument } from "./poParsing/reconcile";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -41,6 +43,7 @@ const safeNotifyOwner = async (title: string, content: string) => {
 
 export const appRouter = router({
   system: systemRouter,
+
   ocr: router({
     extractDocument: protectedProcedure
       .input(z.object({
@@ -60,10 +63,35 @@ export const appRouter = router({
         } catch (error) {
           const errMessage = error instanceof Error ? error.message : String(error);
           console.error("[OCR Router] Extraction failed:", errMessage);
-          throw new Error(errMessage || "OCR extraction failed");
+
+          const isSafeValidation =
+            errMessage.includes("Unsupported MIME type") ||
+            errMessage.includes("PDF OCR is not supported") ||
+            errMessage.includes("Cannot process empty file") ||
+            errMessage.includes("exceeds maximum allowed limit") ||
+            errMessage.includes("OCR input data is required") ||
+            errMessage.includes("Malformed data URI");
+
+          if (isSafeValidation) {
+            throw new Error(errMessage);
+          }
+
+          throw new Error("OCR extraction failed");
         }
       }),
   }),
+
+  poParsing: router({
+    parseOcrText: protectedProcedure
+      .input(z.object({
+        fullText: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        const parsed = parseOcrText(input.fullText);
+        return reconcileDocument(parsed);
+      }),
+  }),
+
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {

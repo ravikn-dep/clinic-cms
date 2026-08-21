@@ -1,5 +1,5 @@
-import { OcrInput, OcrProvider, OcrResult, OcrPage } from './types';
 import { validateOcrInput } from './provider';
+import type { OcrProvider, OcrInput, OcrResult, OcrPage } from './types';
 
 export class GoogleVisionProvider implements OcrProvider {
   private client: any = null;
@@ -12,7 +12,9 @@ export class GoogleVisionProvider implements OcrProvider {
         const vision = require('@google-cloud/vision');
         this.client = new vision.ImageAnnotatorClient();
       } catch (error) {
-        throw new Error(`Google Cloud Vision client initialization failed: ${error instanceof Error ? error.message : String(error)}. Ensure '@google-cloud/vision' is installed and credentials are configured.`);
+        const rawErr = error instanceof Error ? error.message : String(error);
+        console.error('[GoogleVisionProvider] Initialization failed:', rawErr);
+        throw new Error('OCR_PROVIDER_INITIALIZATION_FAILED');
       }
     }
     return this.client;
@@ -42,9 +44,8 @@ export class GoogleVisionProvider implements OcrProvider {
       throw new Error('Invalid OCR input format');
     }
 
-    const client = this.getClient();
-
     try {
+      const client = this.getClient();
       const [result] = await client.documentTextDetection({
         image: { content: contentBuffer },
       });
@@ -92,15 +93,18 @@ export class GoogleVisionProvider implements OcrProvider {
         provider: 'google-cloud-vision',
         fullText,
         pages,
-        confidence: 0.95, // Google Vision aggregate estimate
+        // Confidence omitted when uncalculated from raw confidence annotations per security hardening rules
         rawProviderMetadata: {
           textAnnotationsCount: result.textAnnotations?.length || 0,
         },
       };
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.error('[GoogleVisionProvider] Extraction error:', errorMsg);
-      throw new Error(`Google Cloud Vision OCR processing failed: ${errorMsg}`);
+      const rawErr = error instanceof Error ? error.message : String(error);
+      if (rawErr.includes('OCR_PROVIDER_INITIALIZATION_FAILED') || rawErr.includes('OCR_PROVIDER_PROCESSING_FAILED') || rawErr.includes('Unsupported MIME type') || rawErr.includes('PDF OCR is not supported') || rawErr.includes('Cannot process empty file') || rawErr.includes('exceeds maximum allowed limit') || rawErr.includes('OCR input data is required') || rawErr.includes('Malformed data URI')) {
+        throw error;
+      }
+      console.error('[GoogleVisionProvider] Processing error:', rawErr);
+      throw new Error('OCR_PROVIDER_PROCESSING_FAILED');
     }
   }
 }
