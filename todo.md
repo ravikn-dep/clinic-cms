@@ -946,3 +946,10 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Verify claims against repository state
 - [x] Apply safe supported changes with tests
 - [x] Validate and deliver four-part report
+
+## Phase 3 Step 2 Bundle Export
+- [x] Identify exact validated parser commit and confirm ancestry relative to canonical base 53ba7eccd59233b62c6ec0873b0f14dbc3832053
+- [x] Validate exact target commit with pnpm check, pnpm test --run server/poParsing.test.ts (6/6), and pnpm build
+- [x] Create temporary export branch export/phase3-step2-parser
+- [x] Create and verify self-contained Git bundle CLINIC_CMS_PHASE3_STEP2_PARSER.bundle
+- [x] Produce PHASE3_STEP2_GIT_HISTORY_REPORT.md
