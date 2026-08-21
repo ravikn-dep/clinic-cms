@@ -953,3 +953,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Create temporary export branch export/phase3-step2-parser
 - [x] Create and verify self-contained Git bundle CLINIC_CMS_PHASE3_STEP2_PARSER.bundle
 - [x] Produce PHASE3_STEP2_GIT_HISTORY_REPORT.md
+
+## Phase 3 Step 3 Attachment Processing (pasted_content_15.txt)
+- [ ] Read and summarize pasted_content_15.txt
+- [ ] Verify claims against repository state
+- [ ] Apply safe supported changes with tests
+- [ ] Validate and deliver four-part report
