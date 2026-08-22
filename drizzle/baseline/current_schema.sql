@@ -112,6 +112,7 @@ CREATE TABLE `purchaseOrderItems` (
 	`poItemId` varchar(50) NOT NULL,
 	`purchaseOrderId` varchar(50) NOT NULL,
 	`itemName` varchar(255) NOT NULL,
+	`catalogItemId` varchar(50),
 	`quantity` int DEFAULT 1,
 	`unitPrice` decimal(10,2) NOT NULL,
 	`subtotal` decimal(10,2) NOT NULL,
@@ -380,12 +381,47 @@ CREATE TABLE `purchaseOrderExtractionReviews` (
 	`warningsJson` text NOT NULL,
 	`correctedFieldsJson` text NOT NULL,
 	`finalReviewedValuesJson` text NOT NULL,
+	`catalogResolutionsJson` text,
 	CONSTRAINT `purchaseOrderExtractionReviews_reviewId` PRIMARY KEY(`reviewId`),
 	CONSTRAINT `purchaseOrderExtractionReviews_reviewId_unique` UNIQUE(`reviewId`),
 	CONSTRAINT `purchaseOrderExtractionReviews_purchaseOrder_unique` UNIQUE(`purchaseOrderId`),
 	CONSTRAINT `purchaseOrderExtractionReviews_submission_unique` UNIQUE(`reviewSubmissionId`)
 );
 CREATE INDEX `purchaseOrderExtractionReviews_reviewer_createdAt_idx` ON `purchaseOrderExtractionReviews` (`reviewerUserId`,`createdAt`);
+CREATE TABLE `catalogItems` (
+	`catalogItemId` varchar(50) NOT NULL,
+	`canonicalName` varchar(255) NOT NULL,
+	`normalizedName` varchar(255) NOT NULL,
+	`genericName` varchar(255),
+	`brandName` varchar(255),
+	`strength` varchar(100),
+	`dosageForm` varchar(100),
+	`manufacturer` varchar(255),
+	`hsnCode` varchar(32),
+	`gstRate` decimal(5,2),
+	`active` tinyint NOT NULL DEFAULT 1,
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `catalogItems_catalogItemId` PRIMARY KEY(`catalogItemId`),
+	CONSTRAINT `catalogItems_catalogItemId_unique` UNIQUE(`catalogItemId`),
+	CONSTRAINT `catalogItems_normalizedName_unique` UNIQUE(`normalizedName`)
+);
+CREATE INDEX `catalogItems_active_normalizedName_idx` ON `catalogItems` (`active`,`normalizedName`);
+CREATE TABLE `catalogItemAliases` (
+	`aliasId` varchar(50) NOT NULL,
+	`catalogItemId` varchar(50) NOT NULL,
+	`vendorId` varchar(50) NOT NULL DEFAULT '',
+	`aliasText` varchar(255) NOT NULL,
+	`normalizedAlias` varchar(255) NOT NULL,
+	`source` varchar(50) NOT NULL,
+	`active` tinyint NOT NULL DEFAULT 1,
+	`createdBy` varchar(100),
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT `catalogItemAliases_aliasId` PRIMARY KEY(`aliasId`),
+	CONSTRAINT `catalogItemAliases_aliasId_unique` UNIQUE(`aliasId`),
+	CONSTRAINT `catalogItemAliases_vendor_alias_unique` UNIQUE(`vendorId`,`normalizedAlias`)
+);
+CREATE INDEX `catalogItemAliases_catalogItem_active_idx` ON `catalogItemAliases` (`catalogItemId`,`active`);
 CREATE TABLE `externalRequestReplays` (
 	`replayId` varchar(64) NOT NULL,
 	`serviceKeyId` varchar(100) NOT NULL,

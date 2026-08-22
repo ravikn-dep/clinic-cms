@@ -22,6 +22,8 @@ import { parseOcrText } from "./poParsing/parser";
 import { reconcileDocument } from "./poParsing/reconcile";
 import { applySubmittedPurchaseOrderValues, createExtractionReviewEvidence } from "../shared/poExtractionReview";
 import type { PurchaseOrderReviewPrefill } from "../shared/poReviewPrefill";
+import type { CatalogResolutionDecision } from "../shared/catalogResolution";
+import { suggestCatalogMatches } from "./catalogMatching/matcher";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -91,6 +93,19 @@ const purchaseOrderReviewPrefillSchema = z.object({
   requiresExplicitSubmission: z.literal(true),
 });
 
+const catalogResolutionInputSchema = z.object({
+  lineIndex: z.number().int().min(0).max(99),
+  decision: z.enum(["ACCEPTED", "UNMATCHED"]),
+  catalogItemId: z.string().min(1).max(50).optional(),
+}).superRefine((value, ctx) => {
+  if (value.decision === "ACCEPTED" && !value.catalogItemId) {
+    ctx.addIssue({ code: "custom", message: "An accepted catalog match requires a catalog item" });
+  }
+  if (value.decision === "UNMATCHED" && value.catalogItemId) {
+    ctx.addIssue({ code: "custom", message: "An unmatched decision cannot include a catalog item" });
+  }
+});
+
 const purchaseOrderCreateInputSchema = z.object({
   vendorName: z.string().min(1),
   vendorContactNumber: z.string().min(10),
@@ -109,16 +124,20 @@ const purchaseOrderCreateInputSchema = z.object({
   })).min(1),
 });
 
-function buildPendingApprovalPurchaseOrder(input: z.infer<typeof purchaseOrderCreateInputSchema>) {
+function buildPendingApprovalPurchaseOrder(
+  input: z.infer<typeof purchaseOrderCreateInputSchema>,
+  catalogItemIdsByLineIndex = new Map<number, string>(),
+) {
   const purchaseOrderId = utils.generateAuditLogId();
   const totalAmount = Number(input.totalAmount);
-  const items = input.items.map((item) => {
+  const items = input.items.map((item, index) => {
     const poItemId = utils.generateAuditLogId();
     const unitPrice = Number(item.unitPrice);
     return {
       poItemId,
       purchaseOrderId,
       itemName: item.itemName.trim(),
+      catalogItemId: catalogItemIdsByLineIndex.get(index),
       quantity: item.quantity,
       unitPrice: unitPrice.toString() as any,
       subtotal: (unitPrice * item.quantity).toString() as any,
@@ -145,6 +164,70 @@ function buildPendingApprovalPurchaseOrder(input: z.infer<typeof purchaseOrderCr
       notes: input.notes,
     },
   };
+}
+
+async function buildCatalogResolutionEvidence(
+  decisions: z.infer<typeof catalogResolutionInputSchema>[],
+  review: PurchaseOrderReviewPrefill,
+  confirmedAt: string,
+): Promise<{ resolutions: CatalogResolutionDecision[]; catalogItemIdsByLineIndex: Map<number, string> }> {
+  const uniqueLineIndices = new Set<number>();
+  for (const decision of decisions) {
+    if (uniqueLineIndices.has(decision.lineIndex)) throw new Error("Each review line can have only one catalog decision");
+    uniqueLineIndices.add(decision.lineIndex);
+    if (!review.items[decision.lineIndex]) throw new Error("Catalog decision references an unavailable review line");
+  }
+
+  if (decisions.length === 0) {
+    return { resolutions: [], catalogItemIdsByLineIndex: new Map<number, string>() };
+  }
+
+  const [catalogItems, aliases] = await Promise.all([
+    db.getActiveCatalogItems(),
+    db.getActiveCatalogItemAliases(),
+  ]);
+  const resolutions: CatalogResolutionDecision[] = [];
+  const catalogItemIdsByLineIndex = new Map<number, string>();
+
+  for (const decision of decisions) {
+    const line = review.items[decision.lineIndex];
+    const base = {
+      lineIndex: decision.lineIndex,
+      originalExtractedDescription: line.description.extractedValue,
+      reviewedDescription: line.description.value,
+      decision: decision.decision,
+      reasons: [] as string[],
+      conflicts: [] as string[],
+      confirmedAt,
+    };
+
+    if (decision.decision === "UNMATCHED") {
+      resolutions.push(base);
+      continue;
+    }
+
+    const candidates = suggestCatalogMatches({
+      lineDescription: line.description.value,
+      hsnCode: line.hsnCode.value || undefined,
+    }, catalogItems, aliases);
+    const selected = candidates.find((candidate) => candidate.catalogItemId === decision.catalogItemId);
+    if (!selected) throw new Error("The selected catalog item is not a current safe suggestion for this reviewed line");
+    if (selected.conflicts.length > 0) throw new Error("A catalog match with strength, form, HSN, or ambiguity conflicts cannot be accepted");
+
+    catalogItemIdsByLineIndex.set(decision.lineIndex, selected.catalogItemId);
+    resolutions.push({
+      ...base,
+      decision: "ACCEPTED",
+      catalogItemId: selected.catalogItemId,
+      canonicalName: selected.canonicalName,
+      matchLevel: selected.matchLevel,
+      source: selected.source,
+      reasons: selected.reasons,
+      conflicts: selected.conflicts,
+    });
+  }
+
+  return { resolutions, catalogItemIdsByLineIndex };
 }
 
 async function requirePurchaseOrderAccess(user: { id: number; role: "user" | "admin" | "consultant" | "staff" }) {
@@ -204,6 +287,23 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const parsed = parseOcrText(input.fullText);
         return reconcileDocument(parsed);
+      }),
+  }),
+
+  catalogMatching: router({
+    suggestMatches: protectedProcedure
+      .input(z.object({
+        lineDescription: z.string().trim().min(1).max(2_000),
+        vendorId: z.string().trim().min(1).max(50).optional(),
+        hsnCode: z.string().trim().min(1).max(32).optional(),
+      }))
+      .query(async ({ input, ctx }) => {
+        await requirePurchaseOrderAccess(ctx.user);
+        const [catalogItems, aliases] = await Promise.all([
+          db.getActiveCatalogItems(),
+          db.getActiveCatalogItemAliases(),
+        ]);
+        return suggestCatalogMatches(input, catalogItems, aliases);
       }),
   }),
 
@@ -1173,6 +1273,7 @@ export const appRouter = router({
         reviewSubmissionId: z.string().uuid(),
         extractionProvider: z.enum(["google-cloud-vision", "mock-ocr"]),
         review: purchaseOrderReviewPrefillSchema,
+        catalogResolutions: z.array(catalogResolutionInputSchema).max(100).default([]),
       }))
       .mutation(async ({ input, ctx }) => {
         await requirePurchaseOrderAccess(ctx.user);
@@ -1180,14 +1281,15 @@ export const appRouter = router({
         const duplicate = await db.getPurchaseOrderExtractionReviewBySubmissionId(input.reviewSubmissionId);
         if (duplicate) throw new Error("This reviewed extraction has already been submitted");
 
-        const { purchaseOrderId, totalAmount, items, purchaseOrder } = buildPendingApprovalPurchaseOrder(input);
         const finalReview = applySubmittedPurchaseOrderValues(input.review as PurchaseOrderReviewPrefill, {
           vendorName: input.vendorName,
           vendorGSTNumber: input.vendorGSTNumber,
           items: input.items,
         });
-        const reviewEvidence = createExtractionReviewEvidence(finalReview);
         const reviewedAt = new Date().toISOString();
+        const catalogEvidence = await buildCatalogResolutionEvidence(input.catalogResolutions, finalReview, reviewedAt);
+        const { purchaseOrderId, totalAmount, items, purchaseOrder } = buildPendingApprovalPurchaseOrder(input, catalogEvidence.catalogItemIdsByLineIndex);
+        const reviewEvidence = createExtractionReviewEvidence(finalReview);
         const reviewId = utils.generateAuditLogId();
 
         try {
@@ -1210,6 +1312,7 @@ export const appRouter = router({
               warningsJson: JSON.stringify(reviewEvidence.warnings),
               correctedFieldsJson: JSON.stringify(reviewEvidence.correctedFields),
               finalReviewedValuesJson: JSON.stringify(reviewEvidence.finalReviewedValues),
+              catalogResolutionsJson: JSON.stringify(catalogEvidence.resolutions),
             },
             auditLog: {
               logId: utils.generateAuditLogId(),
@@ -1217,7 +1320,7 @@ export const appRouter = router({
               actionType: "CREATE",
               tableName: "purchaseOrderExtractionReviews",
               recordId: reviewId,
-              newValue: JSON.stringify({ purchaseOrderId, reviewId, reviewStatus: "CONFIRMED" }),
+              newValue: JSON.stringify({ purchaseOrderId, reviewId, reviewStatus: "CONFIRMED", acceptedCatalogMatchCount: catalogEvidence.resolutions.filter((resolution) => resolution.decision === "ACCEPTED").length }),
               timestamp: reviewedAt,
             },
             history: {
@@ -1227,7 +1330,7 @@ export const appRouter = router({
               actorId: ctx.user.id.toString(),
               actorName: ctx.user.name ?? null,
               eventSummary: "Reviewed OCR/parser extraction evidence recorded with pending-approval PO submission.",
-              details: JSON.stringify({ reviewId, correctedFieldCount: reviewEvidence.correctedFields.length, documentType: reviewEvidence.documentType }),
+              details: JSON.stringify({ reviewId, correctedFieldCount: reviewEvidence.correctedFields.length, documentType: reviewEvidence.documentType, acceptedCatalogMatchCount: catalogEvidence.resolutions.filter((resolution) => resolution.decision === "ACCEPTED").length }),
               createdAt: reviewedAt,
             },
           });

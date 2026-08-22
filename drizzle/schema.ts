@@ -177,6 +177,7 @@ export const purchaseOrderItems = mysqlTable("purchaseOrderItems", {
 	poItemId: varchar({ length: 50 }).notNull(),
 	purchaseOrderId: varchar({ length: 50 }).notNull(),
 	itemName: varchar({ length: 255 }).notNull(),
+	catalogItemId: varchar({ length: 50 }),
 	quantity: int().default(1),
 	receivedQuantity: int().default(0).notNull(),
 	unitPrice: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -298,11 +299,58 @@ export const purchaseOrderExtractionReviews = mysqlTable("purchaseOrderExtractio
 	warningsJson: text().notNull(),
 	correctedFieldsJson: text().notNull(),
 	finalReviewedValuesJson: text().notNull(),
+	catalogResolutionsJson: text(),
 }, (table) => [
 	uniqueIndex("purchaseOrderExtractionReviews_reviewId_unique").on(table.reviewId),
 	uniqueIndex("purchaseOrderExtractionReviews_purchaseOrder_unique").on(table.purchaseOrderId),
 	uniqueIndex("purchaseOrderExtractionReviews_submission_unique").on(table.reviewSubmissionId),
 	index("purchaseOrderExtractionReviews_reviewer_createdAt_idx").on(table.reviewerUserId, table.createdAt),
+]);
+
+/**
+ * Canonical product identity. Inventory remains batch-centric and must not be
+ * treated as this catalog; catalog data is curated explicitly and never
+ * inferred from OCR or a supplier invoice.
+ */
+export const catalogItems = mysqlTable("catalogItems", {
+	catalogItemId: varchar({ length: 50 }).primaryKey(),
+	canonicalName: varchar({ length: 255 }).notNull(),
+	normalizedName: varchar({ length: 255 }).notNull(),
+	genericName: varchar({ length: 255 }),
+	brandName: varchar({ length: 255 }),
+	strength: varchar({ length: 100 }),
+	dosageForm: varchar({ length: 100 }),
+	manufacturer: varchar({ length: 255 }),
+	hsnCode: varchar({ length: 32 }),
+	gstRate: decimal({ precision: 5, scale: 2 }),
+	active: tinyint().default(1).notNull(),
+	createdAt: timestamp({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
+	updatedAt: timestamp({ mode: "string" }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+	uniqueIndex("catalogItems_catalogItemId_unique").on(table.catalogItemId),
+	uniqueIndex("catalogItems_normalizedName_unique").on(table.normalizedName),
+	index("catalogItems_active_normalizedName_idx").on(table.active, table.normalizedName),
+]);
+
+/**
+ * Controlled aliases for catalog entries. An empty vendorId denotes a global
+ * alias; vendor-specific aliases retain their actual vendor ID. No automatic
+ * alias-learning endpoint is introduced in Step 5.
+ */
+export const catalogItemAliases = mysqlTable("catalogItemAliases", {
+	aliasId: varchar({ length: 50 }).primaryKey(),
+	catalogItemId: varchar({ length: 50 }).notNull(),
+	vendorId: varchar({ length: 50 }).notNull().default(""),
+	aliasText: varchar({ length: 255 }).notNull(),
+	normalizedAlias: varchar({ length: 255 }).notNull(),
+	source: varchar({ length: 50 }).notNull(),
+	active: tinyint().default(1).notNull(),
+	createdBy: varchar({ length: 100 }),
+	createdAt: timestamp({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
+}, (table) => [
+	uniqueIndex("catalogItemAliases_aliasId_unique").on(table.aliasId),
+	uniqueIndex("catalogItemAliases_vendor_alias_unique").on(table.vendorId, table.normalizedAlias),
+	index("catalogItemAliases_catalogItem_active_idx").on(table.catalogItemId, table.active),
 ]);
 
 export const rolePermissions = mysqlTable("rolePermissions", {
