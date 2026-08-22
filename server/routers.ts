@@ -20,6 +20,8 @@ import { registerPatientWithTracking } from "./services/patientRegistration";
 import { getOcrProvider } from "./ocr/provider";
 import { parseOcrText } from "./poParsing/parser";
 import { reconcileDocument } from "./poParsing/reconcile";
+import { applySubmittedPurchaseOrderValues, createExtractionReviewEvidence } from "../shared/poExtractionReview";
+import type { PurchaseOrderReviewPrefill } from "../shared/poReviewPrefill";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -40,6 +42,119 @@ const safeNotifyOwner = async (title: string, content: string) => {
     console.warn(`[Notification] Owner alert failed for ${title}:`, error);
   }
 };
+
+const reviewFieldSchema = z.object({
+  value: z.string().max(2_000),
+  extractedValue: z.string().max(2_000),
+  sourceText: z.string().max(2_000).optional(),
+  confidence: z.enum(["high", "medium", "low"]),
+  warnings: z.array(z.string().max(500)).max(50),
+  edited: z.boolean(),
+});
+
+const purchaseOrderReviewPrefillSchema = z.object({
+  documentType: z.enum(["PURCHASE_ORDER", "GST_INVOICE", "UNKNOWN"]),
+  header: z.object({
+    invoiceNumber: reviewFieldSchema,
+    invoiceDate: reviewFieldSchema,
+    vendorName: reviewFieldSchema,
+    vendorGstin: reviewFieldSchema,
+  }),
+  totals: z.object({
+    subtotal: reviewFieldSchema,
+    cgst: reviewFieldSchema,
+    sgst: reviewFieldSchema,
+    igst: reviewFieldSchema,
+    totalTax: reviewFieldSchema,
+    grandTotal: reviewFieldSchema,
+  }),
+  items: z.array(z.object({
+    description: reviewFieldSchema,
+    hsnCode: reviewFieldSchema,
+    batchNumber: reviewFieldSchema,
+    expiryDate: reviewFieldSchema,
+    quantity: reviewFieldSchema,
+    unitPrice: reviewFieldSchema,
+    discount: reviewFieldSchema,
+    gstRate: reviewFieldSchema,
+    taxableAmount: reviewFieldSchema,
+    lineTotal: reviewFieldSchema,
+  })).max(100),
+  warnings: z.array(z.string().max(500)).max(100),
+  reconciliation: z.object({
+    lineTotalsMatch: z.boolean().nullable(),
+    subtotalMatches: z.boolean().nullable(),
+    taxMatches: z.boolean().nullable(),
+    grandTotalMatches: z.boolean().nullable(),
+    delta: z.number().finite().optional(),
+  }),
+  requiresExplicitSubmission: z.literal(true),
+});
+
+const purchaseOrderCreateInputSchema = z.object({
+  vendorName: z.string().min(1),
+  vendorContactNumber: z.string().min(10),
+  vendorEmail: z.string().email().optional(),
+  vendorGSTNumber: z.string().optional(),
+  vendorBankDetails: z.string().optional(),
+  vendorAddress: z.string().optional(),
+  totalAmount: z.string().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Total amount must be a valid non-negative number"),
+  expectedDeliveryDate: z.string().optional(),
+  notes: z.string().optional(),
+  authorizationNotes: z.string().optional(),
+  items: z.array(z.object({
+    itemName: z.string().min(1),
+    quantity: z.number().int().positive(),
+    unitPrice: z.string().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Unit price must be a valid non-negative number"),
+  })).min(1),
+});
+
+function buildPendingApprovalPurchaseOrder(input: z.infer<typeof purchaseOrderCreateInputSchema>) {
+  const purchaseOrderId = utils.generateAuditLogId();
+  const totalAmount = Number(input.totalAmount);
+  const items = input.items.map((item) => {
+    const poItemId = utils.generateAuditLogId();
+    const unitPrice = Number(item.unitPrice);
+    return {
+      poItemId,
+      purchaseOrderId,
+      itemName: item.itemName.trim(),
+      quantity: item.quantity,
+      unitPrice: unitPrice.toString() as any,
+      subtotal: (unitPrice * item.quantity).toString() as any,
+    };
+  });
+
+  return {
+    purchaseOrderId,
+    totalAmount,
+    items,
+    purchaseOrder: {
+      purchaseOrderId,
+      vendorName: input.vendorName,
+      vendorContactNumber: input.vendorContactNumber,
+      vendorEmail: input.vendorEmail,
+      vendorGstNumber: input.vendorGSTNumber,
+      vendorBankDetails: input.vendorBankDetails,
+      vendorAddress: input.vendorAddress,
+      totalAmount: totalAmount.toString() as any,
+      paymentStatus: "Pending" as const,
+      approvalStatus: "Pending Approval" as const,
+      authorizationNotes: input.authorizationNotes,
+      expectedDeliveryDate: input.expectedDeliveryDate,
+      notes: input.notes,
+    },
+  };
+}
+
+async function requirePurchaseOrderAccess(user: { id: number; role: "user" | "admin" | "consultant" | "staff" }) {
+  if (user.role === "user") {
+    throw new Error("You do not have permission to access purchase-order evidence");
+  }
+  if (!(await db.checkFeatureAccess(user.role, "purchase_orders"))) {
+    throw new Error("You do not have permission to access purchase-order evidence");
+  }
+}
 
 export const appRouter = router({
   system: systemRouter,
@@ -1019,54 +1134,11 @@ export const appRouter = router({
   // ============ PHARMACY PURCHASE ORDERS ============
   purchaseOrders: router({
     create: protectedProcedure
-      .input(z.object({
-        vendorName: z.string().min(1),
-        vendorContactNumber: z.string().min(10),
-        vendorEmail: z.string().email().optional(),
-        vendorGSTNumber: z.string().optional(),
-        vendorBankDetails: z.string().optional(),
-        vendorAddress: z.string().optional(),
-        totalAmount: z.string().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Total amount must be a valid non-negative number"),
-        expectedDeliveryDate: z.string().optional(),
-        notes: z.string().optional(),
-        authorizationNotes: z.string().optional(),
-        items: z.array(z.object({
-          itemName: z.string().min(1),
-          quantity: z.number().int().positive(),
-          unitPrice: z.string().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Unit price must be a valid non-negative number"),
-        })).min(1),
-      }))
+      .input(purchaseOrderCreateInputSchema)
       .mutation(async ({ input, ctx }) => {
-        const purchaseOrderId = utils.generateAuditLogId();
-        const totalAmount = Number(input.totalAmount);
-        const items = input.items.map((item) => {
-          const poItemId = utils.generateAuditLogId();
-          const unitPrice = Number(item.unitPrice);
-          return {
-            poItemId,
-            purchaseOrderId,
-            itemName: item.itemName.trim(),
-            quantity: item.quantity,
-            unitPrice: unitPrice.toString() as any,
-            subtotal: (unitPrice * item.quantity).toString() as any,
-          };
-        });
+        const { purchaseOrderId, totalAmount, items, purchaseOrder } = buildPendingApprovalPurchaseOrder(input);
 
-        await db.createPurchaseOrderWithItems({
-          purchaseOrderId,
-          vendorName: input.vendorName,
-          vendorContactNumber: input.vendorContactNumber,
-          vendorEmail: input.vendorEmail,
-          vendorGstNumber: input.vendorGSTNumber,
-          vendorBankDetails: input.vendorBankDetails,
-          vendorAddress: input.vendorAddress,
-          totalAmount: totalAmount.toString() as any,
-          paymentStatus: "Pending",
-          approvalStatus: "Pending Approval",
-          authorizationNotes: input.authorizationNotes,
-          expectedDeliveryDate: input.expectedDeliveryDate,
-          notes: input.notes,
-        }, items);
+        await db.createPurchaseOrderWithItems(purchaseOrder, items);
 
         await db.createAuditLog({
           logId: utils.generateAuditLogId(),
@@ -1096,6 +1168,82 @@ export const appRouter = router({
         return { success: true, purchaseOrderId, approvalStatus: "Pending Approval" as const };
       }),
 
+    createFromReviewedExtraction: protectedProcedure
+      .input(purchaseOrderCreateInputSchema.extend({
+        reviewSubmissionId: z.string().uuid(),
+        extractionProvider: z.enum(["google-cloud-vision", "mock-ocr"]),
+        review: purchaseOrderReviewPrefillSchema,
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await requirePurchaseOrderAccess(ctx.user);
+
+        const duplicate = await db.getPurchaseOrderExtractionReviewBySubmissionId(input.reviewSubmissionId);
+        if (duplicate) throw new Error("This reviewed extraction has already been submitted");
+
+        const { purchaseOrderId, totalAmount, items, purchaseOrder } = buildPendingApprovalPurchaseOrder(input);
+        const finalReview = applySubmittedPurchaseOrderValues(input.review as PurchaseOrderReviewPrefill, {
+          vendorName: input.vendorName,
+          vendorGSTNumber: input.vendorGSTNumber,
+          items: input.items,
+        });
+        const reviewEvidence = createExtractionReviewEvidence(finalReview);
+        const reviewedAt = new Date().toISOString();
+        const reviewId = utils.generateAuditLogId();
+
+        try {
+          await db.createPurchaseOrderWithItemsAndExtractionReview(purchaseOrder, items, {
+            review: {
+              reviewId,
+              purchaseOrderId,
+              reviewSubmissionId: input.reviewSubmissionId,
+              extractionProvider: input.extractionProvider,
+              documentType: reviewEvidence.documentType,
+              reviewStatus: "CONFIRMED",
+              reviewerUserId: ctx.user.id.toString(),
+              reviewerName: ctx.user.name ?? null,
+              reviewedAt,
+              createdAt: reviewedAt,
+              extractedHeaderJson: JSON.stringify(reviewEvidence.extractedHeader),
+              extractedItemsJson: JSON.stringify(reviewEvidence.extractedItems),
+              extractedTotalsJson: JSON.stringify(reviewEvidence.extractedTotals),
+              reconciliationJson: JSON.stringify(reviewEvidence.reconciliation),
+              warningsJson: JSON.stringify(reviewEvidence.warnings),
+              correctedFieldsJson: JSON.stringify(reviewEvidence.correctedFields),
+              finalReviewedValuesJson: JSON.stringify(reviewEvidence.finalReviewedValues),
+            },
+            auditLog: {
+              logId: utils.generateAuditLogId(),
+              userId: ctx.user.id.toString(),
+              actionType: "CREATE",
+              tableName: "purchaseOrderExtractionReviews",
+              recordId: reviewId,
+              newValue: JSON.stringify({ purchaseOrderId, reviewId, reviewStatus: "CONFIRMED" }),
+              timestamp: reviewedAt,
+            },
+            history: {
+              historyId: utils.generateAuditLogId(),
+              purchaseOrderId,
+              eventType: "EXTRACTION_REVIEW_CONFIRMED",
+              actorId: ctx.user.id.toString(),
+              actorName: ctx.user.name ?? null,
+              eventSummary: "Reviewed OCR/parser extraction evidence recorded with pending-approval PO submission.",
+              details: JSON.stringify({ reviewId, correctedFieldCount: reviewEvidence.correctedFields.length, documentType: reviewEvidence.documentType }),
+              createdAt: reviewedAt,
+            },
+          });
+        } catch (error) {
+          console.error("[PO evidence] Reviewed submission transaction failed", error);
+          throw new Error("Unable to create the reviewed purchase order and its evidence record");
+        }
+
+        await safeNotifyOwner(
+          "Purchase Order Pending Approval",
+          `PO #${purchaseOrderId} from ${input.vendorName} for ₹${totalAmount} is awaiting approval. Reviewed extraction evidence was recorded.`,
+        );
+
+        return { success: true, purchaseOrderId, reviewId, approvalStatus: "Pending Approval" as const, evidenceRecorded: true as const };
+      }),
+
     getAll: protectedProcedure.query(async () => {
       return db.getAllPurchaseOrders();
     }),
@@ -1111,6 +1259,15 @@ export const appRouter = router({
         if (!po) return null;
         const items = await db.getPurchaseOrderItems(input.purchaseOrderId);
         return { ...po, items };
+      }),
+
+    getExtractionReview: protectedProcedure
+      .input(z.object({ purchaseOrderId: z.string().min(1) }))
+      .query(async ({ input, ctx }) => {
+        await requirePurchaseOrderAccess(ctx.user);
+        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
+        if (!po) throw new Error("Purchase Order not found");
+        return db.getPurchaseOrderExtractionReview(input.purchaseOrderId);
       }),
 
     getReceiptSummary: protectedProcedure

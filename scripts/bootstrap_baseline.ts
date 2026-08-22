@@ -157,7 +157,7 @@ async function bootstrap() {
 
   const requiredTables = [
     "users", "patients", "consultations", "inventory", "bills", "billItems", "billTemplates", "auditLogs", "notifications",
-    "purchaseOrders", "purchaseOrderItems", "purchaseOrderHistory", "goodsReceipts", "goodsReceiptItems", "stockMovements",
+    "purchaseOrders", "purchaseOrderItems", "purchaseOrderHistory", "purchaseOrderExtractionReviews", "goodsReceipts", "goodsReceiptItems", "stockMovements",
     "appointments", "consultantAvailability", "notificationPreferences", "rolePermissions", "vendors", "appointmentBookingLocks",
     "enquiries", "externalApiAuditLogs", "externalIdempotencyKeys", "externalRequestReplays",
   ];
@@ -166,7 +166,7 @@ async function bootstrap() {
     const found = tables.some(t => t.toLowerCase() === reqTable.toLowerCase());
     if (!found) await fail(connection, `Required table missing: ${reqTable}`);
   }
-  console.log("[Verification] All 25 required tables verified successfully.");
+  console.log("[Verification] All 26 required tables verified successfully.");
 
   const expectedPrimaryKeys: Array<[string, string[]]> = [
     ["users", ["id"]],
@@ -181,6 +181,7 @@ async function bootstrap() {
     ["purchaseOrders", ["purchaseOrderId"]],
     ["purchaseOrderItems", ["poItemId"]],
     ["purchaseOrderHistory", ["historyId"]],
+    ["purchaseOrderExtractionReviews", ["reviewId"]],
     ["goodsReceipts", ["goodsReceiptId"]],
     ["goodsReceiptItems", ["goodsReceiptItemId"]],
     ["stockMovements", ["movementId"]],
@@ -199,7 +200,7 @@ async function bootstrap() {
   for (const [table, columns] of expectedPrimaryKeys) {
     await assertPrimaryKey(connection, table, columns);
   }
-  console.log("[Verification] Exact PRIMARY KEY columns verified on all 25 tables.");
+  console.log("[Verification] Exact PRIMARY KEY columns verified on all 26 tables.");
 
   const [usersCols] = await connection.query("SHOW COLUMNS FROM `users` WHERE Field = 'id'");
   const usersIdCol = (usersCols as any[])[0];
@@ -221,6 +222,9 @@ async function bootstrap() {
     ["stockMovements", "stockMovements_movementId_unique", ["movementId"]],
     ["stockMovements", "stockMovements_receiptItem_unique", ["goodsReceiptItemId"]],
     ["purchaseOrderHistory", "purchaseOrderHistory_historyId_unique", ["historyId"]],
+    ["purchaseOrderExtractionReviews", "purchaseOrderExtractionReviews_reviewId_unique", ["reviewId"]],
+    ["purchaseOrderExtractionReviews", "purchaseOrderExtractionReviews_purchaseOrder_unique", ["purchaseOrderId"]],
+    ["purchaseOrderExtractionReviews", "purchaseOrderExtractionReviews_submission_unique", ["reviewSubmissionId"]],
     ["enquiries", "enquiries_enquiryId_unique", ["enquiryId"]],
     ["externalApiAuditLogs", "externalApiAuditLogs_auditId_unique", ["auditId"]],
     ["externalIdempotencyKeys", "externalIdempotency_operation_key_unique", ["operation", "idempotencyKey"]],
@@ -251,7 +255,7 @@ async function bootstrap() {
   }
   console.log("[Verification] purchaseOrderItems.receivedQuantity verified.");
 
-  const specificEntities = ["goodsReceipts", "goodsReceiptItems", "stockMovements", "externalRequestReplays"];
+  const specificEntities = ["goodsReceipts", "goodsReceiptItems", "stockMovements", "externalRequestReplays", "purchaseOrderExtractionReviews"];
   for (const entity of specificEntities) {
     await connection.query(`SELECT COUNT(*) as cnt FROM \`${entity}\``);
     console.log(`[Verification] Entity table '${entity}' is accessible and queryable.`);

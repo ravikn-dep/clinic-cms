@@ -915,3 +915,12 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Verify requirements against canonical GitHub and pull-request state.
 - [x] Apply source-backed canonical finalization evidence without functional changes.
 - [x] Validate and deliver the four-part result.
+
+## Phase 3 Step 4 PO OCR / Parser Review Evidence & Audit Persistence
+- [x] Audit existing review, correction audit, history, schema, transaction, and RBAC boundaries.
+- [x] Add an immutable, PO-linked reviewed-extraction evidence model with a forward-only migration and deterministic baseline support.
+- [x] Persist evidence only with explicit Pending Approval PO submission using a consistent transaction boundary.
+- [x] Provide authenticated read-only evidence retrieval and a concise post-creation confirmation.
+- [x] Add Step 4 focused tests for safety, immutability, provenance, replay protection, and access control.
+- [x] Validate TypeScript, targeted and full tests, and production build locally; fresh-schema verification is required in protected CI.
+- [ ] Commit, publish, open a protected PR, and verify GitHub CI without merging or deploying.
