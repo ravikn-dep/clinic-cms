@@ -902,3 +902,16 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Validate fresh MySQL 8 bootstrap, pnpm check, pnpm test --run, and pnpm build.
 - [x] Publish verification-only changes through fix/schema-baseline-verification-hardening and a protected PR to main.
 - [x] Verify the required CI validate check and report STEP2_SCHEMA_VERIFICATION_HARDENED only after it passes.
+
+## Phase 3 Step 3 Corrective Scan PO Review & Safe Structured Prefill
+- [x] Replace the legacy Scan PO frontend path with canonical OCR followed by deterministic parser review.
+- [x] Preserve qualitative confidence, field source text, warnings, reconciliation, and editable review values.
+- [x] Keep OCR and parser operations free of PO, goods receipt, inventory, and stock movement mutations.
+- [x] Preserve explicit protected PO submission and Pending Approval semantics.
+- [x] Add focused Step 3 regression tests for review mapping, provenance, warning behavior, safety boundaries, and explicit submission.
+
+## Attachment Processing (pasted_content_18.txt)
+- [x] Read and summarize the attachment requirements.
+- [x] Verify requirements against canonical GitHub and pull-request state.
+- [x] Apply source-backed canonical finalization evidence without functional changes.
+- [x] Validate and deliver the four-part result.
