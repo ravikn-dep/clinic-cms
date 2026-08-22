@@ -1,7 +1,7 @@
 import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays } from "../drizzle/schema";
+import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, catalogItems, catalogItemAliases, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 import { nanoid } from "nanoid";
@@ -756,6 +756,21 @@ export async function getInventoryByName(itemName: string) {
   
   const result = await db.select().from(inventory).where(eq(inventory.itemName, itemName)).limit(1);
   return result.length > 0 ? result[0] : null;
+}
+
+// ============ CURATED CATALOG QUERIES ============
+// Inventory is batch-centric; these helpers intentionally read only the
+// separately curated catalog identity and alias records used for suggestions.
+export async function getActiveCatalogItems() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(catalogItems).where(eq(catalogItems.active, 1));
+}
+
+export async function getActiveCatalogItemAliases() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(catalogItemAliases).where(eq(catalogItemAliases.active, 1));
 }
 
 export async function updateInventoryItem(itemId: string, updates: Partial<typeof inventory.$inferInsert>) {
