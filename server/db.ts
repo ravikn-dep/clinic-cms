@@ -1,7 +1,7 @@
 import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays } from "../drizzle/schema";
+import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 import { nanoid } from "nanoid";
@@ -373,6 +373,58 @@ export async function createPurchaseOrderWithItems(
     }
   });
   return poData;
+}
+
+export type ReviewedExtractionPersistence = {
+  review: typeof purchaseOrderExtractionReviews.$inferInsert;
+  auditLog: typeof auditLogs.$inferInsert;
+  history: typeof purchaseOrderHistory.$inferInsert;
+};
+
+/**
+ * The only Step 4 write boundary: PO, items, immutable review evidence, and
+ * their audit/history records commit together or roll back together.
+ */
+export async function createPurchaseOrderWithItemsAndExtractionReview(
+  poData: typeof purchaseOrders.$inferInsert,
+  items: Array<typeof purchaseOrderItems.$inferInsert>,
+  persistence: ReviewedExtractionPersistence,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.transaction(async (transaction) => {
+    await transaction.insert(purchaseOrders).values(poData);
+    if (items.length > 0) {
+      await transaction.insert(purchaseOrderItems).values(items);
+    }
+    await transaction.insert(purchaseOrderExtractionReviews).values(persistence.review);
+    await transaction.insert(auditLogs).values(persistence.auditLog);
+    await transaction.insert(purchaseOrderHistory).values(persistence.history);
+  });
+  return { purchaseOrder: poData, review: persistence.review };
+}
+
+export async function getPurchaseOrderExtractionReview(purchaseOrderId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const records = await db.select()
+    .from(purchaseOrderExtractionReviews)
+    .where(eq(purchaseOrderExtractionReviews.purchaseOrderId, purchaseOrderId))
+    .limit(1);
+  return records[0] ?? null;
+}
+
+export async function getPurchaseOrderExtractionReviewBySubmissionId(reviewSubmissionId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const records = await db.select()
+    .from(purchaseOrderExtractionReviews)
+    .where(eq(purchaseOrderExtractionReviews.reviewSubmissionId, reviewSubmissionId))
+    .limit(1);
+  return records[0] ?? null;
 }
 
 export async function getPurchaseOrderItems(purchaseOrderId: string) {

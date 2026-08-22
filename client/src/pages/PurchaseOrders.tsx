@@ -52,10 +52,10 @@ export default function PurchaseOrders() {
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
   const { data: purchaseOrderMetrics, isLoading: isMetricsLoading } = trpc.purchaseOrders.getMetrics.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
+  const createPOFromReviewedExtraction = trpc.purchaseOrders.createFromReviewedExtraction.useMutation();
   const updatePaymentStatus = trpc.purchaseOrders.updatePaymentStatus.useMutation();
   const extractDocument = trpc.ocr.extractDocument.useMutation();
   const parseOcrText = trpc.poParsing.parseOcrText.useMutation();
-  const recordCorrectionReview = trpc.purchaseOrders.recordCorrectionReview.useMutation();
   const { data: receiptSummary, isLoading: isReceiptSummaryLoading } = trpc.purchaseOrders.getReceiptSummary.useQuery(
     { purchaseOrderId: receivePurchaseOrderId ?? "" },
     { enabled: Boolean(receivePurchaseOrderId) },
@@ -112,6 +112,9 @@ export default function PurchaseOrders() {
   const [ocrImageFile, setOcrImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageRotation, setImageRotation] = useState(0);
+  const [reviewExtractionProvider, setReviewExtractionProvider] = useState<"google-cloud-vision" | "mock-ocr" | null>(null);
+  const [reviewSubmissionId, setReviewSubmissionId] = useState<string | null>(null);
+  const [evidenceConfirmation, setEvidenceConfirmation] = useState<{ purchaseOrderId: string; reviewId: string } | null>(null);
   const [authorizationNotes, setAuthorizationNotes] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -132,6 +135,8 @@ export default function PurchaseOrders() {
   const handleImageSelect = (file: File | null) => {
     setOcrError("");
     setReviewPrefill(null);
+    setReviewExtractionProvider(null);
+    setReviewSubmissionId(null);
     setOcrImageFile(file);
     if (file) {
       const reader = new FileReader();
@@ -287,16 +292,6 @@ export default function PurchaseOrders() {
     });
   };
 
-  const getEditedReviewFields = () => {
-    if (!reviewPrefill) return [];
-    const fields: Array<[string, ReviewField]> = [
-      ...Object.entries(reviewPrefill.header).map(([name, field]) => [`header.${name}`, field as ReviewField] as [string, ReviewField]),
-      ...Object.entries(reviewPrefill.totals).map(([name, field]) => [`totals.${name}`, field as ReviewField] as [string, ReviewField]),
-      ...reviewPrefill.items.flatMap((item, itemIndex) => Object.entries(item).map(([name, field]) => [`items.${itemIndex}.${name}`, field as ReviewField] as [string, ReviewField])),
-    ];
-    return fields.filter(([, field]) => field.edited).map(([name]) => name);
-  };
-
   const applyReviewedPrefillToForm = () => {
     if (!reviewPrefill) return;
     setFormData({
@@ -338,7 +333,7 @@ export default function PurchaseOrders() {
     }
 
     try {
-      const createdPurchaseOrder = await createPO.mutateAsync({
+      const createInput = {
         vendorName: formData.vendorName,
         vendorContactNumber: formData.vendorContactNumber,
         vendorEmail: formData.vendorEmail || undefined,
@@ -354,22 +349,28 @@ export default function PurchaseOrders() {
           unitPrice: item.unitPrice,
         })),
         authorizationNotes: authorizationNotes || undefined,
-      });
+      };
 
-      const editedReviewFields = getEditedReviewFields();
-      if (editedReviewFields.length > 0 && reviewPrefill) {
-        await recordCorrectionReview.mutateAsync({
-          purchaseOrderId: createdPurchaseOrder.purchaseOrderId,
-          verifiedFields: editedReviewFields,
-          confidenceSnapshot: {
-            workflow: "deterministic-ocr-parser-review",
-            documentType: reviewPrefill.documentType,
-            reconciliation: reviewPrefill.reconciliation,
-          },
-        });
+      if (reviewPrefill && (!reviewExtractionProvider || !reviewSubmissionId)) {
+        showAlert("Error", "The reviewed extraction session is incomplete. Please scan the document again before submitting.");
+        return;
       }
 
-      showAlert("Success", "Purchase order created successfully");
+      let createdPurchaseOrder: { purchaseOrderId: string };
+      if (reviewPrefill) {
+        const reviewedCreation = await createPOFromReviewedExtraction.mutateAsync({
+            ...createInput,
+            reviewSubmissionId: reviewSubmissionId!,
+            extractionProvider: reviewExtractionProvider!,
+            review: reviewPrefill,
+          });
+        createdPurchaseOrder = reviewedCreation;
+        setEvidenceConfirmation({ purchaseOrderId: reviewedCreation.purchaseOrderId, reviewId: reviewedCreation.reviewId });
+        showAlert("Success", "Purchase order created and immutable extraction/review evidence recorded.");
+      } else {
+        createdPurchaseOrder = await createPO.mutateAsync(createInput);
+        showAlert("Success", "Purchase order created successfully");
+      }
       setFormData({
         vendorName: "",
         vendorContactNumber: "",
@@ -382,6 +383,8 @@ export default function PurchaseOrders() {
         items: [{ itemName: "", quantity: 1, unitPrice: "" }],
       });
       setReviewPrefill(null);
+      setReviewExtractionProvider(null);
+      setReviewSubmissionId(null);
       setShowForm(false);
       refetch();
     } catch (error) {
@@ -528,6 +531,8 @@ export default function PurchaseOrders() {
       });
       const parsedDocument = await parseOcrText.mutateAsync({ fullText: ocrResult.fullText });
       setReviewPrefill(createPurchaseOrderReviewPrefill(parsedDocument));
+      setReviewExtractionProvider(ocrResult.provider);
+      setReviewSubmissionId(crypto.randomUUID());
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       const safeInputError = /PDF OCR is not supported|Unsupported MIME type|empty file|maximum allowed limit|Malformed data URI/i.test(message);
@@ -553,6 +558,13 @@ export default function PurchaseOrders() {
           </Button>
         </div>
       </div>
+
+      {evidenceConfirmation && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+          <p className="font-semibold">Extraction review evidence recorded</p>
+          <p className="mt-1">The reviewed OCR/parser evidence was linked immutably to PO #{evidenceConfirmation.purchaseOrderId} (review {evidenceConfirmation.reviewId}).</p>
+        </div>
+      )}
 
       {showOCRDialog && (
         <Dialog open={showOCRDialog} onOpenChange={(open) => {

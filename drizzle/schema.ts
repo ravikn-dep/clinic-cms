@@ -274,6 +274,37 @@ export const purchaseOrderHistory = mysqlTable("purchaseOrderHistory", {
 	index("purchaseOrderHistory_purchaseOrder_createdAt_idx").on(table.purchaseOrderId, table.createdAt),
 ]);
 
+/**
+ * Immutable, one-per-PO evidence snapshot created only with an explicitly
+ * submitted reviewed OCR/parser purchase order. The project schema does not
+ * currently declare relational foreign keys; uniqueness and application-level
+ * transaction boundaries preserve the PO linkage consistently.
+ */
+export const purchaseOrderExtractionReviews = mysqlTable("purchaseOrderExtractionReviews", {
+	reviewId: varchar({ length: 50 }).primaryKey(),
+	purchaseOrderId: varchar({ length: 50 }).notNull(),
+	reviewSubmissionId: varchar({ length: 100 }).notNull(),
+	extractionProvider: varchar({ length: 64 }).notNull(),
+	documentType: varchar({ length: 32 }).notNull(),
+	reviewStatus: mysqlEnum(["CONFIRMED"]).default("CONFIRMED").notNull(),
+	reviewerUserId: varchar({ length: 100 }).notNull(),
+	reviewerName: varchar({ length: 255 }),
+	reviewedAt: timestamp({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
+	createdAt: timestamp({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
+	extractedHeaderJson: text().notNull(),
+	extractedItemsJson: text().notNull(),
+	extractedTotalsJson: text().notNull(),
+	reconciliationJson: text().notNull(),
+	warningsJson: text().notNull(),
+	correctedFieldsJson: text().notNull(),
+	finalReviewedValuesJson: text().notNull(),
+}, (table) => [
+	uniqueIndex("purchaseOrderExtractionReviews_reviewId_unique").on(table.reviewId),
+	uniqueIndex("purchaseOrderExtractionReviews_purchaseOrder_unique").on(table.purchaseOrderId),
+	uniqueIndex("purchaseOrderExtractionReviews_submission_unique").on(table.reviewSubmissionId),
+	index("purchaseOrderExtractionReviews_reviewer_createdAt_idx").on(table.reviewerUserId, table.createdAt),
+]);
+
 export const rolePermissions = mysqlTable("rolePermissions", {
 	permissionId: varchar({ length: 50 }).notNull(),
 	role: varchar({ length: 20 }).notNull(),
