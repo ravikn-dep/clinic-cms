@@ -932,4 +932,4 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Add explicit human-only match acceptance and immutable evidence preservation without PO, GR, or inventory automation.
 - [x] Add targeted Step 5 matching, safety, provenance, and RBAC tests.
 - [x] Validate targeted and full regression and production build locally; fresh-schema bootstrap verification is required in protected CI.
-- [ ] Commit, publish, open a protected PR, and verify CI without merging or deploying.
+- [x] Commit, publish, open a protected PR, and verify CI without merging or deploying.
