@@ -12,8 +12,15 @@ import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
 import { Plus, Trash2, CheckCircle, XCircle, Loader2, Upload, Zap, History, PackageCheck, Download, FileText, ClipboardList, Clock3 } from "lucide-react";
 import { jsPDF } from "jspdf";
-import { ConfidenceBadge, ConfidenceTooltip } from "@/components/ConfidenceBadge";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import {
+  createPurchaseOrderReviewPrefill,
+  qualitativeConfidenceLabel,
+  type PurchaseOrderReviewLine,
+  type PurchaseOrderReviewPrefill,
+  type ReviewField,
+  updateReviewField,
+} from "@shared/poReviewPrefill";
 
 export default function PurchaseOrders() {
   const { user } = useAuth();
@@ -34,11 +41,8 @@ export default function PurchaseOrders() {
     notes: "",
     items: [{ itemName: "", quantity: 1, unitPrice: "" }],
   });
-  const [confidenceScores, setConfidenceScores] = useState<any>(null);
-  const [showConfidenceInfo, setShowConfidenceInfo] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<any[]>([]);
-  const [validationWarnings, setValidationWarnings] = useState<any[]>([]);
-  const [verifiedFields, setVerifiedFields] = useState<Set<string>>(new Set());
+  const [reviewPrefill, setReviewPrefill] = useState<PurchaseOrderReviewPrefill | null>(null);
+  const [ocrError, setOcrError] = useState("");
   const [historyPurchaseOrder, setHistoryPurchaseOrder] = useState<{ id: string; vendorName: string } | null>(null);
   const [receivePurchaseOrderId, setReceivePurchaseOrderId] = useState<string | null>(null);
   const [receiveForm, setReceiveForm] = useState<{ goodsReceiptId: string; lines: Record<string, { receivedQuantity: string; batchNumber: string; expiryDate: string; unitCost: string }> }>({ goodsReceiptId: "", lines: {} });
@@ -49,9 +53,8 @@ export default function PurchaseOrders() {
   const { data: purchaseOrderMetrics, isLoading: isMetricsLoading } = trpc.purchaseOrders.getMetrics.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
   const updatePaymentStatus = trpc.purchaseOrders.updatePaymentStatus.useMutation();
-  const uploadPOImage = trpc.purchaseOrders.uploadPoImage.useMutation();
-  const extractPO = trpc.purchaseOrders.extractFromImage.useMutation();
-  const validateExtractedData = trpc.purchaseOrders.validateExtractedData.useMutation();
+  const extractDocument = trpc.ocr.extractDocument.useMutation();
+  const parseOcrText = trpc.poParsing.parseOcrText.useMutation();
   const recordCorrectionReview = trpc.purchaseOrders.recordCorrectionReview.useMutation();
   const { data: receiptSummary, isLoading: isReceiptSummaryLoading } = trpc.purchaseOrders.getReceiptSummary.useQuery(
     { purchaseOrderId: receivePurchaseOrderId ?? "" },
@@ -127,6 +130,8 @@ export default function PurchaseOrders() {
   }, [receiptSummary]);
 
   const handleImageSelect = (file: File | null) => {
+    setOcrError("");
+    setReviewPrefill(null);
     setOcrImageFile(file);
     if (file) {
       const reader = new FileReader();
@@ -257,10 +262,78 @@ export default function PurchaseOrders() {
     }, 0);
   };
 
+  const updateReviewHeaderField = (field: keyof PurchaseOrderReviewPrefill["header"], value: string) => {
+    setReviewPrefill((current) => current ? {
+      ...current,
+      header: { ...current.header, [field]: updateReviewField(current.header[field], value) },
+    } : current);
+  };
+
+  const updateReviewTotalField = (field: keyof PurchaseOrderReviewPrefill["totals"], value: string) => {
+    setReviewPrefill((current) => current ? {
+      ...current,
+      totals: { ...current.totals, [field]: updateReviewField(current.totals[field], value) },
+    } : current);
+  };
+
+  const updateReviewLineField = (lineIndex: number, field: keyof PurchaseOrderReviewLine, value: string) => {
+    setReviewPrefill((current) => {
+      if (!current) return current;
+      const items = current.items.map((line, index) => index === lineIndex
+        ? { ...line, [field]: updateReviewField(line[field], value) }
+        : line,
+      );
+      return { ...current, items };
+    });
+  };
+
+  const getEditedReviewFields = () => {
+    if (!reviewPrefill) return [];
+    const fields: Array<[string, ReviewField]> = [
+      ...Object.entries(reviewPrefill.header).map(([name, field]) => [`header.${name}`, field as ReviewField] as [string, ReviewField]),
+      ...Object.entries(reviewPrefill.totals).map(([name, field]) => [`totals.${name}`, field as ReviewField] as [string, ReviewField]),
+      ...reviewPrefill.items.flatMap((item, itemIndex) => Object.entries(item).map(([name, field]) => [`items.${itemIndex}.${name}`, field as ReviewField] as [string, ReviewField])),
+    ];
+    return fields.filter(([, field]) => field.edited).map(([name]) => name);
+  };
+
+  const applyReviewedPrefillToForm = () => {
+    if (!reviewPrefill) return;
+    setFormData({
+      vendorName: reviewPrefill.header.vendorName.value,
+      vendorContactNumber: "",
+      vendorEmail: "",
+      vendorGSTNumber: reviewPrefill.header.vendorGstin.value,
+      vendorBankDetails: "",
+      vendorAddress: "",
+      expectedDeliveryDate: "",
+      notes: [
+        `Source document: ${reviewPrefill.documentType.replaceAll("_", " ")}`,
+        reviewPrefill.header.invoiceNumber.value ? `Invoice/PO: ${reviewPrefill.header.invoiceNumber.value}` : "",
+        reviewPrefill.header.invoiceDate.value ? `Date: ${reviewPrefill.header.invoiceDate.value}` : "",
+        reviewPrefill.warnings.length > 0 ? `Review warnings: ${reviewPrefill.warnings.join(" | ")}` : "",
+      ].filter(Boolean).join(" | "),
+      items: reviewPrefill.items.length > 0
+        ? reviewPrefill.items.map((item) => ({
+            itemName: item.description.value,
+            quantity: Number(item.quantity.value) || 0,
+            unitPrice: item.unitPrice.value,
+          }))
+        : [{ itemName: "", quantity: 1, unitPrice: "" }],
+    });
+    setIsAuthorized(false);
+    setShowOCRDialog(false);
+    setShowForm(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.vendorName || !formData.vendorContactNumber || formData.items.length === 0) {
       showAlert("Error", "Please fill in all required fields");
+      return;
+    }
+    if (formData.items.some((item) => !item.itemName.trim() || !Number.isInteger(item.quantity) || item.quantity <= 0 || !Number.isFinite(Number(item.unitPrice)) || Number(item.unitPrice) < 0)) {
+      showAlert("Error", "Each item needs a name, a positive whole-number quantity, and a valid unit price.");
       return;
     }
 
@@ -283,11 +356,16 @@ export default function PurchaseOrders() {
         authorizationNotes: authorizationNotes || undefined,
       });
 
-      if (verifiedFields.size > 0) {
+      const editedReviewFields = getEditedReviewFields();
+      if (editedReviewFields.length > 0 && reviewPrefill) {
         await recordCorrectionReview.mutateAsync({
           purchaseOrderId: createdPurchaseOrder.purchaseOrderId,
-          verifiedFields: Array.from(verifiedFields),
-          confidenceSnapshot: confidenceScores || undefined,
+          verifiedFields: editedReviewFields,
+          confidenceSnapshot: {
+            workflow: "deterministic-ocr-parser-review",
+            documentType: reviewPrefill.documentType,
+            reconciliation: reviewPrefill.reconciliation,
+          },
         });
       }
 
@@ -303,10 +381,7 @@ export default function PurchaseOrders() {
         notes: "",
         items: [{ itemName: "", quantity: 1, unitPrice: "" }],
       });
-      setConfidenceScores(null);
-      setVerifiedFields(new Set());
-      setValidationErrors([]);
-      setValidationWarnings([]);
+      setReviewPrefill(null);
       setShowForm(false);
       refetch();
     } catch (error) {
@@ -397,81 +472,67 @@ export default function PurchaseOrders() {
     }
   };
 
+  const confidenceBadgeClass: Record<ReturnType<typeof qualitativeConfidenceLabel>, string> = {
+    HIGH: "bg-emerald-100 text-emerald-800 border-emerald-200",
+    MEDIUM: "bg-amber-100 text-amber-800 border-amber-200",
+    LOW: "bg-rose-100 text-rose-800 border-rose-200",
+  };
+
+  const renderReviewField = (
+    label: string,
+    field: ReviewField,
+    onChange: (value: string) => void,
+    type = "text",
+  ) => {
+    const confidenceLabel = qualitativeConfidenceLabel(field.confidence);
+    return (
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between gap-2">
+          <Label className="text-xs font-medium">{label}</Label>
+          <Badge variant="outline" className={`text-[10px] ${confidenceBadgeClass[confidenceLabel]}`}>
+            {confidenceLabel}
+          </Badge>
+        </div>
+        <Input
+          type={type}
+          value={field.value}
+          onChange={(event) => onChange(event.target.value)}
+          className={field.confidence === "low" ? "border-rose-300 bg-rose-50" : ""}
+          aria-label={`${label} extracted review value`}
+        />
+        {field.sourceText && (
+          <p className="rounded bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
+            <span className="font-medium">Source text:</span> {field.sourceText}
+          </p>
+        )}
+        {field.edited && <p className="text-[11px] font-medium text-teal-700">User corrected this extracted value.</p>}
+        {field.warnings.map((warning) => <p key={warning} className="text-[11px] text-amber-700">{warning}</p>)}
+      </div>
+    );
+  };
+
   const handleOCRImageUpload = async (file: File) => {
     if (!file) return;
     setOcrLoading(true);
+    setOcrError("");
     try {
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        try {
-          const base64Data = e.target?.result as string;
-          console.log('[PO Upload] Starting upload with file:', file.name);
-          const uploadResponse = await uploadPOImage.mutateAsync({ 
-            imageData: base64Data,
-            fileName: file.name 
-          });
-          console.log('[PO Upload] Upload successful, URL:', uploadResponse.url);
-          
-          console.log('[PO Extract] Starting extraction with URL:', uploadResponse.url);
-          const extractedData = await extractPO.mutateAsync({ imageUrl: uploadResponse.url });
-          console.log('[PO Extract] Extraction successful, data:', extractedData);
-          setConfidenceScores(extractedData.confidence || null);
-          
-          // Validate extracted data
-          console.log('[Validation] Starting validation...');
-          const validationResult = await validateExtractedData.mutateAsync({
-            vendorName: extractedData.vendorName || "",
-            vendorGstNumber: extractedData.vendorGstNumber || "",
-            vendorContactNumber: extractedData.vendorContactNumber || "",
-            vendorAddress: extractedData.vendorAddress || "",
-            poToName: extractedData.poToName || "",
-            items: extractedData.items || [],
-            totalValue: extractedData.totalValue || "",
-            confidence: extractedData.confidence,
-          });
-          console.log('[Validation] Result:', validationResult);
-          setValidationErrors(validationResult.errors || []);
-          setValidationWarnings(validationResult.warnings || []);
-          
-          setFormData({
-            vendorName: extractedData.vendorName || "",
-            vendorContactNumber: extractedData.vendorContactNumber || "",
-            vendorEmail: "",
-            vendorGSTNumber: extractedData.vendorGstNumber || "",
-            vendorBankDetails: "",
-            vendorAddress: extractedData.vendorAddress || "",
-            expectedDeliveryDate: "",
-            notes: `Invoice: ${extractedData.invoiceNumber || 'N/A'} | Date: ${extractedData.invoiceDate || 'N/A'} | Recipient: ${extractedData.poToName || 'N/A'}`,
-            items: extractedData.items?.map((item: any) => ({
-              itemName: item.name || "",
-              quantity: parseInt(item.quantity) || 1,
-              unitPrice: item.valuePerItem || "",
-            })) || [{ itemName: "", quantity: 1, unitPrice: "" }],
-          });
-          
-          if (validationResult.isValid) {
-            showAlert("Success", "PO data extracted and validated successfully");
-          } else {
-            showAlert("Validation Issues", `Found ${validationResult.errors.length} error(s) and ${validationResult.warnings.length} warning(s)`);
-          }
-          setShowOCRDialog(false);
-          setShowForm(true);
-          setOcrImageFile(null);
-          setImagePreview(null);
-          setImageRotation(0);
-        } catch (error) {
-          console.error("[PO Extraction] Error:", error);
-          const errorMsg = error instanceof Error ? error.message : "Failed to extract PO data from image";
-          console.error("[PO Extraction] Full error:", JSON.stringify(error, null, 2));
-          showAlert("Error", errorMsg);
-          setShowOCRDialog(false);
-        } finally {
-          setOcrLoading(false);
-        }
-      };
-      reader.readAsDataURL(file);
+      const imageData = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("Unable to read the selected image."));
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.readAsDataURL(file);
+      });
+      const ocrResult = await extractDocument.mutateAsync({
+        data: imageData,
+        mimeType: file.type || "application/octet-stream",
+      });
+      const parsedDocument = await parseOcrText.mutateAsync({ fullText: ocrResult.fullText });
+      setReviewPrefill(createPurchaseOrderReviewPrefill(parsedDocument));
     } catch (error) {
-      showAlert("Error", "Failed to process PO image");
+      const message = error instanceof Error ? error.message : "";
+      const safeInputError = /PDF OCR is not supported|Unsupported MIME type|empty file|maximum allowed limit|Malformed data URI/i.test(message);
+      setOcrError(safeInputError ? message : "OCR extraction failed. Try another JPEG or PNG image, or enter the purchase order manually.");
+    } finally {
       setOcrLoading(false);
     }
   };
@@ -494,66 +555,163 @@ export default function PurchaseOrders() {
       </div>
 
       {showOCRDialog && (
-        <Dialog open={showOCRDialog} onOpenChange={setShowOCRDialog}>
-          <DialogContent>
+        <Dialog open={showOCRDialog} onOpenChange={(open) => {
+          setShowOCRDialog(open);
+          if (!open) {
+            setOcrError("");
+            setReviewPrefill(null);
+          }
+        }}>
+          <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Scan Purchase Order</DialogTitle>
-              <DialogDescription>Upload a PO image to auto-extract details</DialogDescription>
+              <DialogTitle>Scan Purchase Order for Review</DialogTitle>
+              <DialogDescription>
+                JPEG and PNG documents are extracted with OCR, then parsed deterministically. Nothing is created until you explicitly submit the reviewed PO form.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
-              <div 
-                className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm text-gray-600">Click to upload PO image or drag and drop</p>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleImageSelect(e.target.files?.[0] || null)}
-                  className="hidden"
-                />
-                {ocrImageFile && <p className="text-sm text-green-600 mt-2">✓ {ocrImageFile.name}</p>}
-              </div>
-              {imagePreview && (
-                <div className="space-y-3">
-                  <div className="border rounded-lg overflow-hidden bg-gray-50">
-                    <img
-                      src={imagePreview}
-                      alt="PO Preview"
-                      className="w-full h-auto max-h-64 object-contain"
-                      style={{ transform: `rotate(${imageRotation}deg)` }}
+              {!reviewPrefill && (
+                <>
+                  <div
+                    className="cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition hover:border-teal-400 hover:bg-teal-50"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="mx-auto mb-2 h-8 w-8 text-slate-400" />
+                    <p className="text-sm text-slate-700">Select a JPEG or PNG purchase order or invoice image.</p>
+                    <p className="mt-1 text-xs text-slate-500">PDF OCR is deferred and will be rejected safely.</p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,application/pdf"
+                      onChange={(event) => handleImageSelect(event.target.files?.[0] || null)}
+                      className="hidden"
                     />
+                    {ocrImageFile && <p className="mt-2 text-sm text-teal-700">Selected: {ocrImageFile.name}</p>}
                   </div>
-                  <div className="flex gap-2 justify-center">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setImageRotation((prev) => (prev + 90) % 360)}
-                      className="text-xs"
-                    >
-                      ↻ Rotate
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleImageSelect(null)}
-                      className="text-xs"
-                    >
-                      ✕ Clear
-                    </Button>
+                  {imagePreview && (
+                    <div className="space-y-3">
+                      <div className="overflow-hidden rounded-lg border bg-slate-50">
+                        <img
+                          src={imagePreview}
+                          alt="Selected purchase order preview"
+                          className="max-h-64 w-full object-contain"
+                          style={{ transform: `rotate(${imageRotation}deg)` }}
+                        />
+                      </div>
+                      <div className="flex justify-center gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => setImageRotation((previous) => (previous + 90) % 360)}>
+                          Rotate
+                        </Button>
+                        <Button type="button" variant="outline" size="sm" onClick={() => handleImageSelect(null)}>
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {ocrError && <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{ocrError}</div>}
+                  <Button
+                    type="button"
+                    onClick={() => ocrImageFile && handleOCRImageUpload(ocrImageFile)}
+                    disabled={!ocrImageFile || ocrLoading}
+                    className="w-full bg-teal-600 hover:bg-teal-700"
+                  >
+                    {ocrLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Zap className="mr-2 h-4 w-4" />}
+                    {ocrLoading ? "Extracting and parsing…" : "Extract for human review"}
+                  </Button>
+                </>
+              )}
+
+              {reviewPrefill && (
+                <div className="space-y-5">
+                  <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-950">
+                    <p className="font-semibold">Human review required</p>
+                    <p className="mt-1">This deterministic prefill is editable. Continuing only opens the PO form; it does not create, approve, receive, or stock any record.</p>
+                  </div>
+
+                  {reviewPrefill.warnings.length > 0 && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                      <h3 className="font-semibold text-amber-900">Review warnings</h3>
+                      <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">
+                        {reviewPrefill.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  <section className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">Document header</h3>
+                      <Badge variant="outline">{reviewPrefill.documentType.replaceAll("_", " ")}</Badge>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {renderReviewField("Invoice / PO number", reviewPrefill.header.invoiceNumber, (value) => updateReviewHeaderField("invoiceNumber", value))}
+                      {renderReviewField("Invoice date", reviewPrefill.header.invoiceDate, (value) => updateReviewHeaderField("invoiceDate", value))}
+                      {renderReviewField("Vendor name", reviewPrefill.header.vendorName, (value) => updateReviewHeaderField("vendorName", value))}
+                      {renderReviewField("GSTIN", reviewPrefill.header.vendorGstin, (value) => updateReviewHeaderField("vendorGstin", value))}
+                    </div>
+                  </section>
+
+                  <section className="space-y-3">
+                    <h3 className="font-semibold">Extracted line items</h3>
+                    {reviewPrefill.items.length === 0 ? (
+                      <p className="rounded-lg border border-dashed p-4 text-sm text-slate-600">No line items were extracted. You can add them manually in the PO form.</p>
+                    ) : reviewPrefill.items.map((item, index) => (
+                      <div key={index} className="space-y-3 rounded-lg border p-4">
+                        <p className="text-sm font-medium">Line {index + 1}</p>
+                        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                          {renderReviewField("Description", item.description, (value) => updateReviewLineField(index, "description", value))}
+                          {renderReviewField("HSN / SAC", item.hsnCode, (value) => updateReviewLineField(index, "hsnCode", value))}
+                          {renderReviewField("Batch", item.batchNumber, (value) => updateReviewLineField(index, "batchNumber", value))}
+                          {renderReviewField("Expiry", item.expiryDate, (value) => updateReviewLineField(index, "expiryDate", value))}
+                          {renderReviewField("Quantity", item.quantity, (value) => updateReviewLineField(index, "quantity", value), "number")}
+                          {renderReviewField("Unit price", item.unitPrice, (value) => updateReviewLineField(index, "unitPrice", value), "number")}
+                          {renderReviewField("Discount", item.discount, (value) => updateReviewLineField(index, "discount", value), "number")}
+                          {renderReviewField("GST %", item.gstRate, (value) => updateReviewLineField(index, "gstRate", value), "number")}
+                          {renderReviewField("Taxable amount", item.taxableAmount, (value) => updateReviewLineField(index, "taxableAmount", value), "number")}
+                          {renderReviewField("Line total", item.lineTotal, (value) => updateReviewLineField(index, "lineTotal", value), "number")}
+                        </div>
+                      </div>
+                    ))}
+                  </section>
+
+                  <section className="space-y-3">
+                    <h3 className="font-semibold">Extracted totals</h3>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      {renderReviewField("Subtotal / taxable value", reviewPrefill.totals.subtotal, (value) => updateReviewTotalField("subtotal", value), "number")}
+                      {renderReviewField("CGST", reviewPrefill.totals.cgst, (value) => updateReviewTotalField("cgst", value), "number")}
+                      {renderReviewField("SGST", reviewPrefill.totals.sgst, (value) => updateReviewTotalField("sgst", value), "number")}
+                      {renderReviewField("IGST", reviewPrefill.totals.igst, (value) => updateReviewTotalField("igst", value), "number")}
+                      {renderReviewField("Total tax", reviewPrefill.totals.totalTax, (value) => updateReviewTotalField("totalTax", value), "number")}
+                      {renderReviewField("Grand total", reviewPrefill.totals.grandTotal, (value) => updateReviewTotalField("grandTotal", value), "number")}
+                    </div>
+                  </section>
+
+                  <section className="rounded-lg border bg-slate-50 p-4">
+                    <h3 className="font-semibold">Arithmetic reconciliation</h3>
+                    <div className="mt-3 grid gap-2 text-sm md:grid-cols-2">
+                      {[
+                        ["Line totals", reviewPrefill.reconciliation.lineTotalsMatch],
+                        ["Subtotal", reviewPrefill.reconciliation.subtotalMatches],
+                        ["Tax", reviewPrefill.reconciliation.taxMatches],
+                        ["Grand total", reviewPrefill.reconciliation.grandTotalMatches],
+                      ].map(([label, status]) => (
+                        <div key={String(label)} className="flex items-center justify-between rounded border bg-white px-3 py-2">
+                          <span>{label}</span>
+                          <Badge className={status === true ? "bg-emerald-600" : status === false ? "bg-rose-600" : "bg-slate-500"}>
+                            {status === true ? "MATCH" : status === false ? "REVIEW" : "NOT AVAILABLE"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                    {reviewPrefill.reconciliation.delta !== undefined && <p className="mt-3 text-sm text-slate-700">Reported reconciliation difference: ₹{reviewPrefill.reconciliation.delta.toFixed(2)}</p>}
+                  </section>
+
+                  <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+                    <Button type="button" variant="outline" onClick={() => handleImageSelect(null)}>Re-scan / upload another image</Button>
+                    <Button type="button" variant="outline" onClick={() => setShowOCRDialog(false)}>Cancel</Button>
+                    <Button type="button" className="bg-teal-600 hover:bg-teal-700" onClick={applyReviewedPrefillToForm}>Review &amp; continue to PO form</Button>
                   </div>
                 </div>
               )}
-              <Button
-                onClick={() => ocrImageFile && handleOCRImageUpload(ocrImageFile)}
-                disabled={!ocrImageFile || ocrLoading}
-                className="w-full"
-              >
-                {ocrLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
-                {ocrLoading ? "Extracting..." : "Extract PO Data"}
-              </Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -567,78 +725,27 @@ export default function PurchaseOrders() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {validationErrors.length > 0 && (
-                <div className="bg-red-50 border border-red-300 rounded-lg p-4">
-                  <h3 className="font-semibold text-red-900 mb-2">Validation Errors ({validationErrors.length})</h3>
-                  <ul className="space-y-1">
-                    {validationErrors.map((error, idx) => (
-                      <li key={idx} className="text-sm text-red-800">• {error.field}: {error.message}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {validationWarnings.length > 0 && (
-                <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
-                  <h3 className="font-semibold text-yellow-900 mb-2">Validation Warnings ({validationWarnings.length})</h3>
-                  <ul className="space-y-1">
-                    {validationWarnings.map((warning, idx) => (
-                      <li key={idx} className="text-sm text-yellow-800">⚠ {warning.field}: {warning.message}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {confidenceScores && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <h3 className="font-semibold text-blue-900">Extraction Confidence</h3>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowConfidenceInfo(!showConfidenceInfo)}
-                        className="text-xs"
-                      >
-                        {showConfidenceInfo ? 'Hide' : 'Show'} Info
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setVerifiedFields(new Set(['vendorName', 'vendorContactNumber', 'vendorGSTNumber', 'vendorAddress', 'poToName']))}
-                        className="text-xs bg-green-50 border-green-300 text-green-800 hover:bg-green-100"
-                      >
-                        Verify All
-                      </Button>
-                    </div>
-                  </div>
-                  {showConfidenceInfo && <ConfidenceTooltip />}
-                  <p className="text-xs text-blue-700 mt-2">Fields with red borders have low confidence - please review and correct if needed</p>
+              {reviewPrefill && (
+                <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-950">
+                  <p className="font-semibold">Deterministic scan prefill is under review</p>
+                  <p className="mt-1">The final submission will create only a Pending Approval purchase order. OCR and parsing did not create, approve, receive, or stock anything.</p>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>Vendor Name *</Label>
-                    {confidenceScores?.vendorName && <ConfidenceBadge score={confidenceScores.vendorName} showLabel={false} />}
-                  </div>
+                  <Label className="mb-2 block">Vendor Name *</Label>
                   <Input
                     value={formData.vendorName}
                     onChange={(e) => setFormData({ ...formData, vendorName: e.target.value })}
                     placeholder="Enter vendor name"
-                    className={confidenceScores?.vendorName && confidenceScores.vendorName < 0.7 ? 'border-red-300 bg-red-50' : ''}
                   />
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>Contact Number *</Label>
-                    {confidenceScores?.vendorContactNumber && <ConfidenceBadge score={confidenceScores.vendorContactNumber} showLabel={false} />}
-                  </div>
+                  <Label className="mb-2 block">Contact Number *</Label>
                   <Input
                     value={formData.vendorContactNumber}
                     onChange={(e) => setFormData({ ...formData, vendorContactNumber: e.target.value })}
                     placeholder="Enter contact number"
-                    className={confidenceScores?.vendorContactNumber && confidenceScores.vendorContactNumber < 0.7 ? 'border-red-300 bg-red-50' : ''}
                   />
                 </div>
                 <div>
@@ -653,27 +760,19 @@ export default function PurchaseOrders() {
                   />
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>GST Number</Label>
-                    {confidenceScores?.vendorGstNumber && <ConfidenceBadge score={confidenceScores.vendorGstNumber} showLabel={false} />}
-                  </div>
+                  <Label className="mb-2 block">GST Number</Label>
                   <Input
                     value={formData.vendorGSTNumber}
                     onChange={(e) => setFormData({ ...formData, vendorGSTNumber: e.target.value })}
                     placeholder="Enter GST number"
-                    className={confidenceScores?.vendorGstNumber && confidenceScores.vendorGstNumber < 0.7 ? 'border-red-300 bg-red-50' : ''}
                   />
                 </div>
                 <div className="col-span-2">
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>Address</Label>
-                    {confidenceScores?.vendorAddress && <ConfidenceBadge score={confidenceScores.vendorAddress} showLabel={false} />}
-                  </div>
+                  <Label className="mb-2 block">Address</Label>
                   <Textarea
                     value={formData.vendorAddress}
                     onChange={(e) => setFormData({ ...formData, vendorAddress: e.target.value })}
                     placeholder="Enter vendor address"
-                    className={confidenceScores?.vendorAddress && confidenceScores.vendorAddress < 0.7 ? 'border-red-300 bg-red-50' : ''}
                   />
                 </div>
                 <div>
@@ -713,44 +812,31 @@ export default function PurchaseOrders() {
                 </div>
 
                 {formData.items.map((item, index) => {
-                  const itemConfidence = confidenceScores?.items?.[index];
                   return (
                   <div key={index} className="flex gap-2 items-end">
                     <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <Label className="text-xs">Item Name</Label>
-                        {itemConfidence?.name && <ConfidenceBadge score={itemConfidence.name} showLabel={false} />}
-                      </div>
+                      <Label className="mb-1 block text-xs">Item Name</Label>
                       <Input
                         value={item.itemName}
                         onChange={(e) => handleItemChange(index, "itemName", e.target.value)}
                         placeholder="Item name"
-                        className={itemConfidence?.name && itemConfidence.name < 0.7 ? 'border-red-300 bg-red-50' : ''}
                       />
                     </div>
                     <div className="w-24">
-                      <div className="flex items-center justify-between mb-1">
-                        <Label className="text-xs">Quantity</Label>
-                        {itemConfidence?.quantity && <ConfidenceBadge score={itemConfidence.quantity} showLabel={false} />}
-                      </div>
+                      <Label className="mb-1 block text-xs">Quantity</Label>
                       <Input
                         type="number"
                         min="1"
                         value={item.quantity}
                         onChange={(e) => handleItemChange(index, "quantity", parseInt(e.target.value) || 1)}
-                        className={itemConfidence?.quantity && itemConfidence.quantity < 0.7 ? 'border-red-300 bg-red-50' : ''}
                       />
                     </div>
                     <div className="w-32">
-                      <div className="flex items-center justify-between mb-1">
-                        <Label className="text-xs">Unit Price</Label>
-                        {itemConfidence?.valuePerItem && <ConfidenceBadge score={itemConfidence.valuePerItem} showLabel={false} />}
-                      </div>
+                      <Label className="mb-1 block text-xs">Unit Price</Label>
                       <Input
                         value={item.unitPrice}
                         onChange={(e) => handleItemChange(index, "unitPrice", e.target.value)}
                         placeholder="0.00"
-                        className={itemConfidence?.valuePerItem && itemConfidence.valuePerItem < 0.7 ? 'border-red-300 bg-red-50' : ''}
                       />
                     </div>
                     <Button
