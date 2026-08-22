@@ -923,4 +923,4 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Provide authenticated read-only evidence retrieval and a concise post-creation confirmation.
 - [x] Add Step 4 focused tests for safety, immutability, provenance, replay protection, and access control.
 - [x] Validate TypeScript, targeted and full tests, and production build locally; fresh-schema verification is required in protected CI.
-- [ ] Commit, publish, open a protected PR, and verify GitHub CI without merging or deploying.
+- [x] Commit, publish, open a protected PR, and verify GitHub CI without merging or deploying.
