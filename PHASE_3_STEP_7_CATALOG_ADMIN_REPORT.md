@@ -68,6 +68,8 @@ The Step 7 tests cover admin write authority, server-derived normalization, dupl
 
 This scope does not add hard deletes, external drug data, automatic matching acceptance, alias learning, catalog learning, product merging, inventory merging, historical PO relinking, Goods Receipt creation, stock posting, LLM catalog enrichment, or a production schema/data change. Catalog metadata is reference data only. An admin must curate each item or alias deliberately.
 
-## Publication status
+## GitHub publication and validation
 
-The implementation commit has been created locally. The next required gate is a normal push of `feature/phase3-catalog-admin`, followed by a pull request to `main` and a green `CI Validation / validate` result. This task must stop after that green protected CI result without merging.
+The scoped commits were pushed normally to `feature/phase3-catalog-admin` and opened as [PR #9](https://github.com/ravikn-dep/clinic-cms/pull/9) against protected `main`. The first protected GitHub validation run, [CI Validation / validate #32655069403](https://github.com/ravikn-dep/clinic-cms/actions/runs/32655069403), completed successfully for branch head `4732ca7b52c5404f35ebb8f41a940e7eaedca567`. Its fresh MySQL 8 baseline bootstrap, TypeScript check, unit-test, and production-build stages all succeeded.
+
+No merge, tag, force push, deployment, production database change, or production credential change was performed. The repository owner independently controls any future merge decision.
