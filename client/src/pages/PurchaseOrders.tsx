@@ -207,6 +207,7 @@ export default function PurchaseOrders() {
   const [ocrImageFile, setOcrImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageRotation, setImageRotation] = useState(0);
+  const [scanPageCount, setScanPageCount] = useState<number | null>(null);
   const [reviewExtractionProvider, setReviewExtractionProvider] = useState<"google-cloud-vision" | "mock-ocr" | null>(null);
   const [reviewSubmissionId, setReviewSubmissionId] = useState<string | null>(null);
   const [catalogDecisions, setCatalogDecisions] = useState<Record<number, CatalogDecisionInput>>({});
@@ -235,7 +236,9 @@ export default function PurchaseOrders() {
     setReviewSubmissionId(null);
     setCatalogDecisions({});
     setOcrImageFile(file);
-    if (file) {
+    setScanPageCount(null);
+    const isPdf = file?.type.toLowerCase() === "application/pdf";
+    if (file && !isPdf) {
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
@@ -643,10 +646,11 @@ export default function PurchaseOrders() {
       setReviewPrefill(createPurchaseOrderReviewPrefill(parsedDocument));
       setReviewExtractionProvider(ocrResult.provider);
       setReviewSubmissionId(crypto.randomUUID());
+      setScanPageCount(ocrResult.pageCount);
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
-      const safeInputError = /PDF OCR is not supported|Unsupported MIME type|empty file|maximum allowed limit|Malformed data URI/i.test(message);
-      setOcrError(safeInputError ? message : "OCR extraction failed. Try another JPEG or PNG image, or enter the purchase order manually.");
+      const safeInputError = /Unsupported MIME type|empty file|maximum allowed limit|Malformed data URI|Malformed PDF|maximum supported page count|maximum supported size/i.test(message);
+      setOcrError(safeInputError ? message : "OCR extraction failed. Try another JPEG, PNG, or a PDF with up to five pages, or enter the purchase order manually.");
     } finally {
       setOcrLoading(false);
     }
@@ -689,7 +693,7 @@ export default function PurchaseOrders() {
             <DialogHeader>
               <DialogTitle>Scan Purchase Order for Review</DialogTitle>
               <DialogDescription>
-                JPEG and PNG documents are extracted with OCR, then parsed deterministically. Nothing is created until you explicitly submit the reviewed PO form.
+                JPEG, PNG, and PDF documents of up to five pages are extracted with OCR, then parsed deterministically. Nothing is created until you explicitly submit the reviewed PO form.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -700,8 +704,8 @@ export default function PurchaseOrders() {
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Upload className="mx-auto mb-2 h-8 w-8 text-slate-400" />
-                    <p className="text-sm text-slate-700">Select a JPEG or PNG purchase order or invoice image.</p>
-                    <p className="mt-1 text-xs text-slate-500">PDF OCR is deferred and will be rejected safely.</p>
+                    <p className="text-sm text-slate-700">Select a JPEG, PNG, or PDF purchase order or invoice.</p>
+                    <p className="mt-1 text-xs text-slate-500">PDFs are limited to five pages. OCR output is always reviewed before a PO can be submitted.</p>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -711,7 +715,23 @@ export default function PurchaseOrders() {
                     />
                     {ocrImageFile && <p className="mt-2 text-sm text-teal-700">Selected: {ocrImageFile.name}</p>}
                   </div>
-                  {imagePreview && (
+                  {ocrImageFile?.type.toLowerCase() === "application/pdf" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-center gap-3 rounded-lg border bg-slate-50 p-8 text-center">
+                        <FileText className="h-10 w-10 text-rose-600" aria-hidden="true" />
+                        <div className="min-w-0 text-left">
+                          <p className="truncate text-sm font-medium text-slate-900">{ocrImageFile.name}</p>
+                          <p className="mt-1 text-xs text-slate-600">PDF document selected. Pages will be counted safely before OCR.</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-center gap-2">
+                        <Button type="button" variant="outline" size="sm" onClick={() => handleImageSelect(null)}>
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {imagePreview && ocrImageFile?.type.toLowerCase() !== "application/pdf" && (
                     <div className="space-y-3">
                       <div className="overflow-hidden rounded-lg border bg-slate-50">
                         <img
@@ -749,6 +769,7 @@ export default function PurchaseOrders() {
                   <div className="rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-950">
                     <p className="font-semibold">Human review required</p>
                     <p className="mt-1">This deterministic prefill is editable. Continuing only opens the PO form; it does not create, approve, receive, or stock any record.</p>
+                    {scanPageCount && <p className="mt-2 font-medium">OCR processed {scanPageCount} {scanPageCount === 1 ? "page" : "pages"}.</p>}
                   </div>
 
                   {reviewPrefill.warnings.length > 0 && (
@@ -836,7 +857,7 @@ export default function PurchaseOrders() {
                   </section>
 
                   <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
-                    <Button type="button" variant="outline" onClick={() => handleImageSelect(null)}>Re-scan / upload another image</Button>
+                    <Button type="button" variant="outline" onClick={() => handleImageSelect(null)}>Re-scan / upload another document</Button>
                     <Button type="button" variant="outline" onClick={() => setShowOCRDialog(false)}>Cancel</Button>
                     <Button type="button" className="bg-teal-600 hover:bg-teal-700" onClick={applyReviewedPrefillToForm}>Review &amp; continue to PO form</Button>
                   </div>
