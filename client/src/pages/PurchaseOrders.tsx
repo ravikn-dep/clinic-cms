@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,101 @@ import {
   type ReviewField,
   updateReviewField,
 } from "@shared/poReviewPrefill";
+import type { CatalogMatchLevel, CatalogMatchSource } from "@shared/catalogResolution";
+
+type CatalogDecisionInput = {
+  lineIndex: number;
+  decision: "ACCEPTED" | "UNMATCHED";
+  catalogItemId?: string;
+};
+
+type CatalogSuggestion = {
+  catalogItemId: string;
+  canonicalName: string;
+  matchLevel: CatalogMatchLevel;
+  reasons: string[];
+  conflicts: string[];
+  source: CatalogMatchSource;
+};
+
+function CatalogMatchSuggestions({
+  lineIndex,
+  description,
+  hsnCode,
+  selectedDecision,
+  onDecision,
+}: {
+  lineIndex: number;
+  description: string;
+  hsnCode: string;
+  selectedDecision?: CatalogDecisionInput;
+  onDecision: (decision: CatalogDecisionInput) => void;
+}) {
+  const suggestionInput = useMemo(() => ({
+    lineDescription: description,
+    ...(hsnCode.trim() ? { hsnCode: hsnCode.trim() } : {}),
+  }), [description, hsnCode]);
+  const { data: suggestions, isFetching } = trpc.catalogMatching.suggestMatches.useQuery(
+    suggestionInput,
+    { enabled: description.trim().length > 0 },
+  );
+  const selectedCatalogItemId = selectedDecision?.decision === "ACCEPTED" ? selectedDecision.catalogItemId : undefined;
+
+  return (
+    <section className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h4 className="font-semibold text-indigo-950">Optional catalog resolution</h4>
+          <p className="text-xs text-indigo-800">Suggestions are read-only. A catalog item is linked only after you explicitly accept a conflict-free suggestion and submit the PO.</p>
+        </div>
+        {selectedDecision?.decision === "UNMATCHED" && <Badge variant="outline">Keep unmatched</Badge>}
+        {selectedCatalogItemId && <Badge className="bg-teal-700">Match accepted</Badge>}
+      </div>
+
+      {isFetching ? (
+        <div className="mt-3 flex items-center gap-2 text-xs text-indigo-800"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking curated catalog…</div>
+      ) : suggestions && suggestions.length > 0 ? (
+        <div className="mt-3 space-y-2">
+          {suggestions.map((suggestion: CatalogSuggestion, index: number) => {
+            const hasConflicts = suggestion.conflicts.length > 0;
+            const isSelected = selectedCatalogItemId === suggestion.catalogItemId;
+            return (
+              <div key={suggestion.catalogItemId} className={`rounded border p-3 ${suggestion.matchLevel === "EXACT" && index === 0 ? "border-indigo-300 bg-white" : "border-indigo-100 bg-white/70"}`}>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-slate-950">{suggestion.canonicalName}</p>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      <Badge variant="outline">{suggestion.matchLevel}</Badge>
+                      <Badge variant="outline">{suggestion.source.replaceAll("_", " ")}</Badge>
+                      {suggestion.matchLevel === "EXACT" && index === 0 && <Badge variant="outline" className="border-indigo-300 text-indigo-800">Suggested, not selected</Badge>}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={isSelected ? "default" : "outline"}
+                    disabled={hasConflicts}
+                    onClick={() => onDecision({ lineIndex, decision: "ACCEPTED", catalogItemId: suggestion.catalogItemId })}
+                  >
+                    {isSelected ? "Accepted" : "Accept match"}
+                  </Button>
+                </div>
+                {suggestion.reasons.length > 0 && <p className="mt-2 text-xs text-emerald-800">Reasons: {suggestion.reasons.join("; ")}</p>}
+                {suggestion.conflicts.length > 0 && <p className="mt-2 text-xs text-rose-800">Conflicts: {suggestion.conflicts.join("; ")}. Choose another or keep unmatched.</p>}
+              </div>
+            );
+          })}
+        </div>
+      ) : description.trim() ? (
+        <p className="mt-3 text-xs text-slate-700">No safe catalog suggestion was found. You may continue with this item unmatched.</p>
+      ) : null}
+
+      <div className="mt-3 flex justify-end">
+        <Button type="button" size="sm" variant="outline" onClick={() => onDecision({ lineIndex, decision: "UNMATCHED" })}>Keep unmatched</Button>
+      </div>
+    </section>
+  );
+}
 
 export default function PurchaseOrders() {
   const { user } = useAuth();
@@ -114,6 +209,7 @@ export default function PurchaseOrders() {
   const [imageRotation, setImageRotation] = useState(0);
   const [reviewExtractionProvider, setReviewExtractionProvider] = useState<"google-cloud-vision" | "mock-ocr" | null>(null);
   const [reviewSubmissionId, setReviewSubmissionId] = useState<string | null>(null);
+  const [catalogDecisions, setCatalogDecisions] = useState<Record<number, CatalogDecisionInput>>({});
   const [evidenceConfirmation, setEvidenceConfirmation] = useState<{ purchaseOrderId: string; reviewId: string } | null>(null);
   const [authorizationNotes, setAuthorizationNotes] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -137,6 +233,7 @@ export default function PurchaseOrders() {
     setReviewPrefill(null);
     setReviewExtractionProvider(null);
     setReviewSubmissionId(null);
+    setCatalogDecisions({});
     setOcrImageFile(file);
     if (file) {
       const reader = new FileReader();
@@ -290,6 +387,16 @@ export default function PurchaseOrders() {
       );
       return { ...current, items };
     });
+    if (field === "description" || field === "hsnCode") {
+      setCatalogDecisions((current) => {
+        const { [lineIndex]: _discarded, ...remaining } = current;
+        return remaining;
+      });
+    }
+  };
+
+  const setCatalogDecision = (decision: CatalogDecisionInput) => {
+    setCatalogDecisions((current) => ({ ...current, [decision.lineIndex]: decision }));
   };
 
   const applyReviewedPrefillToForm = () => {
@@ -363,6 +470,7 @@ export default function PurchaseOrders() {
             reviewSubmissionId: reviewSubmissionId!,
             extractionProvider: reviewExtractionProvider!,
             review: reviewPrefill,
+            catalogResolutions: Object.values(catalogDecisions),
           });
         createdPurchaseOrder = reviewedCreation;
         setEvidenceConfirmation({ purchaseOrderId: reviewedCreation.purchaseOrderId, reviewId: reviewedCreation.reviewId });
@@ -385,6 +493,7 @@ export default function PurchaseOrders() {
       setReviewPrefill(null);
       setReviewExtractionProvider(null);
       setReviewSubmissionId(null);
+      setCatalogDecisions({});
       setShowForm(false);
       refetch();
     } catch (error) {
@@ -530,6 +639,7 @@ export default function PurchaseOrders() {
         mimeType: file.type || "application/octet-stream",
       });
       const parsedDocument = await parseOcrText.mutateAsync({ fullText: ocrResult.fullText });
+      setCatalogDecisions({});
       setReviewPrefill(createPurchaseOrderReviewPrefill(parsedDocument));
       setReviewExtractionProvider(ocrResult.provider);
       setReviewSubmissionId(crypto.randomUUID());
@@ -572,6 +682,7 @@ export default function PurchaseOrders() {
           if (!open) {
             setOcrError("");
             setReviewPrefill(null);
+            setCatalogDecisions({});
           }
         }}>
           <DialogContent className="max-h-[90vh] max-w-6xl overflow-y-auto">
@@ -681,6 +792,13 @@ export default function PurchaseOrders() {
                           {renderReviewField("Taxable amount", item.taxableAmount, (value) => updateReviewLineField(index, "taxableAmount", value), "number")}
                           {renderReviewField("Line total", item.lineTotal, (value) => updateReviewLineField(index, "lineTotal", value), "number")}
                         </div>
+                        <CatalogMatchSuggestions
+                          lineIndex={index}
+                          description={item.description.value}
+                          hsnCode={item.hsnCode.value}
+                          selectedDecision={catalogDecisions[index]}
+                          onDecision={setCatalogDecision}
+                        />
                       </div>
                     ))}
                   </section>

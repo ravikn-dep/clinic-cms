@@ -64,6 +64,35 @@ async function assertUniqueIndex(
   }
 }
 
+async function assertIndex(
+  connection: mysql.Connection,
+  table: string,
+  indexName: string,
+  expectedColumns: string[],
+): Promise<void> {
+  const [rows] = await connection.query(`SHOW INDEXES FROM \`${table}\``);
+
+  const matchingRows = (rows as IndexRow[])
+    .filter((row) => row.Key_name === indexName)
+    .sort((a, b) => a.Seq_in_index - b.Seq_in_index);
+
+  const actualColumns = matchingRows.map((row) => row.Column_name);
+
+  if (
+    actualColumns.length !== expectedColumns.length ||
+    actualColumns.some(
+      (column, index) => column !== expectedColumns[index],
+    )
+  ) {
+    await fail(
+      connection,
+      `Required index '${indexName}' on '${table}' mismatch. Expected (${expectedColumns.join(
+        ", ",
+      )}), found (${actualColumns.join(", ")}).`,
+    );
+  }
+}
+
 async function assertForeignKeys(
   connection: mysql.Connection,
   expectedForeignKeys: Array<{
@@ -157,7 +186,7 @@ async function bootstrap() {
 
   const requiredTables = [
     "users", "patients", "consultations", "inventory", "bills", "billItems", "billTemplates", "auditLogs", "notifications",
-    "purchaseOrders", "purchaseOrderItems", "purchaseOrderHistory", "purchaseOrderExtractionReviews", "goodsReceipts", "goodsReceiptItems", "stockMovements",
+    "purchaseOrders", "purchaseOrderItems", "purchaseOrderHistory", "purchaseOrderExtractionReviews", "catalogItems", "catalogItemAliases", "goodsReceipts", "goodsReceiptItems", "stockMovements",
     "appointments", "consultantAvailability", "notificationPreferences", "rolePermissions", "vendors", "appointmentBookingLocks",
     "enquiries", "externalApiAuditLogs", "externalIdempotencyKeys", "externalRequestReplays",
   ];
@@ -166,7 +195,7 @@ async function bootstrap() {
     const found = tables.some(t => t.toLowerCase() === reqTable.toLowerCase());
     if (!found) await fail(connection, `Required table missing: ${reqTable}`);
   }
-  console.log("[Verification] All 26 required tables verified successfully.");
+  console.log("[Verification] All 28 required tables verified successfully.");
 
   const expectedPrimaryKeys: Array<[string, string[]]> = [
     ["users", ["id"]],
@@ -182,6 +211,8 @@ async function bootstrap() {
     ["purchaseOrderItems", ["poItemId"]],
     ["purchaseOrderHistory", ["historyId"]],
     ["purchaseOrderExtractionReviews", ["reviewId"]],
+    ["catalogItems", ["catalogItemId"]],
+    ["catalogItemAliases", ["aliasId"]],
     ["goodsReceipts", ["goodsReceiptId"]],
     ["goodsReceiptItems", ["goodsReceiptItemId"]],
     ["stockMovements", ["movementId"]],
@@ -200,7 +231,7 @@ async function bootstrap() {
   for (const [table, columns] of expectedPrimaryKeys) {
     await assertPrimaryKey(connection, table, columns);
   }
-  console.log("[Verification] Exact PRIMARY KEY columns verified on all 26 tables.");
+  console.log("[Verification] Exact PRIMARY KEY columns verified on all 28 tables.");
 
   const [usersCols] = await connection.query("SHOW COLUMNS FROM `users` WHERE Field = 'id'");
   const usersIdCol = (usersCols as any[])[0];
@@ -225,6 +256,10 @@ async function bootstrap() {
     ["purchaseOrderExtractionReviews", "purchaseOrderExtractionReviews_reviewId_unique", ["reviewId"]],
     ["purchaseOrderExtractionReviews", "purchaseOrderExtractionReviews_purchaseOrder_unique", ["purchaseOrderId"]],
     ["purchaseOrderExtractionReviews", "purchaseOrderExtractionReviews_submission_unique", ["reviewSubmissionId"]],
+    ["catalogItems", "catalogItems_catalogItemId_unique", ["catalogItemId"]],
+    ["catalogItems", "catalogItems_normalizedName_unique", ["normalizedName"]],
+    ["catalogItemAliases", "catalogItemAliases_aliasId_unique", ["aliasId"]],
+    ["catalogItemAliases", "catalogItemAliases_vendor_alias_unique", ["vendorId", "normalizedAlias"]],
     ["enquiries", "enquiries_enquiryId_unique", ["enquiryId"]],
     ["externalApiAuditLogs", "externalApiAuditLogs_auditId_unique", ["auditId"]],
     ["externalIdempotencyKeys", "externalIdempotency_operation_key_unique", ["operation", "idempotencyKey"]],
@@ -237,6 +272,20 @@ async function bootstrap() {
     await assertUniqueIndex(connection, table, indexName, columns);
   }
   console.log("[Verification] All schema-defined UNIQUE constraints and duplicate-protection indexes verified.");
+
+  const requiredIndexes: Array<[string, string, string[]]> = [
+    [
+      "purchaseOrderItems",
+      "purchaseOrderItems_catalogItem_idx",
+      ["catalogItemId"],
+    ],
+  ];
+
+  for (const [table, indexName, columns] of requiredIndexes) {
+    await assertIndex(connection, table, indexName, columns);
+  }
+
+  console.log("[Verification] Required non-unique indexes verified.");
 
   const expectedForeignKeys: Array<{
     constraintName: string;
@@ -255,7 +304,7 @@ async function bootstrap() {
   }
   console.log("[Verification] purchaseOrderItems.receivedQuantity verified.");
 
-  const specificEntities = ["goodsReceipts", "goodsReceiptItems", "stockMovements", "externalRequestReplays", "purchaseOrderExtractionReviews"];
+  const specificEntities = ["goodsReceipts", "goodsReceiptItems", "stockMovements", "externalRequestReplays", "purchaseOrderExtractionReviews", "catalogItems", "catalogItemAliases"];
   for (const entity of specificEntities) {
     await connection.query(`SELECT COUNT(*) as cnt FROM \`${entity}\``);
     console.log(`[Verification] Entity table '${entity}' is accessible and queryable.`);

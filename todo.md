@@ -924,3 +924,12 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Add Step 4 focused tests for safety, immutability, provenance, replay protection, and access control.
 - [x] Validate TypeScript, targeted and full tests, and production build locally; fresh-schema verification is required in protected CI.
 - [x] Commit, publish, open a protected PR, and verify GitHub CI without merging or deploying.
+
+## Phase 3 Step 5 Supplier Catalog Matching & Safe Item Resolution
+- [x] Audit inventory, vendor, PO, Goods Receipt, and existing item lookup data models for a safe catalog source of truth.
+- [x] Add the smallest additive catalog and optional alias model required for deterministic matching.
+- [x] Implement deterministic normalization and ranked, read-only matching suggestions with clinical conflict safeguards.
+- [x] Add explicit human-only match acceptance and immutable evidence preservation without PO, GR, or inventory automation.
+- [x] Add targeted Step 5 matching, safety, provenance, and RBAC tests.
+- [x] Validate targeted and full regression and production build locally; fresh-schema bootstrap verification is required in protected CI.
+- [x] Commit, publish, open a protected PR, and verify CI without merging or deploying.
