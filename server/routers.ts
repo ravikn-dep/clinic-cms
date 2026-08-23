@@ -17,7 +17,7 @@ import { notifyOwner } from "./_core/notification";
 import { resolveArtifactStorageKey } from "./artifactAccess";
 import { hashPassword, verifyPassword, generateRandomPassword } from "./_core/auth";
 import { registerPatientWithTracking } from "./services/patientRegistration";
-import { getOcrProvider } from "./ocr/provider";
+import { getOcrProvider, isSafeOcrClientError } from "./ocr/provider";
 import { parseOcrText } from "./poParsing/parser";
 import { reconcileDocument } from "./poParsing/reconcile";
 import { applySubmittedPurchaseOrderValues, createExtractionReviewEvidence } from "../shared/poExtractionReview";
@@ -247,7 +247,6 @@ export const appRouter = router({
       .input(z.object({
         data: z.string(),
         mimeType: z.string(),
-        maxSizeMb: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
@@ -255,22 +254,13 @@ export const appRouter = router({
           const result = await provider.extractDocument({
             data: input.data,
             mimeType: input.mimeType,
-            maxSizeMb: input.maxSizeMb,
           });
           return result;
         } catch (error) {
           const errMessage = error instanceof Error ? error.message : String(error);
           console.error("[OCR Router] Extraction failed:", errMessage);
 
-          const isSafeValidation =
-            errMessage.includes("Unsupported MIME type") ||
-            errMessage.includes("PDF OCR is not supported") ||
-            errMessage.includes("Cannot process empty file") ||
-            errMessage.includes("exceeds maximum allowed limit") ||
-            errMessage.includes("OCR input data is required") ||
-            errMessage.includes("Malformed data URI");
-
-          if (isSafeValidation) {
+          if (isSafeOcrClientError(errMessage)) {
             throw new Error(errMessage);
           }
 

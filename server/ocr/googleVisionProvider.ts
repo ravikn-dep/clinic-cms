@@ -1,4 +1,4 @@
-import { validateOcrInput } from './provider';
+import { assertOcrResultSize, composeDocumentFullText, inspectOcrInput, isSafeOcrClientError, runWithOcrTimeout } from './document';
 import type { OcrProvider, OcrInput, OcrResult, OcrPage } from './types';
 
 export class GoogleVisionProvider implements OcrProvider {
@@ -21,34 +21,16 @@ export class GoogleVisionProvider implements OcrProvider {
   }
 
   async extractDocument(input: OcrInput): Promise<OcrResult> {
-    validateOcrInput(input);
-
-    let contentBuffer: Buffer;
-    if (Buffer.isBuffer(input.data)) {
-      contentBuffer = input.data;
-    } else if (typeof input.data === 'string') {
-      if (input.data.startsWith('data:')) {
-        const base64Data = input.data.split(',')[1];
-        if (!base64Data) {
-          throw new Error('Malformed data URI in OCR input');
-        }
-        contentBuffer = Buffer.from(base64Data, 'base64');
-      } else {
-        try {
-          contentBuffer = Buffer.from(input.data, 'base64');
-        } catch {
-          contentBuffer = Buffer.from(input.data);
-        }
-      }
-    } else {
-      throw new Error('Invalid OCR input format');
-    }
+    const inspected = await inspectOcrInput(input);
 
     try {
       const client = this.getClient();
-      const [result] = await client.documentTextDetection({
-        image: { content: contentBuffer },
-      });
+      if (inspected.mimeType === 'application/pdf') {
+        return await this.extractPdf(client, inspected.buffer, inspected.pageCount);
+      }
+      const [result] = await runWithOcrTimeout<any>(client.documentTextDetection({
+        image: { content: inspected.buffer },
+      }));
 
       const fullTextAnnotation = result.fullTextAnnotation;
       const fullText = fullTextAnnotation?.text || '';
@@ -75,7 +57,7 @@ export class GoogleVisionProvider implements OcrProvider {
           }
           pages.push({
             pageNumber: idx + 1,
-            text: pageText.trim() || fullText,
+            text: pageText.trim(),
             width: page.width,
             height: page.height,
           });
@@ -89,22 +71,63 @@ export class GoogleVisionProvider implements OcrProvider {
         });
       }
 
+      const resolvedPages = pages.length > 0 ? pages : [{ pageNumber: 1, text: '' }];
+      assertOcrResultSize(fullText);
       return {
         provider: 'google-cloud-vision',
         fullText,
-        pages,
+        pages: resolvedPages,
+        sourceMimeType: inspected.mimeType,
+        pageCount: resolvedPages.length,
         // Confidence omitted when uncalculated from raw confidence annotations per security hardening rules
-        rawProviderMetadata: {
-          textAnnotationsCount: result.textAnnotations?.length || 0,
+        safeProviderMetadata: {
+          processingMode: 'image-ocr',
+          pageCount: resolvedPages.length,
         },
       };
     } catch (error) {
       const rawErr = error instanceof Error ? error.message : String(error);
-      if (rawErr.includes('OCR_PROVIDER_INITIALIZATION_FAILED') || rawErr.includes('OCR_PROVIDER_PROCESSING_FAILED') || rawErr.includes('Unsupported MIME type') || rawErr.includes('PDF OCR is not supported') || rawErr.includes('Cannot process empty file') || rawErr.includes('exceeds maximum allowed limit') || rawErr.includes('OCR input data is required') || rawErr.includes('Malformed data URI')) {
+      if (rawErr.includes('OCR_PROVIDER_INITIALIZATION_FAILED') || rawErr.includes('OCR_PROVIDER_PROCESSING_FAILED') || rawErr.includes('OCR_PROVIDER_TIMEOUT') || isSafeOcrClientError(rawErr)) {
         throw error;
       }
       console.error('[GoogleVisionProvider] Processing error:', rawErr);
       throw new Error('OCR_PROVIDER_PROCESSING_FAILED');
     }
+  }
+
+  private async extractPdf(client: any, content: Buffer, pageCount: number): Promise<OcrResult> {
+    const requestedPages = Array.from({ length: pageCount }, (_, index) => index + 1);
+    const [batchResult] = await runWithOcrTimeout<any>(client.batchAnnotateFiles({
+      requests: [{
+        inputConfig: { content, mimeType: 'application/pdf' },
+        features: [{ type: 'DOCUMENT_TEXT_DETECTION' }],
+        pages: requestedPages,
+      }],
+    }));
+    const fileResponse = batchResult?.responses?.[0];
+    if (!fileResponse || fileResponse.error || !Array.isArray(fileResponse.responses)) {
+      throw new Error('OCR_PROVIDER_PROCESSING_FAILED');
+    }
+    if (fileResponse.responses.length !== pageCount) {
+      throw new Error('OCR_PROVIDER_PROCESSING_FAILED');
+    }
+
+    const pages: OcrPage[] = fileResponse.responses.map((response: any, index: number) => {
+      if (response?.error) throw new Error('OCR_PROVIDER_PROCESSING_FAILED');
+      return {
+        pageNumber: index + 1,
+        text: response?.fullTextAnnotation?.text?.trim() || '',
+      };
+    });
+    const fullText = composeDocumentFullText(pages);
+    assertOcrResultSize(fullText);
+    return {
+      provider: 'google-cloud-vision',
+      fullText,
+      pages,
+      sourceMimeType: 'application/pdf',
+      pageCount,
+      safeProviderMetadata: { processingMode: 'synchronous-file-annotation', pageCount },
+    };
   }
 }

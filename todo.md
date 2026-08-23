@@ -933,3 +933,14 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Add targeted Step 5 matching, safety, provenance, and RBAC tests.
 - [x] Validate targeted and full regression and production build locally; fresh-schema bootstrap verification is required in protected CI.
 - [x] Commit, publish, open a protected PR, and verify CI without merging or deploying.
+
+## Phase 3 Step 6 Safe PDF / Multi-Page Document OCR Ingestion
+- [x] Audit current OCR contracts, limits, provider capabilities, page model, parser integration, and safe error boundary.
+- [x] Extend the provider-neutral OCR contract for bounded page-aware PDF results without PO business behavior.
+- [x] Implement Google Vision PDF file OCR using a verified SDK method with safe server-owned resource handling.
+- [x] Add centralized authoritative image/PDF limits, PDF validation, multi-page ordering, bounded polling if required, and error sanitization.
+- [x] Extend Scan PO upload and review UX for PDFs without bypassing human review, catalog confirmation, or Pending Approval submission.
+- [x] Preserve safe PDF provenance in immutable review evidence without raw OCR text, cloud credentials, or provider internals.
+- [x] Add focused Step 6 PDF, multi-page, boundary, RBAC, and parser-integration tests.
+- [x] Validate targeted tests, full regression, build, fresh-schema bootstrap if schema changes, and protected CI.
+- [ ] Commit, publish, open a protected PR, and verify CI without merging or deploying.
