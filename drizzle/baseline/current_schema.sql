@@ -119,6 +119,10 @@ CREATE TABLE `purchaseOrderItems` (
 	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT `purchaseOrderItems_poItemId` PRIMARY KEY(`poItemId`)
 );
+
+CREATE INDEX `purchaseOrderItems_catalogItem_idx`
+ON `purchaseOrderItems` (`catalogItemId`);
+
 CREATE TABLE `purchaseOrders` (
 	`purchaseOrderId` varchar(50) NOT NULL,
 	`vendorName` varchar(255) NOT NULL,

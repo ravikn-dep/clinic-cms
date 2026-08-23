@@ -64,6 +64,35 @@ async function assertUniqueIndex(
   }
 }
 
+async function assertIndex(
+  connection: mysql.Connection,
+  table: string,
+  indexName: string,
+  expectedColumns: string[],
+): Promise<void> {
+  const [rows] = await connection.query(`SHOW INDEXES FROM \`${table}\``);
+
+  const matchingRows = (rows as IndexRow[])
+    .filter((row) => row.Key_name === indexName)
+    .sort((a, b) => a.Seq_in_index - b.Seq_in_index);
+
+  const actualColumns = matchingRows.map((row) => row.Column_name);
+
+  if (
+    actualColumns.length !== expectedColumns.length ||
+    actualColumns.some(
+      (column, index) => column !== expectedColumns[index],
+    )
+  ) {
+    await fail(
+      connection,
+      `Required index '${indexName}' on '${table}' mismatch. Expected (${expectedColumns.join(
+        ", ",
+      )}), found (${actualColumns.join(", ")}).`,
+    );
+  }
+}
+
 async function assertForeignKeys(
   connection: mysql.Connection,
   expectedForeignKeys: Array<{
@@ -243,6 +272,20 @@ async function bootstrap() {
     await assertUniqueIndex(connection, table, indexName, columns);
   }
   console.log("[Verification] All schema-defined UNIQUE constraints and duplicate-protection indexes verified.");
+
+  const requiredIndexes: Array<[string, string, string[]]> = [
+    [
+      "purchaseOrderItems",
+      "purchaseOrderItems_catalogItem_idx",
+      ["catalogItemId"],
+    ],
+  ];
+
+  for (const [table, indexName, columns] of requiredIndexes) {
+    await assertIndex(connection, table, indexName, columns);
+  }
+
+  console.log("[Verification] Required non-unique indexes verified.");
 
   const expectedForeignKeys: Array<{
     constraintName: string;
