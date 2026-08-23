@@ -773,6 +773,153 @@ export async function getActiveCatalogItemAliases() {
   return db.select().from(catalogItemAliases).where(eq(catalogItemAliases.active, 1));
 }
 
+type CatalogItemAdminInput = Omit<typeof catalogItems.$inferInsert, "catalogItemId" | "normalizedName" | "active" | "createdAt" | "updatedAt">;
+type CatalogItemAdminUpdate = Partial<Omit<CatalogItemAdminInput, "canonicalName">> & {
+  canonicalName?: string;
+  normalizedName?: string;
+};
+type CatalogAliasAdminInput = Omit<typeof catalogItemAliases.$inferInsert, "aliasId" | "normalizedAlias" | "active" | "createdAt">;
+type CatalogAuditEntry = typeof auditLogs.$inferInsert;
+
+/**
+ * Admin-facing catalog queries remain separate from the matching read path.
+ * The matcher deliberately continues to read only active records through the
+ * two helpers above.
+ */
+export async function listCatalogItemsForAdmin(options: { query?: string; includeInactive?: boolean } = {}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const query = options.query?.trim();
+  const conditions = [
+    options.includeInactive ? undefined : eq(catalogItems.active, 1),
+    query
+      ? or(
+        like(catalogItems.canonicalName, `%${query}%`),
+        like(catalogItems.genericName, `%${query}%`),
+        like(catalogItems.brandName, `%${query}%`),
+        like(catalogItems.manufacturer, `%${query}%`),
+      )
+      : undefined,
+  ].filter(Boolean);
+  const where = conditions.length === 0 ? undefined : conditions.length === 1 ? conditions[0] : and(...conditions as any);
+
+  return where
+    ? db.select().from(catalogItems).where(where as any).orderBy(desc(catalogItems.updatedAt), catalogItems.canonicalName)
+    : db.select().from(catalogItems).orderBy(desc(catalogItems.updatedAt), catalogItems.canonicalName);
+}
+
+export async function getCatalogItemById(catalogItemId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(catalogItems).where(eq(catalogItems.catalogItemId, catalogItemId)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getCatalogItemByNormalizedName(normalizedName: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(catalogItems).where(eq(catalogItems.normalizedName, normalizedName)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function listCatalogAliasesForAdmin(catalogItemId: string, includeInactive = false) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const condition = includeInactive
+    ? eq(catalogItemAliases.catalogItemId, catalogItemId)
+    : and(eq(catalogItemAliases.catalogItemId, catalogItemId), eq(catalogItemAliases.active, 1));
+
+  return db
+    .select({
+      aliasId: catalogItemAliases.aliasId,
+      catalogItemId: catalogItemAliases.catalogItemId,
+      vendorId: catalogItemAliases.vendorId,
+      aliasText: catalogItemAliases.aliasText,
+      normalizedAlias: catalogItemAliases.normalizedAlias,
+      source: catalogItemAliases.source,
+      active: catalogItemAliases.active,
+      createdBy: catalogItemAliases.createdBy,
+      createdAt: catalogItemAliases.createdAt,
+      vendorName: vendors.name,
+    })
+    .from(catalogItemAliases)
+    .leftJoin(vendors, eq(catalogItemAliases.vendorId, vendors.vendorId))
+    .where(condition)
+    .orderBy(desc(catalogItemAliases.createdAt));
+}
+
+export async function getCatalogAliasByVendorAndNormalizedAlias(vendorId: string, normalizedAlias: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .select()
+    .from(catalogItemAliases)
+    .where(and(eq(catalogItemAliases.vendorId, vendorId), eq(catalogItemAliases.normalizedAlias, normalizedAlias)))
+    .limit(1);
+  return result[0] ?? null;
+}
+
+export async function getCatalogAliasById(aliasId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(catalogItemAliases).where(eq(catalogItemAliases.aliasId, aliasId)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function createCatalogItemWithAudit(
+  catalogItem: CatalogItemAdminInput & { catalogItemId: string; normalizedName: string },
+  audit: CatalogAuditEntry,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async (transaction) => {
+    await transaction.insert(catalogItems).values(catalogItem as any);
+    await transaction.insert(auditLogs).values(audit);
+  });
+  return catalogItem;
+}
+
+export async function updateCatalogItemWithAudit(catalogItemId: string, updates: CatalogItemAdminUpdate, audit: CatalogAuditEntry) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async (transaction) => {
+    await transaction.update(catalogItems).set(updates as any).where(eq(catalogItems.catalogItemId, catalogItemId));
+    await transaction.insert(auditLogs).values(audit);
+  });
+}
+
+export async function setCatalogItemActiveWithAudit(catalogItemId: string, active: boolean, audit: CatalogAuditEntry) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async (transaction) => {
+    await transaction.update(catalogItems).set({ active: active ? 1 : 0 }).where(eq(catalogItems.catalogItemId, catalogItemId));
+    await transaction.insert(auditLogs).values(audit);
+  });
+}
+
+export async function createCatalogAliasWithAudit(
+  alias: CatalogAliasAdminInput & { aliasId: string; normalizedAlias: string },
+  audit: CatalogAuditEntry,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async (transaction) => {
+    await transaction.insert(catalogItemAliases).values(alias as any);
+    await transaction.insert(auditLogs).values(audit);
+  });
+  return alias;
+}
+
+export async function setCatalogAliasActiveWithAudit(aliasId: string, active: boolean, audit: CatalogAuditEntry) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async (transaction) => {
+    await transaction.update(catalogItemAliases).set({ active: active ? 1 : 0 }).where(eq(catalogItemAliases.aliasId, aliasId));
+    await transaction.insert(auditLogs).values(audit);
+  });
+}
+
 export async function updateInventoryItem(itemId: string, updates: Partial<typeof inventory.$inferInsert>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

@@ -24,6 +24,7 @@ import { applySubmittedPurchaseOrderValues, createExtractionReviewEvidence } fro
 import type { PurchaseOrderReviewPrefill } from "../shared/poReviewPrefill";
 import type { CatalogResolutionDecision } from "../shared/catalogResolution";
 import { suggestCatalogMatches } from "./catalogMatching/matcher";
+import { normalizeCatalogText } from "./catalogMatching/normalize";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -239,6 +240,89 @@ async function requirePurchaseOrderAccess(user: { id: number; role: "user" | "ad
   }
 }
 
+/** Catalog reads follow the existing PO/catalog feature-access boundary. Catalog writes are admin-only. */
+async function requireCatalogReadAccess(user: { id: number; role: "user" | "admin" | "consultant" | "staff" }) {
+  await requirePurchaseOrderAccess(user);
+}
+
+const optionalCatalogText = z.string().trim().max(255).nullable().optional();
+const catalogItemInputSchema = z.object({
+  canonicalName: z.string().trim().min(1).max(255),
+  genericName: optionalCatalogText,
+  brandName: optionalCatalogText,
+  strength: z.string().trim().max(100).nullable().optional(),
+  dosageForm: z.string().trim().max(100).nullable().optional(),
+  manufacturer: optionalCatalogText,
+  hsnCode: z.string().trim().max(32).nullable().optional(),
+  gstRate: z.number().finite().min(0).max(100).nullable().optional(),
+});
+
+const catalogItemUpdateSchema = catalogItemInputSchema.partial().refine((value) => Object.keys(value).length > 0, {
+  message: "At least one catalog field must be provided",
+});
+
+const catalogAliasInputSchema = z.object({
+  catalogItemId: z.string().trim().min(1).max(50),
+  vendorId: z.string().trim().max(50).optional(),
+  aliasText: z.string().trim().min(1).max(255),
+  source: z.enum(["MANUAL_CURATED", "VENDOR_CURATED"]),
+});
+
+function catalogAuditEntry(
+  userId: number,
+  actionType: string,
+  tableName: "catalogItems" | "catalogItemAliases",
+  recordId: string,
+  oldValue?: Record<string, unknown>,
+  newValue?: Record<string, unknown>,
+) {
+  return {
+    logId: utils.generateAuditLogId(),
+    userId: userId.toString(),
+    actionType,
+    tableName,
+    recordId,
+    oldValue: oldValue ? JSON.stringify(oldValue) : null,
+    newValue: newValue ? JSON.stringify(newValue) : null,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function catalogItemAuditSnapshot(item: Record<string, unknown>) {
+  return {
+    catalogItemId: item.catalogItemId,
+    canonicalName: item.canonicalName,
+    normalizedName: item.normalizedName,
+    genericName: item.genericName ?? null,
+    brandName: item.brandName ?? null,
+    strength: item.strength ?? null,
+    dosageForm: item.dosageForm ?? null,
+    manufacturer: item.manufacturer ?? null,
+    hsnCode: item.hsnCode ?? null,
+    gstRate: item.gstRate ?? null,
+    active: item.active,
+  };
+}
+
+function catalogAliasAuditSnapshot(alias: Record<string, unknown>) {
+  return {
+    aliasId: alias.aliasId,
+    catalogItemId: alias.catalogItemId,
+    vendorId: alias.vendorId,
+    aliasText: alias.aliasText,
+    normalizedAlias: alias.normalizedAlias,
+    source: alias.source,
+    active: alias.active,
+  };
+}
+
+function safeCatalogWriteError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/duplicate|unique|ER_DUP_ENTRY/i.test(message)) return new Error("A catalog record with the same normalized identity already exists");
+  console.error("[Catalog administration] Write failed:", message);
+  return new Error("Catalog administration change could not be saved");
+}
+
 export const appRouter = router({
   system: systemRouter,
 
@@ -294,6 +378,210 @@ export const appRouter = router({
           db.getActiveCatalogItemAliases(),
         ]);
         return suggestCatalogMatches(input, catalogItems, aliases);
+      }),
+  }),
+
+  catalogAdmin: router({
+    listItems: protectedProcedure
+      .input(z.object({ query: z.string().trim().max(255).optional(), includeInactive: z.boolean().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        await requireCatalogReadAccess(ctx.user);
+        return db.listCatalogItemsForAdmin(input ?? {});
+      }),
+
+    getItem: protectedProcedure
+      .input(z.object({ catalogItemId: z.string().trim().min(1).max(50) }))
+      .query(async ({ input, ctx }) => {
+        await requireCatalogReadAccess(ctx.user);
+        const item = await db.getCatalogItemById(input.catalogItemId);
+        if (!item) throw new Error("Catalog item not found");
+        return item;
+      }),
+
+    listAliases: protectedProcedure
+      .input(z.object({ catalogItemId: z.string().trim().min(1).max(50), includeInactive: z.boolean().optional() }))
+      .query(async ({ input, ctx }) => {
+        await requireCatalogReadAccess(ctx.user);
+        return db.listCatalogAliasesForAdmin(input.catalogItemId, input.includeInactive ?? false);
+      }),
+
+    listVendors: protectedProcedure.query(async ({ ctx }) => {
+      await requireCatalogReadAccess(ctx.user);
+      return db.getAllVendors();
+    }),
+
+    createItem: adminProcedure
+      .input(catalogItemInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const normalizedName = normalizeCatalogText(input.canonicalName);
+        if (!normalizedName) throw new Error("Catalog name must contain searchable text");
+        const existing = await db.getCatalogItemByNormalizedName(normalizedName);
+        if (existing) throw new Error("A catalog item with the same normalized name already exists");
+
+        const catalogItemId = utils.generateAuditLogId();
+        const item = {
+          catalogItemId,
+          canonicalName: input.canonicalName,
+          normalizedName,
+          genericName: input.genericName ?? null,
+          brandName: input.brandName ?? null,
+          strength: input.strength ?? null,
+          dosageForm: input.dosageForm ?? null,
+          manufacturer: input.manufacturer ?? null,
+          hsnCode: input.hsnCode ?? null,
+          gstRate: input.gstRate === undefined || input.gstRate === null ? null : input.gstRate.toFixed(2),
+        };
+
+        try {
+          await db.createCatalogItemWithAudit(item, catalogAuditEntry(
+            ctx.user.id,
+            "CATALOG_ITEM_CREATED",
+            "catalogItems",
+            catalogItemId,
+            undefined,
+            catalogItemAuditSnapshot({ ...item, active: 1 }),
+          ));
+        } catch (error) {
+          throw safeCatalogWriteError(error);
+        }
+        return { ...item, active: 1 };
+      }),
+
+    updateItem: adminProcedure
+      .input(z.object({ catalogItemId: z.string().trim().min(1).max(50), updates: catalogItemUpdateSchema }))
+      .mutation(async ({ input, ctx }) => {
+        const current = await db.getCatalogItemById(input.catalogItemId);
+        if (!current) throw new Error("Catalog item not found");
+
+        const canonicalName = input.updates.canonicalName ?? current.canonicalName;
+        const normalizedName = normalizeCatalogText(canonicalName);
+        if (!normalizedName) throw new Error("Catalog name must contain searchable text");
+        const duplicate = await db.getCatalogItemByNormalizedName(normalizedName);
+        if (duplicate && duplicate.catalogItemId !== input.catalogItemId) {
+          throw new Error("A catalog item with the same normalized name already exists");
+        }
+
+        const updates = {
+          ...input.updates,
+          normalizedName,
+          gstRate: input.updates.gstRate === undefined
+            ? undefined
+            : input.updates.gstRate === null ? null : input.updates.gstRate.toFixed(2),
+        };
+        const next = { ...current, ...updates };
+        try {
+          await db.updateCatalogItemWithAudit(
+            input.catalogItemId,
+            updates,
+            catalogAuditEntry(
+              ctx.user.id,
+              "CATALOG_ITEM_UPDATED",
+              "catalogItems",
+              input.catalogItemId,
+              catalogItemAuditSnapshot(current as unknown as Record<string, unknown>),
+              catalogItemAuditSnapshot(next as unknown as Record<string, unknown>),
+            ),
+          );
+        } catch (error) {
+          throw safeCatalogWriteError(error);
+        }
+        return next;
+      }),
+
+    setItemActive: adminProcedure
+      .input(z.object({ catalogItemId: z.string().trim().min(1).max(50), active: z.boolean() }))
+      .mutation(async ({ input, ctx }) => {
+        const current = await db.getCatalogItemById(input.catalogItemId);
+        if (!current) throw new Error("Catalog item not found");
+        if (Boolean(current.active) === input.active) return { ...current, active: input.active ? 1 : 0 };
+
+        const next = { ...current, active: input.active ? 1 : 0 };
+        try {
+          await db.setCatalogItemActiveWithAudit(
+            input.catalogItemId,
+            input.active,
+            catalogAuditEntry(
+              ctx.user.id,
+              input.active ? "CATALOG_ITEM_REACTIVATED" : "CATALOG_ITEM_DEACTIVATED",
+              "catalogItems",
+              input.catalogItemId,
+              catalogItemAuditSnapshot(current as unknown as Record<string, unknown>),
+              catalogItemAuditSnapshot(next as unknown as Record<string, unknown>),
+            ),
+          );
+        } catch (error) {
+          throw safeCatalogWriteError(error);
+        }
+        return next;
+      }),
+
+    createAlias: adminProcedure
+      .input(catalogAliasInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const item = await db.getCatalogItemById(input.catalogItemId);
+        if (!item) throw new Error("Catalog item not found");
+        if (!Boolean(item.active)) throw new Error("Aliases can be added only to an active catalog item");
+
+        const vendorId = input.vendorId?.trim() ?? "";
+        if (vendorId) {
+          const vendor = await db.getVendorById(vendorId);
+          if (!vendor) throw new Error("Vendor not found or inactive");
+        }
+        const normalizedAlias = normalizeCatalogText(input.aliasText);
+        if (!normalizedAlias) throw new Error("Alias text must contain searchable text");
+        const duplicate = await db.getCatalogAliasByVendorAndNormalizedAlias(vendorId, normalizedAlias);
+        if (duplicate) throw new Error("An alias with the same vendor scope and normalized text already exists");
+
+        const aliasId = utils.generateAuditLogId();
+        const alias = {
+          aliasId,
+          catalogItemId: input.catalogItemId,
+          vendorId,
+          aliasText: input.aliasText,
+          normalizedAlias,
+          source: input.source,
+          createdBy: ctx.user.id.toString(),
+        };
+        try {
+          await db.createCatalogAliasWithAudit(alias, catalogAuditEntry(
+            ctx.user.id,
+            "CATALOG_ALIAS_CREATED",
+            "catalogItemAliases",
+            aliasId,
+            undefined,
+            catalogAliasAuditSnapshot({ ...alias, active: 1 }),
+          ));
+        } catch (error) {
+          throw safeCatalogWriteError(error);
+        }
+        return { ...alias, active: 1 };
+      }),
+
+    setAliasActive: adminProcedure
+      .input(z.object({ aliasId: z.string().trim().min(1).max(50), active: z.boolean() }))
+      .mutation(async ({ input, ctx }) => {
+        const current = await db.getCatalogAliasById(input.aliasId);
+        if (!current) throw new Error("Catalog alias not found");
+        if (Boolean(current.active) === input.active) return { ...current, active: input.active ? 1 : 0 };
+
+        const next = { ...current, active: input.active ? 1 : 0 };
+        try {
+          await db.setCatalogAliasActiveWithAudit(
+            input.aliasId,
+            input.active,
+            catalogAuditEntry(
+              ctx.user.id,
+              input.active ? "CATALOG_ALIAS_REACTIVATED" : "CATALOG_ALIAS_DEACTIVATED",
+              "catalogItemAliases",
+              input.aliasId,
+              catalogAliasAuditSnapshot(current as unknown as Record<string, unknown>),
+              catalogAliasAuditSnapshot(next as unknown as Record<string, unknown>),
+            ),
+          );
+        } catch (error) {
+          throw safeCatalogWriteError(error);
+        }
+        return next;
       }),
   }),
 

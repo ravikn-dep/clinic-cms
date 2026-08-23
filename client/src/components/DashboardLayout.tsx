@@ -22,7 +22,7 @@ import {
 import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { FEATURE_TO_ROUTES } from "@/lib/featureAccess";
-import { Activity, Bell, BarChart3, Calendar, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings, Lock } from "lucide-react";
+import { Activity, Bell, BarChart3, Calendar, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings, Lock, Tags } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
@@ -40,6 +40,7 @@ const menuItems = [
   { icon: Bell, label: "Notifications", path: "/notifications", feature: "notifications" as const },
   { icon: Users, label: "User Management", path: "/users", adminOnly: true },
   { icon: Settings, label: "Feature Access Control", path: "/feature-access", adminOnly: true },
+  { icon: Tags, label: "Catalog Management", path: "/catalog-management", adminOnly: true },
   { icon: Settings, label: "OP Form Customization", path: "/op-form-customization", adminOnly: true },
   { icon: BarChart3, label: "Analytics", path: "/analytics", adminOnly: true },
   { icon: Activity, label: "Audit Trail", path: "/audit-logs", feature: "audit_trail" as const },

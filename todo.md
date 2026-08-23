@@ -944,3 +944,11 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Add focused Step 6 PDF, multi-page, boundary, RBAC, and parser-integration tests.
 - [x] Validate targeted tests, full regression, build, fresh-schema bootstrap if schema changes, and protected CI.
 - [ ] Commit, publish, open a protected PR, and verify CI without merging or deploying.
+
+## Phase 3 Step 7 Governed Catalog Administration
+- [x] Audit current catalog, alias, matching, RBAC, audit-log, PO-reference, and evidence boundaries with file-and-line evidence.
+- [x] Implement minimal admin-only catalog item and alias administration with server-derived normalization, duplicate safety, soft deactivation, and durable audit events.
+- [x] Add a practical feature-gated Catalog Management administration surface without changing PO review, historical references, Goods Receipts, or inventory.
+- [x] Add focused Step 7 authority, alias, audit, matching, historical-integrity, and zero-mutation regression tests.
+- [ ] Run required local validation, fresh-schema validation only if schema changes, and create a source-backed Step 7 report.
+- [ ] Commit, push normally, open a protected PR, verify green CI, and stop without merging, tagging, deploying, or modifying production.
