@@ -21,11 +21,13 @@ export default function Appointments() {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [bookingData, setBookingData] = useState({
     patientId: "",
-    consultantId: 1,
+    consultantId: 0,
     appointmentDate: format(new Date(), "yyyy-MM-dd"),
     appointmentTime: "10:00",
     notes: "",
   });
+  const activeConsultantsQuery = trpc.consultants.getAll.useQuery();
+  const effectiveBookingConsultantId = user?.role === "consultant" ? user.id : bookingData.consultantId;
 
   // Fetch appointments
   const appointmentsQuery = trpc.appointments.list.useQuery({
@@ -36,9 +38,9 @@ export default function Appointments() {
 
   // Fetch available slots
   const availableSlotsQuery = trpc.appointments.getAvailableSlots.useQuery({
-    consultantId: bookingData.consultantId,
+    consultantId: effectiveBookingConsultantId,
     date: bookingData.appointmentDate,
-  });
+  }, { enabled: effectiveBookingConsultantId > 0 });
 
   // Create appointment mutation
   const createMutation = trpc.appointments.create.useMutation({
@@ -47,7 +49,7 @@ export default function Appointments() {
       setIsBookingOpen(false);
       setBookingData({
         patientId: "",
-        consultantId: 1,
+        consultantId: 0,
         appointmentDate: format(new Date(), "yyyy-MM-dd"),
         appointmentTime: "10:00",
         notes: "",
@@ -140,7 +142,7 @@ export default function Appointments() {
 
     await createMutation.mutateAsync({
       patientId: bookingData.patientId,
-      consultantId: bookingData.consultantId,
+      consultantId: effectiveBookingConsultantId,
       appointmentDate: bookingData.appointmentDate,
       appointmentTime: bookingData.appointmentTime,
       notes: bookingData.notes,
@@ -179,16 +181,18 @@ export default function Appointments() {
 
               <div>
                 <Label htmlFor="consultantId">Consultant</Label>
-                <Select value={String(bookingData.consultantId)} onValueChange={(v) => setBookingData({ ...bookingData, consultantId: parseInt(v) })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Consultant 1</SelectItem>
-                    <SelectItem value="2">Consultant 2</SelectItem>
-                    <SelectItem value="3">Consultant 3</SelectItem>
-                  </SelectContent>
-                </Select>
+                {user?.role === "consultant" ? (
+                  <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm text-slate-700">Your consultant account will be assigned automatically.</div>
+                ) : (
+                  <Select value={bookingData.consultantId ? String(bookingData.consultantId) : undefined} onValueChange={(value) => setBookingData({ ...bookingData, consultantId: parseInt(value, 10) })}>
+                    <SelectTrigger><SelectValue placeholder="Select an active consultant" /></SelectTrigger>
+                    <SelectContent>
+                      {activeConsultantsQuery.data?.map((consultant) => (
+                        <SelectItem key={consultant.id} value={String(consultant.id)}>{consultant.name || consultant.userId}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div>

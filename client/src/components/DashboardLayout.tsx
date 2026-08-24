@@ -145,10 +145,10 @@ function DashboardLayoutContent({
       <Sidebar className="border-r border-border/60 bg-gradient-to-b from-slate-50 to-white" collapsible="icon">
         <SidebarHeader className="border-b border-border/40 bg-gradient-to-r from-teal-50 to-cyan-50 px-4 py-4">
           <div className="flex items-center gap-3 px-2">
-            <img src="/manus-storage/deepthis-ortho-clinic-logo_47d1aff3.png" alt="Deepthis Ortho" className="h-10 w-10 object-contain sidebar-holographic-logo" />
+            <div aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-700 text-xs font-black tracking-wide text-white sidebar-holographic-logo">MD</div>
             <div className="hidden group-data-[collapsible=icon]:hidden">
-              <p className="font-bold text-teal-900 text-sm">Deepthis Ortho</p>
-              <p className="text-xs text-teal-600">Clinic CMS</p>
+              <p className="font-bold text-teal-900 text-sm">MAX DIAGNOSTICS</p>
+              <p className="text-xs text-teal-600">Punjagutta</p>
             </div>
           </div>
         </SidebarHeader>

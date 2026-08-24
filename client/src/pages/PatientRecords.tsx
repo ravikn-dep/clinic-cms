@@ -9,7 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
 import { CalendarDays, Copy, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound, FileCheck, DollarSign } from "lucide-react";
 import { toast } from "sonner";
-import { generateOPFormHTML, type UserInfo } from "@/lib/opFormGenerator";
+import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
 import { useLocation } from "wouter";
 
 function formatDate(value: unknown) {
@@ -37,7 +37,6 @@ export default function PatientRecords() {
   const [, setLocation] = useLocation();
 
   const patientsQuery = trpc.patients.getAll.useQuery();
-  const getFormTemplate = trpc.opForm.getTemplate.useQuery();
   const selectedPatientQuery = trpc.patients.getById.useQuery(
     { patientId: selectedPatientId || "" },
     { enabled: Boolean(selectedPatientId) }
@@ -96,41 +95,24 @@ export default function PatientRecords() {
     ]),
   ].filter((file) => Boolean(file.key || file.url)) : [];
 
-  const printOPForm = (patient: any) => {
-    if (!patient || !getFormTemplate.data) {
-      toast.error("Unable to generate form. Please try again.");
-      return;
+  const brandedPrint = trpc.consultations.getBrandedPrintData.useMutation();
+
+  const printConsultationOP = async (consultationId: string) => {
+    try {
+      const printData = await brandedPrint.mutateAsync({ consultationId });
+      const printWindow = window.open("", "", "width=800,height=600");
+      if (!printWindow) {
+        toast.error("Unable to open print window. Please check your browser settings.");
+        return;
+      }
+      printWindow.document.write(generateConsultationOPHTML(printData));
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      toast.success("Consultant-branded OP printed successfully.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to prepare the consultation OP.");
     }
-
-    const formHtml = generateOPFormHTML(
-      getFormTemplate.data,
-      {
-        firstName: patient.firstName,
-        lastName: patient.lastName,
-        dateOfBirth: patient.dateOfBirth,
-        gender: patient.gender,
-        contactNumber: patient.contactNumber,
-      },
-      {
-        patientId: patient.patientId,
-        barcodeData: "",
-        barcodeImageUrl: patient.barcodeImageUrl,
-        qrcodeImageUrl: patient.qrcodeImageUrl,
-      },
-      user ? { name: user.name || "Unknown", role: user.role || "user" } : undefined
-    );
-
-    const printWindow = window.open("", "", "width=800,height=600");
-    if (!printWindow) {
-      toast.error("Unable to open print window. Please check your browser settings.");
-      return;
-    }
-
-    printWindow.document.write(formHtml);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    toast.success("OP form printed successfully.");
   };
 
   async function openProtectedArtifact(file: { key?: string | null; url?: string | null; artifactType: "barcode" | "qr_code" | "audio" | "invoice_pdf"; patientId?: string; recordId?: string; label: string }) {
@@ -270,18 +252,7 @@ export default function PatientRecords() {
                       <h2 className="text-xl font-semibold">{selectedPatient.firstName} {selectedPatient.lastName}</h2>
                       <p className="font-mono text-xs text-muted-foreground">{selectedPatient.patientId}</p>
                     </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => printOPForm(selectedPatient)}
-                        className="friendly-action border-teal-200 bg-white/85 text-teal-800 hover:bg-teal-50"
-                      >
-                        <Printer className="mr-2 h-4 w-4" />
-                        Print OP Form
-                      </Button>
-                      <Badge variant="outline">Registered {formatDate(selectedPatient.createdAt)}</Badge>
-                    </div>
+                    <Badge variant="outline">Registered {formatDate(selectedPatient.createdAt)}</Badge>
                   </div>
                   <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                     <div><span className="text-muted-foreground">Phone:</span> {selectedPatient.contactNumber}</div>
@@ -334,6 +305,18 @@ export default function PatientRecords() {
                             >
                               <DollarSign className="h-3.5 w-3.5" />
                               Generate Bill
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={brandedPrint.isPending}
+                              className="h-auto gap-1 px-2 py-1 text-xs"
+                              onClick={() => printConsultationOP(consultation.consultationId)}
+                              title="Print this consultation's consultant-branded OP"
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                              Print OP
                             </Button>
                           </div>
                           <Badge variant={consultation.isFinalized ? "default" : "outline"}>{consultation.isFinalized ? "Finalized" : "Draft"}</Badge>
