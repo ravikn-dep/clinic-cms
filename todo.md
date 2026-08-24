@@ -982,5 +982,5 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Provision a disposable non-production MySQL database from the current Step 8 baseline and confirm schema readiness without using or repairing the stale managed development database.
 - [x] Establish a disposable authenticated acceptance environment using only synthetic data, or document the precise authentication/environment blocker without claiming interactive success.
 - [x] Execute and record the Vendor Master, Pending Approval PO, approval zero-stock boundary, partial receipt, duplicate retry, remaining receipt, and over-receipt acceptance sequence with exact inventory reconciliation values.
-- [ ] Recheck protected CI and publish final evidence without merge, tag, force push, deployment, or production database access.
+- [x] Recheck protected CI and publish final evidence without merge, tag, force push, deployment, or production database access.
 - [x] Correct the demonstrated deterministic-baseline omission of `purchaseOrders.vendorGstNumber`, then repeat disposable bootstrap and acceptance validation.
