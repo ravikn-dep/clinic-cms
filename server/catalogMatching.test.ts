@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import * as db from "./db";
@@ -77,6 +77,7 @@ const adminContext: TrpcContext = {
 
 function reviewedInput(decision: "ACCEPTED" | "UNMATCHED" = "ACCEPTED") {
   return {
+		vendorId: "VENDOR-SUPPLIER-ONE",
     vendorName: "Supplier One",
     vendorContactNumber: "9876543210",
     totalAmount: "130",
@@ -96,6 +97,12 @@ function mockCatalogReads() {
 }
 
 describe("Phase 3 Step 5: safe supplier catalog matching", () => {
+	beforeEach(() => {
+		vi.spyOn(db, "getVendorById").mockResolvedValue({
+			vendorId: "VENDOR-SUPPLIER-ONE", name: "Supplier One", normalizedVendorName: "supplier one", isActive: 1,
+			contactNumber: "9876543210", gstNumber: "29AABCA1234F1Z5", normalizedGstNumber: "29AABCA1234F1Z5", email: null, address: null, bankDetails: null,
+		} as any);
+	});
   afterEach(() => vi.restoreAllMocks());
 
   it("matches exact canonical normalized names, punctuation, case, and whitespace deterministically", () => {

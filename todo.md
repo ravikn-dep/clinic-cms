@@ -962,3 +962,16 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Add focused Phase 4 Step 1 authority, upload, appointment, consultation, OP, print, audit, and zero-mutation tests plus required Phase 3 regressions.
 - [x] Run local validation, fresh-schema bootstrap validation if schema changes, and create the source-backed Phase 4 Step 1 report.
 - [ ] Commit, push normally, open a protected PR, verify green CI, and stop without merging, tagging, deploying, or modifying production.
+
+## Phase 3 Step 8 Governed End-to-End Procurement and Inventory Posting
+- [x] Audit canonical vendor, PO, Goods Receipt, inventory, stock-movement, catalog, OCR evidence, audit, RBAC, transaction, constraint, and UI architecture before changes.
+- [x] Reuse and minimally extend Vendor Master governance with server normalization, duplicate protection, active state, admin-only lifecycle actions, and an in-context admin management surface.
+- [x] Integrate explicit Vendor Master links and deterministic read-only resolution without automatic vendor creation, OCR overwrite, PO creation, or inventory mutation.
+- [x] Complete server-authorized PO approval/rejection with actor, timestamp, transactional audit/history evidence, lifecycle guards, and zero inventory mutation.
+- [x] Complete approved-PO Goods Receipt posting with serialized per-PO transaction locking, catalog identity, partial receipt, batch/expiry validation, over-receipt prevention, idempotency, inventory reconciliation, immutable stock movement, and audit evidence.
+- [x] Implement state-aware Purchase Orders and receipt UI affordances, confirmation, provenance, Vendor Master selection, and role boundaries.
+- [x] Add focused vendor, PO, catalog-identity, RBAC, receipt-state, duplicate-protection, audit-snapshot, and zero-pre-posting-mutation tests.
+- [x] Generate and validate forward-only migration 0024 and update the deterministic fresh-schema baseline and strict assertions.
+- [x] Run type check, focused and full tests, production build, diff check, clean fresh MySQL baseline bootstrap, and clean fresh MySQL forward-migration validation.
+- [ ] Commit, push normally, open a protected PR, verify green protected CI, and stop without merging, tagging, deploying, or modifying production.
+- [ ] Produce the Phase 3 Step 8 report and stop without production changes, deployment, automatic merge, tag, or force push.

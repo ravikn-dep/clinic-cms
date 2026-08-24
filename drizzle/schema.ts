@@ -112,6 +112,7 @@ export const consultations = mysqlTable("consultations", {
 export const inventory = mysqlTable("inventory", {
 	itemId: varchar({ length: 50 }).notNull(),
 	itemName: varchar({ length: 255 }).notNull(),
+	catalogItemId: varchar({ length: 50 }),
 	batchNumber: varchar({ length: 100 }).notNull(),
 	expiryDate: varchar({ length: 10 }).notNull(),
 	quantityAvailable: int().default(0),
@@ -125,6 +126,7 @@ export const inventory = mysqlTable("inventory", {
 },
 	(table) => [
 		uniqueIndex("inventory_item_batch_expiry_unique").on(table.itemName, table.batchNumber, table.expiryDate),
+		uniqueIndex("inventory_catalog_batch_expiry_unique").on(table.catalogItemId, table.batchNumber, table.expiryDate),
 	]);
 
 export const notificationPreferences = mysqlTable("notificationPreferences", {
@@ -187,6 +189,7 @@ export const purchaseOrderItems = mysqlTable("purchaseOrderItems", {
 
 export const purchaseOrders = mysqlTable("purchaseOrders", {
 	purchaseOrderId: varchar({ length: 50 }).notNull(),
+	vendorId: varchar({ length: 50 }),
 	vendorName: varchar({ length: 255 }).notNull(),
 	vendorContactNumber: varchar({ length: 20 }).notNull(),
 	vendorEmail: varchar({ length: 255 }),
@@ -205,7 +208,10 @@ export const purchaseOrders = mysqlTable("purchaseOrders", {
 	approvedBy: varchar({ length: 100 }),
 	approvalTimestamp: timestamp({ mode: 'string' }),
 	authorizationNotes: text(),
-});
+},
+	(table) => [
+		index("purchaseOrders_vendorId_idx").on(table.vendorId),
+	]);
 
 export const goodsReceipts = mysqlTable("goodsReceipts", {
 	goodsReceiptId: varchar({ length: 50 }).notNull(),
@@ -245,6 +251,7 @@ export const stockMovements = mysqlTable("stockMovements", {
 	goodsReceiptItemId: varchar({ length: 50 }).notNull(),
 	purchaseOrderId: varchar({ length: 50 }).notNull(),
 	inventoryItemId: varchar({ length: 50 }).notNull(),
+	catalogItemId: varchar({ length: 50 }),
 	itemName: varchar({ length: 255 }).notNull(),
 	batchNumber: varchar({ length: 100 }).notNull(),
 	quantityAdded: int().notNull(),
@@ -400,15 +407,32 @@ export const rolePermissions = mysqlTable("rolePermissions", {
 export const vendors = mysqlTable("vendors", {
 	vendorId: varchar({ length: 50 }).notNull(),
 	name: varchar({ length: 150 }).notNull(),
+	normalizedVendorName: varchar({ length: 255 }),
 	contactNumber: varchar({ length: 20 }),
 	gstNumber: varchar({ length: 50 }),
+	normalizedGstNumber: varchar({ length: 50 }),
 	address: text(),
+	bankDetails: text(),
 	dlNumber: json(),
 	email: varchar({ length: 320 }),
 	isActive: tinyint().default(1),
 	createdBy: int().notNull(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+	(table) => [
+		index("vendors_active_normalizedVendorName_idx").on(table.isActive, table.normalizedVendorName),
+		index("vendors_normalizedGstNumber_idx").on(table.normalizedGstNumber),
+	]);
+
+/**
+ * A stable row per PO serializes all app-mediated receipt posts for that PO.
+ * The lock is acquired inside the same database transaction that posts a
+ * Goods Receipt, preventing concurrent receipts from exceeding ordered stock.
+ */
+export const procurementPostingLocks = mysqlTable("procurementPostingLocks", {
+	purchaseOrderId: varchar({ length: 50 }).primaryKey(),
+	updatedAt: timestamp({ mode: "string" }).defaultNow().onUpdateNow().notNull(),
 });
 
 export const enquiries = mysqlTable("enquiries", {

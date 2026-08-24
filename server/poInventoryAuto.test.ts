@@ -35,6 +35,10 @@ describe("Step 2 PO to goods receipt lifecycle", () => {
   });
 
   it("always creates a Pending Approval PO and never posts inventory during creation", async () => {
+		vi.spyOn(db, "getVendorById").mockResolvedValue({
+		  vendorId: "VENDOR-STEP2", name: "Approved Vendor", normalizedVendorName: "approved vendor", isActive: 1,
+		  contactNumber: "9876543210", gstNumber: null, normalizedGstNumber: null, email: null, address: null, bankDetails: null,
+		} as any);
     const createPOWithItems = vi.spyOn(db, "createPurchaseOrderWithItems").mockResolvedValue({} as any);
     vi.spyOn(db, "createAuditLog").mockResolvedValue(undefined);
     vi.spyOn(db, "createPurchaseOrderHistory").mockResolvedValue(undefined);
@@ -44,6 +48,7 @@ describe("Step 2 PO to goods receipt lifecycle", () => {
 
     const caller = appRouter.createCaller(createAuthContext("staff"));
     const result = await caller.purchaseOrders.create({
+		vendorId: "VENDOR-STEP2",
       vendorName: "Approved Vendor",
       vendorContactNumber: "9876543210",
       totalAmount: "100",
@@ -110,6 +115,7 @@ describe("Step 2 PO to goods receipt lifecycle", () => {
       goodsReceiptId: "GR-STEP2-002",
       purchaseOrderId: "PO-STEP2-002",
       receivedBy: "42",
+		receivedByName: "staff user",
       lines: [{
         poItemId: "POI-STEP2-002",
         receivedQuantity: 3,
@@ -164,9 +170,9 @@ describe("Step 2 PO to goods receipt lifecycle", () => {
       vendorName: "Approved Vendor",
       approvalStatus: "Pending Approval",
     } as any);
-    const approve = vi.spyOn(db, "approvePurchaseOrder").mockResolvedValue(undefined);
-    vi.spyOn(db, "createAuditLog").mockResolvedValue(undefined);
-    vi.spyOn(db, "createPurchaseOrderHistory").mockResolvedValue(undefined);
+    const approve = vi.spyOn(db, "approvePurchaseOrderWithAudit").mockResolvedValue({
+		purchaseOrderId: "PO-STEP2-004", vendorName: "Approved Vendor", approvalStatus: "Pending Approval",
+	} as any);
     const inventoryLookup = vi.spyOn(db, "getInventoryByName");
     const inventoryCreate = vi.spyOn(db, "createInventoryItem");
     const inventoryUpdate = vi.spyOn(db, "updateInventoryItem");
@@ -175,7 +181,7 @@ describe("Step 2 PO to goods receipt lifecycle", () => {
     const result = await caller.purchaseOrders.approve({ purchaseOrderId: "PO-STEP2-004" });
 
     expect(result).toEqual({ success: true });
-    expect(approve).toHaveBeenCalledWith("PO-STEP2-004", "admin user");
+		expect(approve).toHaveBeenCalledWith("PO-STEP2-004", { actorId: "42", actorName: "admin user" });
     expect(inventoryLookup).not.toHaveBeenCalled();
     expect(inventoryCreate).not.toHaveBeenCalled();
     expect(inventoryUpdate).not.toHaveBeenCalled();
@@ -203,4 +209,3 @@ describe("goods receipt quantity rules", () => {
 
 // This file intentionally contains no tests for automatic inventory mutation on PO creation.
 // Inventory is posted only through an explicit, approved goods receipt.
-

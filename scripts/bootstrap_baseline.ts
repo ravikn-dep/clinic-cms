@@ -188,14 +188,14 @@ async function bootstrap() {
     "users", "patients", "consultations", "inventory", "bills", "billItems", "billTemplates", "auditLogs", "notifications",
     "purchaseOrders", "purchaseOrderItems", "purchaseOrderHistory", "purchaseOrderExtractionReviews", "catalogItems", "catalogItemAliases", "goodsReceipts", "goodsReceiptItems", "stockMovements",
     "appointments", "consultantAvailability", "notificationPreferences", "rolePermissions", "vendors", "appointmentBookingLocks",
-    "enquiries", "externalApiAuditLogs", "externalIdempotencyKeys", "externalRequestReplays",
+    "enquiries", "externalApiAuditLogs", "externalIdempotencyKeys", "externalRequestReplays", "procurementPostingLocks",
   ];
 
   for (const reqTable of requiredTables) {
     const found = tables.some(t => t.toLowerCase() === reqTable.toLowerCase());
     if (!found) await fail(connection, `Required table missing: ${reqTable}`);
   }
-  console.log("[Verification] All 28 required tables verified successfully.");
+  console.log("[Verification] All 29 required tables verified successfully.");
 
   const expectedPrimaryKeys: Array<[string, string[]]> = [
     ["users", ["id"]],
@@ -226,12 +226,13 @@ async function bootstrap() {
     ["externalApiAuditLogs", ["auditId"]],
     ["externalIdempotencyKeys", ["idempotencyId"]],
     ["externalRequestReplays", ["replayId"]],
+	["procurementPostingLocks", ["purchaseOrderId"]],
   ];
 
   for (const [table, columns] of expectedPrimaryKeys) {
     await assertPrimaryKey(connection, table, columns);
   }
-  console.log("[Verification] Exact PRIMARY KEY columns verified on all 28 tables.");
+  console.log("[Verification] Exact PRIMARY KEY columns verified on all 29 tables.");
 
   const [usersCols] = await connection.query("SHOW COLUMNS FROM `users` WHERE Field = 'id'");
   const usersIdCol = (usersCols as any[])[0];
@@ -258,10 +259,17 @@ async function bootstrap() {
   }
   console.log("[Verification] Consultant profile columns verified on users.");
 
+	for (const [table, column] of [["vendors", "normalizedVendorName"], ["vendors", "normalizedGstNumber"], ["vendors", "bankDetails"], ["purchaseOrders", "vendorId"], ["inventory", "catalogItemId"], ["stockMovements", "catalogItemId"]]) {
+		const [columnRows] = await connection.query(`SHOW COLUMNS FROM \`${table}\` WHERE Field = ?`, [column]);
+		if ((columnRows as any[]).length === 0) await fail(connection, `${table}.${column} procurement column missing.`);
+	}
+	console.log("[Verification] Step 8 Vendor Master and catalog posting columns verified.");
+
   const requiredUniqueIndexes: Array<[string, string, string[]]> = [
     ["users", "users_openId_unique", ["openId"]],
     ["appointments", "appointments_appointmentId_unique", ["appointmentId"]],
     ["inventory", "inventory_item_batch_expiry_unique", ["itemName", "batchNumber", "expiryDate"]],
+	["inventory", "inventory_catalog_batch_expiry_unique", ["catalogItemId", "batchNumber", "expiryDate"]],
     ["patients", "patients_patientId_unique", ["patientId"]],
     ["goodsReceipts", "goodsReceipts_goodsReceiptId_unique", ["goodsReceiptId"]],
     ["goodsReceiptItems", "goodsReceiptItems_goodsReceiptItemId_unique", ["goodsReceiptItemId"]],
@@ -295,6 +303,9 @@ async function bootstrap() {
       "purchaseOrderItems_catalogItem_idx",
       ["catalogItemId"],
     ],
+	["purchaseOrders", "purchaseOrders_vendorId_idx", ["vendorId"]],
+	["vendors", "vendors_active_normalizedVendorName_idx", ["isActive", "normalizedVendorName"]],
+	["vendors", "vendors_normalizedGstNumber_idx", ["normalizedGstNumber"]],
   ];
 
   for (const [table, indexName, columns] of requiredIndexes) {
@@ -320,7 +331,7 @@ async function bootstrap() {
   }
   console.log("[Verification] purchaseOrderItems.receivedQuantity verified.");
 
-  const specificEntities = ["goodsReceipts", "goodsReceiptItems", "stockMovements", "externalRequestReplays", "purchaseOrderExtractionReviews", "catalogItems", "catalogItemAliases"];
+  const specificEntities = ["goodsReceipts", "goodsReceiptItems", "stockMovements", "externalRequestReplays", "purchaseOrderExtractionReviews", "catalogItems", "catalogItemAliases", "procurementPostingLocks"];
   for (const entity of specificEntities) {
     await connection.query(`SELECT COUNT(*) as cnt FROM \`${entity}\``);
     console.log(`[Verification] Entity table '${entity}' is accessible and queryable.`);

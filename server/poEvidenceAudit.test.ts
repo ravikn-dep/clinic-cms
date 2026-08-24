@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import * as db from "./db";
@@ -60,6 +60,7 @@ function createReviewedInput() {
   const review = createPurchaseOrderReviewPrefill(parsedDocument);
   review.header.vendorName = updateReviewField(review.header.vendorName, "Apex Pharma Private Limited");
   return {
+		vendorId: "VENDOR-APEX",
     vendorName: "Apex Pharma Private Limited",
     vendorContactNumber: "9876543210",
     totalAmount: "120",
@@ -72,6 +73,13 @@ function createReviewedInput() {
 }
 
 describe("Phase 3 Step 4: reviewed extraction evidence persistence", () => {
+	beforeEach(() => {
+		vi.spyOn(db, "getVendorById").mockResolvedValue({
+			vendorId: "VENDOR-APEX", name: "Apex Pharma Private Limited", normalizedVendorName: "apex pharma private limited", isActive: 1,
+			contactNumber: "9876543210", gstNumber: "29AABCA1234F1Z5", normalizedGstNumber: "29AABCA1234F1Z5",
+			email: null, address: null, bankDetails: null,
+		} as any);
+	});
   afterEach(() => {
     setOcrProvider(null);
     vi.restoreAllMocks();

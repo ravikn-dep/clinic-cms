@@ -125,7 +125,10 @@ export default function PurchaseOrders() {
     console.log(`${title}: ${message}`);
   };
   const [showForm, setShowForm] = useState(false);
+	const [showVendorManager, setShowVendorManager] = useState(false);
+	const [vendorDraft, setVendorDraft] = useState({ name: "", contactNumber: "", gstNumber: "", email: "", address: "", bankDetails: "" });
   const [formData, setFormData] = useState({
+		vendorId: "",
     vendorName: "",
     vendorContactNumber: "",
     vendorEmail: "",
@@ -145,8 +148,18 @@ export default function PurchaseOrders() {
   const [receiveFormError, setReceiveFormError] = useState("");
 
   const { data: purchaseOrders, isLoading, refetch } = trpc.purchaseOrders.getAll.useQuery();
+  const { data: vendorMasters } = trpc.vendorAdmin.list.useQuery();
   const { data: purchaseOrderMetrics, isLoading: isMetricsLoading } = trpc.purchaseOrders.getMetrics.useQuery();
   const createPO = trpc.purchaseOrders.create.useMutation();
+	const createVendor = trpc.vendorAdmin.create.useMutation({
+		onSuccess: () => {
+			setVendorDraft({ name: "", contactNumber: "", gstNumber: "", email: "", address: "", bankDetails: "" });
+			showAlert("Success", "Verified Vendor Master record created.");
+		},
+	});
+	const setVendorActive = trpc.vendorAdmin.setActive.useMutation({
+		onSuccess: () => showAlert("Success", "Vendor lifecycle state updated."),
+	});
   const createPOFromReviewedExtraction = trpc.purchaseOrders.createFromReviewedExtraction.useMutation();
   const updatePaymentStatus = trpc.purchaseOrders.updatePaymentStatus.useMutation();
   const extractDocument = trpc.ocr.extractDocument.useMutation();
@@ -405,6 +418,7 @@ export default function PurchaseOrders() {
   const applyReviewedPrefillToForm = () => {
     if (!reviewPrefill) return;
     setFormData({
+		vendorId: "",
       vendorName: reviewPrefill.header.vendorName.value,
       vendorContactNumber: "",
       vendorEmail: "",
@@ -433,8 +447,8 @@ export default function PurchaseOrders() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.vendorName || !formData.vendorContactNumber || formData.items.length === 0) {
-      showAlert("Error", "Please fill in all required fields");
+    if (!formData.vendorId || !formData.vendorName || !formData.vendorContactNumber || formData.items.length === 0) {
+      showAlert("Error", "Select an active Vendor Master record and fill in all required fields");
       return;
     }
     if (formData.items.some((item) => !item.itemName.trim() || !Number.isInteger(item.quantity) || item.quantity <= 0 || !Number.isFinite(Number(item.unitPrice)) || Number(item.unitPrice) < 0)) {
@@ -444,6 +458,7 @@ export default function PurchaseOrders() {
 
     try {
       const createInput = {
+		vendorId: formData.vendorId,
         vendorName: formData.vendorName,
         vendorContactNumber: formData.vendorContactNumber,
         vendorEmail: formData.vendorEmail || undefined,
@@ -481,8 +496,9 @@ export default function PurchaseOrders() {
       } else {
         createdPurchaseOrder = await createPO.mutateAsync(createInput);
         showAlert("Success", "Purchase order created successfully");
-      }
+	  }
       setFormData({
+		vendorId: "",
         vendorName: "",
         vendorContactNumber: "",
         vendorEmail: "",
@@ -516,6 +532,20 @@ export default function PurchaseOrders() {
       showAlert("Error", "Failed to update payment status");
     }
   };
+
+	const handleCreateVendor = async (event: React.FormEvent) => {
+		event.preventDefault();
+		if (!vendorDraft.name.trim()) return;
+		try {
+			await createVendor.mutateAsync({
+				name: vendorDraft.name.trim(), contactNumber: vendorDraft.contactNumber.trim() || undefined,
+				gstNumber: vendorDraft.gstNumber.trim() || undefined, email: vendorDraft.email.trim() || undefined,
+				address: vendorDraft.address.trim() || undefined, bankDetails: vendorDraft.bankDetails.trim() || undefined,
+			});
+		} catch (error) {
+			showAlert("Error", error instanceof Error ? error.message : "Unable to create Vendor Master record.");
+		}
+	};
 
   const openReceiveStock = (purchaseOrderId: string) => {
     setReceivePurchaseOrderId(purchaseOrderId);
@@ -664,6 +694,7 @@ export default function PurchaseOrders() {
           <p className="text-gray-600 mt-1">Manage vendor purchase orders and payments</p>
         </div>
         <div className="flex gap-2">
+		  {user?.role === "admin" && <Button variant="outline" onClick={() => setShowVendorManager(true)}><ClipboardList className="mr-2 h-4 w-4" />Vendor Master</Button>}
           <Button onClick={() => setShowOCRDialog(true)} className="bg-blue-600 hover:bg-blue-700">
             <Zap className="w-4 h-4 mr-2" /> Scan PO
           </Button>
@@ -672,6 +703,25 @@ export default function PurchaseOrders() {
           </Button>
         </div>
       </div>
+
+	  <Dialog open={showVendorManager} onOpenChange={setShowVendorManager}>
+		<DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+		  <DialogHeader><DialogTitle>Vendor Master Governance</DialogTitle><DialogDescription>Only administrators can create or change a vendor lifecycle state. The server rejects duplicate normalized names or GSTINs.</DialogDescription></DialogHeader>
+		  <form onSubmit={handleCreateVendor} className="grid gap-3 rounded-lg border bg-slate-50 p-4 md:grid-cols-2">
+			<Input required value={vendorDraft.name} onChange={(e) => setVendorDraft((draft) => ({ ...draft, name: e.target.value }))} placeholder="Verified vendor name *" />
+			<Input value={vendorDraft.contactNumber} onChange={(e) => setVendorDraft((draft) => ({ ...draft, contactNumber: e.target.value }))} placeholder="Contact number" />
+			<Input value={vendorDraft.gstNumber} onChange={(e) => setVendorDraft((draft) => ({ ...draft, gstNumber: e.target.value }))} placeholder="GSTIN" />
+			<Input type="email" value={vendorDraft.email} onChange={(e) => setVendorDraft((draft) => ({ ...draft, email: e.target.value }))} placeholder="Email" />
+			<Textarea value={vendorDraft.address} onChange={(e) => setVendorDraft((draft) => ({ ...draft, address: e.target.value }))} placeholder="Address" />
+			<Textarea value={vendorDraft.bankDetails} onChange={(e) => setVendorDraft((draft) => ({ ...draft, bankDetails: e.target.value }))} placeholder="Bank details" />
+			<div className="flex justify-end md:col-span-2"><Button type="submit" disabled={createVendor.isPending}>{createVendor.isPending ? "Saving…" : "Create verified vendor"}</Button></div>
+		  </form>
+		  <div className="overflow-x-auto rounded-lg border"><Table><TableHeader><TableRow><TableHead>Vendor</TableHead><TableHead>GSTIN</TableHead><TableHead>State</TableHead><TableHead className="text-right">Lifecycle</TableHead></TableRow></TableHeader><TableBody>
+			{(vendorMasters ?? []).map((vendor: any) => <TableRow key={vendor.vendorId}><TableCell><p className="font-medium">{vendor.name}</p><p className="text-xs text-muted-foreground">{vendor.contactNumber || "No contact recorded"}</p></TableCell><TableCell>{vendor.gstNumber || "—"}</TableCell><TableCell><Badge variant="outline" className={vendor.isActive ? "border-emerald-300 text-emerald-800" : "border-slate-300 text-slate-700"}>{vendor.isActive ? "Active" : "Inactive"}</Badge></TableCell><TableCell className="text-right"><Button size="sm" variant="outline" disabled={setVendorActive.isPending} onClick={() => setVendorActive.mutate({ vendorId: vendor.vendorId, active: !Boolean(vendor.isActive) })}>{vendor.isActive ? "Deactivate" : "Reactivate"}</Button></TableCell></TableRow>)}
+			{(vendorMasters ?? []).length === 0 && <TableRow><TableCell colSpan={4} className="py-8 text-center text-muted-foreground">No Vendor Master records yet. Create one above before submitting a PO.</TableCell></TableRow>}
+		  </TableBody></Table></div>
+		</DialogContent>
+	  </Dialog>
 
       {evidenceConfirmation && (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
@@ -882,8 +932,31 @@ export default function PurchaseOrders() {
                   <p className="mt-1">The final submission will create only a Pending Approval purchase order. OCR and parsing did not create, approve, receive, or stock anything.</p>
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
+			  <div className="grid grid-cols-2 gap-4">
+				<div className="col-span-2 rounded-lg border border-indigo-200 bg-indigo-50/60 p-4">
+				  <Label className="mb-2 block">Verified Vendor Master *</Label>
+				  <Select value={formData.vendorId} onValueChange={(vendorId) => {
+					const vendor = vendorMasters?.find((entry: any) => entry.vendorId === vendorId);
+					if (!vendor) return;
+					setFormData((current) => ({
+					  ...current,
+					  vendorId,
+					  vendorName: vendor.name,
+					  vendorContactNumber: vendor.contactNumber ?? current.vendorContactNumber,
+					  vendorEmail: vendor.email ?? current.vendorEmail,
+					  vendorGSTNumber: vendor.gstNumber ?? current.vendorGSTNumber,
+					  vendorAddress: vendor.address ?? current.vendorAddress,
+					  vendorBankDetails: vendor.bankDetails ?? current.vendorBankDetails,
+					}));
+				  }}>
+					<SelectTrigger><SelectValue placeholder="Link an active vendor before submitting" /></SelectTrigger>
+					<SelectContent>
+					  {(vendorMasters ?? []).map((vendor: any) => <SelectItem key={vendor.vendorId} value={vendor.vendorId}>{vendor.name}{vendor.gstNumber ? ` · ${vendor.gstNumber}` : ""}</SelectItem>)}
+					</SelectContent>
+				  </Select>
+				  <p className="mt-2 text-xs text-indigo-900">Choosing a Vendor Master is an explicit human link. OCR-derived values remain reviewable; verified master values are supplied only after this selection, and edits are retained as the PO’s reviewed snapshot.</p>
+				</div>
+				<div>
                   <Label className="mb-2 block">Vendor Name *</Label>
                   <Input
                     value={formData.vendorName}
@@ -1301,7 +1374,7 @@ export default function PurchaseOrders() {
                         </Select>
                       </TableCell>
                       <TableCell>{new Date(po.createdAt).toLocaleDateString()}</TableCell>
-                      <TableCell>{getApprovalBadge(po.approvalStatus)}</TableCell>
+					  <TableCell>{getApprovalBadge(po.approvalStatus)}</TableCell>
                       <TableCell>
                         <div className="flex gap-2">
                           <Button
@@ -1312,7 +1385,12 @@ export default function PurchaseOrders() {
                           >
                             <History className="w-4 h-4" />
                           </Button>
-                          {po.approvalStatus === "Approved" && canReceiveStock && (
+						  {po.receiptStatus && (
+							<Badge variant="outline" className={po.receiptStatus === "FULLY_RECEIVED" ? "border-emerald-300 text-emerald-800" : po.receiptStatus === "PARTIALLY_RECEIVED" ? "border-amber-300 text-amber-800" : "border-slate-300 text-slate-700"}>
+							  {po.receiptStatus === "FULLY_RECEIVED" ? "Fully received" : po.receiptStatus === "PARTIALLY_RECEIVED" ? "Partially received" : "Awaiting receipt"}
+							</Badge>
+						  )}
+						  {po.approvalStatus === "Approved" && po.receiptStatus !== "FULLY_RECEIVED" && canReceiveStock && (
                             <Button
                               variant="outline"
                               size="sm"
