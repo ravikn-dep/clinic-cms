@@ -973,5 +973,5 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Add focused vendor, PO, catalog-identity, RBAC, receipt-state, duplicate-protection, audit-snapshot, and zero-pre-posting-mutation tests.
 - [x] Generate and validate forward-only migration 0024 and update the deterministic fresh-schema baseline and strict assertions.
 - [x] Run type check, focused and full tests, production build, diff check, clean fresh MySQL baseline bootstrap, and clean fresh MySQL forward-migration validation.
-- [ ] Commit, push normally, open a protected PR, verify green protected CI, and stop without merging, tagging, deploying, or modifying production.
-- [ ] Produce the Phase 3 Step 8 report and stop without production changes, deployment, automatic merge, tag, or force push.
+- [x] Commit, push normally, open a protected PR, verify green protected CI, and stop without merging, tagging, deploying, or modifying production.
+- [x] Produce the Phase 3 Step 8 report and stop without production changes, deployment, automatic merge, tag, or force push.
