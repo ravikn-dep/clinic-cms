@@ -25,6 +25,8 @@ import type { PurchaseOrderReviewPrefill } from "../shared/poReviewPrefill";
 import type { CatalogResolutionDecision } from "../shared/catalogResolution";
 import { suggestCatalogMatches } from "./catalogMatching/matcher";
 import { normalizeCatalogText } from "./catalogMatching/normalize";
+import { storeConsultantImage } from "./consultantAssets";
+import { FIXED_CLINIC_BRANDING } from "../shared/clinicBranding";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -45,6 +47,34 @@ const safeNotifyOwner = async (title: string, content: string) => {
     console.warn(`[Notification] Owner alert failed for ${title}:`, error);
   }
 };
+
+async function requireActiveConsultant(consultantId: number) {
+  const consultant = await db.getActiveConsultantById(consultantId);
+  if (!consultant) throw new Error("Selected consultant is not active");
+  return consultant;
+}
+
+function assertConsultantSelfOrAdmin(ctx: { user: { id: number; role: string } }, consultantId: number) {
+  if (ctx.user.role === "admin") return;
+  if (ctx.user.role === "consultant" && ctx.user.id === consultantId) return;
+  throw new Error("You are not authorized to access this consultant record");
+}
+
+async function assertAppointmentWorkflowAccess(ctx: { user: { id: number; role: string } }) {
+  if (ctx.user.role === "admin" || ctx.user.role === "consultant") return;
+  if (ctx.user.role === "staff" && await db.checkFeatureAccess("staff", "patient_records")) return;
+  throw new Error("You are not authorized to manage appointments");
+}
+
+async function requireAccessibleAppointment(ctx: { user: { id: number; role: string } }, appointmentId: string) {
+  const appointment = await db.getAppointmentById(appointmentId);
+  if (!appointment) throw new Error("Appointment not found");
+  if (ctx.user.role === "consultant" && appointment.consultantId !== ctx.user.id) {
+    throw new Error("Consultants cannot access another consultant's appointment");
+  }
+  await assertAppointmentWorkflowAccess(ctx);
+  return appointment;
+}
 
 const reviewFieldSchema = z.object({
   value: z.string().max(2_000),
@@ -860,15 +890,25 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         patientId: z.string(),
+        consultantId: z.number().int().positive().optional(),
         audioFileUrl: z.string().optional(),
         audioFileKey: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        const consultantId = ctx.user.role === "consultant"
+          ? ctx.user.id
+          : input.consultantId;
+        if (!consultantId) throw new Error("An active consultant must be selected for a consultation");
+        if (ctx.user.role === "consultant" && input.consultantId && input.consultantId !== ctx.user.id) {
+          throw new Error("Consultants cannot create a consultation for another consultant");
+        }
+        await requireActiveConsultant(consultantId);
         const consultationId = utils.generateConsultationId();
 
         const consultation = await db.createConsultation({
           consultationId,
           patientId: input.patientId,
+          consultantId,
           audioFileUrl: input.audioFileUrl,
           audioFileKey: input.audioFileKey,
           consultationDate: new Date().toISOString(),
@@ -999,14 +1039,52 @@ export const appRouter = router({
 
     getById: protectedProcedure
       .input(z.object({ consultationId: z.string() }))
-      .query(async ({ input }) => {
-        return db.getConsultationById(input.consultationId);
+      .query(async ({ input, ctx }) => {
+        const consultation = await db.getConsultationById(input.consultationId);
+        if (!consultation) return null;
+        if (ctx.user.role === "consultant" && consultation.consultantId !== ctx.user.id) {
+          throw new Error("You are not authorized to access this consultation");
+        }
+        return consultation;
       }),
 
     getByPatientId: protectedProcedure
       .input(z.object({ patientId: z.string() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role === "consultant") {
+          return db.getConsultationsByPatientAndConsultant(input.patientId, ctx.user.id);
+        }
         return db.getConsultationsByPatientId(input.patientId);
+      }),
+
+    getBrandedPrintData: protectedProcedure
+      .input(z.object({ consultationId: z.string().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const printData = await db.getConsultationPrintData(input.consultationId);
+        if (!printData) throw new Error("Consultation print data not found");
+        assertConsultantSelfOrAdmin(ctx, printData.consultantId ?? 0);
+        if (ctx.user.role === "staff" && !await db.checkFeatureAccess("staff", "patient_records")) {
+          throw new Error("You are not authorized to print this consultation");
+        }
+
+        const consultantLogo = printData.consultantLogoKey ? await storageGet(printData.consultantLogoKey) : null;
+        const signature = printData.signatureKey ? await storageGet(printData.signatureKey) : null;
+        const { consultantLogoKey: _consultantLogoKey, signatureKey: _signatureKey, ...safePrintData } = printData;
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "CONSULTATION_OP_PRINT_VIEWED",
+          tableName: "consultations",
+          recordId: input.consultationId,
+          newValue: JSON.stringify({ consultantId: printData.consultantId, hasLogo: Boolean(consultantLogo), hasSignature: Boolean(signature) }),
+          timestamp: new Date().toISOString(),
+        });
+        return {
+          ...safePrintData,
+          consultantLogoUrl: consultantLogo?.url,
+          signatureUrl: signature?.url,
+          facility: FIXED_CLINIC_BRANDING,
+        };
       }),
   }),
 
@@ -1927,7 +2005,7 @@ export const appRouter = router({
       try {
         const consultants = await db.getAllStaffUsers();
         return consultants
-          .filter(u => u.role === 'consultant')
+          .filter(u => u.role === 'consultant' && Boolean(u.isActive))
           .map(u => ({
             id: u.id,
             userId: u.userId,
@@ -1939,6 +2017,9 @@ export const appRouter = router({
             isActive: u.isActive,
             stateCounsilSection: u.stateCounsilSection,
             registrationNumber: u.registrationNumber,
+            qualifications: u.qualifications,
+            specialization: u.specialization,
+            designation: u.designation,
             createdAt: u.createdAt,
           }));
       } catch (error) {
@@ -1966,12 +2047,104 @@ export const appRouter = router({
             isActive: consultant.isActive,
             stateCounsilSection: consultant.stateCounsilSection,
             registrationNumber: consultant.registrationNumber,
+            qualifications: consultant.qualifications,
+            specialization: consultant.specialization,
+            designation: consultant.designation,
+            prescriptionHeaderText: consultant.prescriptionHeaderText,
             createdAt: consultant.createdAt,
           };
         } catch (error) {
           console.error("[Consultants] Get by ID failed:", error);
           throw new Error("Failed to fetch consultant");
         }
+      }),
+
+    getMyProfile: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "consultant") {
+        throw new Error("Only consultants can access a consultant profile");
+      }
+      const consultant = await db.getConsultantProfileById(ctx.user.id);
+      if (!consultant) throw new Error("Consultant profile not found");
+      return {
+        id: consultant.id,
+        name: consultant.name,
+        email: consultant.email,
+        phone: consultant.phone,
+        department: consultant.department,
+        stateCounsilSection: consultant.stateCounsilSection,
+        registrationNumber: consultant.registrationNumber,
+        qualifications: consultant.qualifications,
+        specialization: consultant.specialization,
+        designation: consultant.designation,
+        prescriptionHeaderText: consultant.prescriptionHeaderText,
+        isActive: consultant.isActive,
+      };
+    }),
+
+    updateProfile: adminProcedure
+      .input(z.object({
+        consultantId: z.number().int().positive(),
+        name: z.string().min(2).max(255).optional(),
+        email: z.string().email().optional(),
+        phone: z.string().max(20).optional(),
+        department: z.string().max(100).optional(),
+        qualifications: z.string().max(255).optional(),
+        specialization: z.string().max(255).optional(),
+        designation: z.string().max(255).optional(),
+        stateCounsilSection: z.string().max(100).optional(),
+        registrationNumber: z.string().max(100).optional(),
+        prescriptionHeaderText: z.string().max(2_000).optional(),
+        isActive: z.boolean().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const existing = await db.getConsultantProfileById(input.consultantId);
+        if (!existing) throw new Error("Consultant not found");
+        const { consultantId, isActive, ...profileUpdates } = input;
+        const updates = isActive === undefined
+          ? profileUpdates
+          : { ...profileUpdates, isActive: isActive ? 1 : 0 };
+        await db.updateConsultantProfileById(consultantId, updates);
+        const actionType = isActive === false
+          ? "CONSULTANT_DEACTIVATED"
+          : isActive === true && !existing.isActive
+            ? "CONSULTANT_ACTIVATED"
+            : "CONSULTANT_PROFILE_UPDATED";
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType,
+          tableName: "users",
+          recordId: consultantId.toString(),
+          oldValue: JSON.stringify({ name: existing.name, isActive: existing.isActive, registrationNumber: existing.registrationNumber }),
+          newValue: JSON.stringify({ ...updates, consultantId }),
+          timestamp: new Date().toISOString(),
+        });
+        return { success: true };
+      }),
+
+    uploadAsset: adminProcedure
+      .input(z.object({
+        consultantId: z.number().int().positive(),
+        assetType: z.enum(["logo", "signature"]),
+        dataUrl: z.string().max(2_100_000),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const consultant = await db.getConsultantProfileById(input.consultantId);
+        if (!consultant) throw new Error("Consultant not found");
+        const stored = await storeConsultantImage(input);
+        await db.updateConsultantProfileById(input.consultantId, input.assetType === "logo"
+          ? { consultantLogoKey: stored.key }
+          : { signatureKey: stored.key });
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: input.assetType === "logo" ? "CONSULTANT_LOGO_UPDATED" : "CONSULTANT_SIGNATURE_UPDATED",
+          tableName: "users",
+          recordId: input.consultantId.toString(),
+          newValue: JSON.stringify({ assetType: input.assetType, mimeType: stored.mimeType, sizeBytes: stored.sizeBytes }),
+          timestamp: new Date().toISOString(),
+        });
+        return { success: true };
       }),
   }),
 
@@ -1983,6 +2156,12 @@ export const appRouter = router({
         email: z.string().email().optional(),
         phone: z.string().optional(),
         department: z.string().optional(),
+        stateCounsilSection: z.string().max(100).optional(),
+        registrationNumber: z.string().max(100).optional(),
+        qualifications: z.string().max(255).optional(),
+        specialization: z.string().max(255).optional(),
+        designation: z.string().max(255).optional(),
+        prescriptionHeaderText: z.string().max(2_000).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
@@ -2011,9 +2190,27 @@ export const appRouter = router({
             qrcodeLoginUrl,
             createdBy: ctx.user.id,
             loginMethod: "local",
+            stateCounsilSection: input.stateCounsilSection,
+            registrationNumber: input.registrationNumber,
+            qualifications: input.qualifications,
+            specialization: input.specialization,
+            designation: input.designation,
+            prescriptionHeaderText: input.prescriptionHeaderText,
           };
 
           await db.createStaffUser(userData);
+          if (input.role === "consultant") {
+            const createdConsultant = await db.getStaffUserById(userId);
+            await db.createAuditLog({
+              logId: utils.generateAuditLogId(),
+              userId: ctx.user.id.toString(),
+              actionType: "CONSULTANT_PROFILE_CREATED",
+              tableName: "users",
+              recordId: createdConsultant?.id?.toString() || userId,
+              newValue: JSON.stringify({ userId, name: input.name, registrationNumber: input.registrationNumber }),
+              timestamp: new Date().toISOString(),
+            });
+          }
 
           // Notify owner
           await safeNotifyOwner(
@@ -2046,6 +2243,12 @@ export const appRouter = router({
           department: u.department,
           role: u.role,
           isActive: u.isActive,
+          stateCounsilSection: u.stateCounsilSection,
+          registrationNumber: u.registrationNumber,
+          qualifications: u.qualifications,
+          specialization: u.specialization,
+          designation: u.designation,
+          prescriptionHeaderText: u.prescriptionHeaderText,
           createdAt: u.createdAt,
         }));
       } catch (error) {
@@ -2064,21 +2267,43 @@ export const appRouter = router({
         role: z.enum(["admin", "consultant", "staff", "user"]).optional(),
         stateCounsilSection: z.string().optional(),
         registrationNumber: z.string().optional(),
+        qualifications: z.string().max(255).optional(),
+        specialization: z.string().max(255).optional(),
+        designation: z.string().max(255).optional(),
+        prescriptionHeaderText: z.string().max(2_000).optional(),
         isActive: z.boolean().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
+          const existing = await db.getStaffUserById(input.userId);
+          if (!existing) throw new Error("User not found");
           const updates: Record<string, any> = {};
-          if (input.name) updates.name = input.name;
-          if (input.email) updates.email = input.email;
-          if (input.phone) updates.phone = input.phone;
-          if (input.department) updates.department = input.department;
-          if (input.role) updates.role = input.role;
-          if (input.stateCounsilSection) updates.stateCounsilSection = input.stateCounsilSection;
-          if (input.registrationNumber) updates.registrationNumber = input.registrationNumber;
+          if (input.name !== undefined) updates.name = input.name;
+          if (input.email !== undefined) updates.email = input.email;
+          if (input.phone !== undefined) updates.phone = input.phone;
+          if (input.department !== undefined) updates.department = input.department;
+          if (input.role !== undefined) updates.role = input.role;
+          if (input.stateCounsilSection !== undefined) updates.stateCounsilSection = input.stateCounsilSection;
+          if (input.registrationNumber !== undefined) updates.registrationNumber = input.registrationNumber;
+          if (input.qualifications !== undefined) updates.qualifications = input.qualifications;
+          if (input.specialization !== undefined) updates.specialization = input.specialization;
+          if (input.designation !== undefined) updates.designation = input.designation;
+          if (input.prescriptionHeaderText !== undefined) updates.prescriptionHeaderText = input.prescriptionHeaderText;
           if (input.isActive !== undefined) updates.isActive = input.isActive;
 
           await db.updateStaffUser(input.userId, updates);
+          if (existing.role === "consultant" || input.role === "consultant") {
+            await db.createAuditLog({
+              logId: utils.generateAuditLogId(),
+              userId: ctx.user.id.toString(),
+              actionType: input.isActive === false ? "CONSULTANT_DEACTIVATED" : input.isActive === true && !existing.isActive ? "CONSULTANT_ACTIVATED" : "CONSULTANT_PROFILE_UPDATED",
+              tableName: "users",
+              recordId: existing.id.toString(),
+              oldValue: JSON.stringify({ name: existing.name, isActive: existing.isActive, registrationNumber: existing.registrationNumber }),
+              newValue: JSON.stringify(updates),
+              timestamp: new Date().toISOString(),
+            });
+          }
           return { success: true };
         } catch (error) {
           console.error("[RBAC] Update staff user failed:", error);
@@ -2507,12 +2732,19 @@ export const appRouter = router({
       }))
       .query(async ({ input, ctx }) => {
         try {
+          await assertAppointmentWorkflowAccess(ctx);
           let appointments: any[] = [];
-          
-          if (input.patientId) {
+          const requestedConsultantId = input.consultantId;
+          if (ctx.user.role === "consultant" && requestedConsultantId && requestedConsultantId !== ctx.user.id) {
+            throw new Error("Consultants cannot list another consultant's appointments");
+          }
+          const effectiveConsultantId = ctx.user.role === "consultant" ? ctx.user.id : requestedConsultantId;
+
+          if (effectiveConsultantId) {
+            appointments = await db.getAppointmentsByConsultant(effectiveConsultantId);
+            if (input.patientId) appointments = appointments.filter((appointment) => appointment.patientId === input.patientId);
+          } else if (input.patientId) {
             appointments = await db.getAppointmentsByPatient(input.patientId);
-          } else if (input.consultantId) {
-            appointments = await db.getAppointmentsByConsultant(input.consultantId);
           }
           
           if (input.status) {
@@ -2546,9 +2778,15 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         try {
+          await assertAppointmentWorkflowAccess(ctx);
+          if (ctx.user.role === "consultant" && input.consultantId !== ctx.user.id) {
+            throw new Error("Consultants cannot create an appointment for another consultant");
+          }
+          const consultantId = ctx.user.role === "consultant" ? ctx.user.id : input.consultantId;
+          await requireActiveConsultant(consultantId);
           // Check for conflicts
           const conflict = await db.checkAppointmentConflict(
-            input.consultantId,
+            consultantId,
             input.appointmentDate,
             input.appointmentTime
           );
@@ -2557,15 +2795,15 @@ export const appRouter = router({
             throw new Error("Time slot already booked");
           }
           
-          const appointment = await db.createAppointment({
+          const appointmentId = await db.createAppointmentSafely({
             patientId: input.patientId,
-            consultantId: input.consultantId,
+            consultantId,
             appointmentDate: input.appointmentDate,
             appointmentTime: input.appointmentTime,
             notes: input.notes,
           });
           
-          return appointment;
+          return { appointmentId, consultantId };
         } catch (error) {
           console.error("[Appointments] Create failed:", error);
           throw new Error(error instanceof Error ? error.message : "Failed to create appointment");
@@ -2579,10 +2817,9 @@ export const appRouter = router({
         newDate: z.string(),
         newTime: z.string(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
-          const appointment = await db.getAppointmentById(input.appointmentId);
-          if (!appointment) throw new Error("Appointment not found");
+          const appointment = await requireAccessibleAppointment(ctx, input.appointmentId);
           
           const conflict = await db.checkAppointmentConflict(
             appointment.consultantId,
@@ -2613,8 +2850,9 @@ export const appRouter = router({
         appointmentId: z.string(),
         reason: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
+          await requireAccessibleAppointment(ctx, input.appointmentId);
           await db.cancelAppointment(input.appointmentId);
           return { success: true };
         } catch (error) {
@@ -2629,8 +2867,9 @@ export const appRouter = router({
         appointmentId: z.string(),
         notes: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
+          await requireAccessibleAppointment(ctx, input.appointmentId);
           await db.updateAppointmentStatus(input.appointmentId, "No-show");
           return { success: true };
         } catch (error) {
@@ -2645,8 +2884,9 @@ export const appRouter = router({
         appointmentId: z.string(),
         notes: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
+          await requireAccessibleAppointment(ctx, input.appointmentId);
           await db.updateAppointmentStatus(input.appointmentId, "Completed");
           return { success: true };
         } catch (error) {
@@ -2663,6 +2903,7 @@ export const appRouter = router({
       }))
       .query(async ({ input }) => {
         try {
+          await requireActiveConsultant(input.consultantId);
           const slots = await db.getAvailableSlots(input.consultantId, input.date);
           return slots;
         } catch (error) {

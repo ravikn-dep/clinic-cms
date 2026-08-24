@@ -952,3 +952,13 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Add focused Step 7 authority, alias, audit, matching, historical-integrity, and zero-mutation regression tests.
 - [x] Run required local validation, fresh-schema validation only if schema changes, and create a source-backed Step 7 report.
 - [x] Commit, push normally, open a protected PR, verify green CI, and stop without merging, tagging, deploying, or modifying production.
+
+## Phase 4 Step 1 Consultant-Specific OP Foundation
+- [x] Audit the user, appointment, consultation, OP, branding, storage, print, dashboard, RBAC, and existing Settings → Users architecture with file-and-line evidence.
+- [x] Reuse existing user/appointment/consultation structures where sufficient and document any minimal forward-only schema decision.
+- [x] Extend Settings → Users with admin-governed consultant details, secure logo/signature uploads, active-state controls, and server-derived audit events.
+- [x] Implement server-authoritative active-consultant appointment and consultation attribution without changing shared patients, billing, pharmacy, PO, GR, inventory, or stock boundaries.
+- [x] Implement a stable printable consultant-left/facility-right single-clinic OP document that degrades safely when optional images are absent.
+- [x] Add focused Phase 4 Step 1 authority, upload, appointment, consultation, OP, print, audit, and zero-mutation tests plus required Phase 3 regressions.
+- [x] Run local validation, fresh-schema bootstrap validation if schema changes, and create the source-backed Phase 4 Step 1 report.
+- [ ] Commit, push normally, open a protected PR, verify green CI, and stop without merging, tagging, deploying, or modifying production.

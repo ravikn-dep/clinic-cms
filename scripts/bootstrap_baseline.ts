@@ -242,6 +242,22 @@ async function bootstrap() {
   }
   console.log("[Verification] users.id PRIMARY KEY + AUTO_INCREMENT verified.");
 
+  const consultantProfileColumns = [
+    "qualifications",
+    "specialization",
+    "designation",
+    "prescriptionHeaderText",
+    "consultantLogoKey",
+    "signatureKey",
+  ];
+  for (const column of consultantProfileColumns) {
+    const [columnRows] = await connection.query("SHOW COLUMNS FROM `users` WHERE Field = ?", [column]);
+    if ((columnRows as any[]).length === 0) {
+      await fail(connection, `users.${column} consultant profile column missing.`);
+    }
+  }
+  console.log("[Verification] Consultant profile columns verified on users.");
+
   const requiredUniqueIndexes: Array<[string, string, string[]]> = [
     ["users", "users_openId_unique", ["openId"]],
     ["appointments", "appointments_appointmentId_unique", ["appointmentId"]],

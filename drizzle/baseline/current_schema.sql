@@ -487,3 +487,9 @@ CREATE INDEX `goodsReceiptItems_poItemId_idx` ON `goodsReceiptItems` (`poItemId`
 CREATE INDEX `goodsReceipts_purchaseOrderId_idx` ON `goodsReceipts` (`purchaseOrderId`);
 CREATE INDEX `stockMovements_goodsReceiptId_idx` ON `stockMovements` (`goodsReceiptId`);
 CREATE INDEX `stockMovements_purchaseOrderId_idx` ON `stockMovements` (`purchaseOrderId`);
+ALTER TABLE `users` ADD `qualifications` varchar(255);
+ALTER TABLE `users` ADD `specialization` varchar(255);
+ALTER TABLE `users` ADD `designation` varchar(255);
+ALTER TABLE `users` ADD `prescriptionHeaderText` text;
+ALTER TABLE `users` ADD `consultantLogoKey` text;
+ALTER TABLE `users` ADD `signatureKey` text;

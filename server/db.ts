@@ -262,6 +262,31 @@ export async function getActiveConsultants() {
   }).from(users).where(and(eq(users.role, "consultant"), eq(users.isActive, 1)));
 }
 
+export async function getConsultantProfileById(consultantId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(users).where(and(eq(users.id, consultantId), eq(users.role, "consultant"))).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getActiveConsultantById(consultantId: number) {
+  const consultant = await getConsultantProfileById(consultantId);
+  return consultant?.isActive ? consultant : null;
+}
+
+export async function updateConsultantProfileById(
+  consultantId: number,
+  updates: Partial<Pick<typeof users.$inferInsert,
+    "name" | "email" | "phone" | "department" | "stateCounsilSection" | "registrationNumber" |
+    "qualifications" | "specialization" | "designation" | "prescriptionHeaderText" |
+    "consultantLogoKey" | "signatureKey" | "isActive"
+  >>,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set(updates).where(and(eq(users.id, consultantId), eq(users.role, "consultant")));
+}
+
 // ============ CONSULTATION QUERIES ============
 
 export async function createConsultation(consultationData: typeof consultations.$inferInsert) {
@@ -285,6 +310,49 @@ export async function getConsultationsByPatientId(patientId: string) {
   if (!db) throw new Error("Database not available");
   
   return db.select().from(consultations).where(eq(consultations.patientId, patientId)).orderBy(desc(consultations.consultationDate));
+}
+
+export async function getConsultationsByPatientAndConsultant(patientId: string, consultantId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(consultations).where(and(
+    eq(consultations.patientId, patientId),
+    eq(consultations.consultantId, consultantId),
+  )).orderBy(desc(consultations.consultationDate));
+}
+
+export async function getConsultationPrintData(consultationId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select({
+    consultationId: consultations.consultationId,
+    consultationDate: consultations.consultationDate,
+    consultantId: consultations.consultantId,
+    clinicalHistory: consultations.clinicalHistory,
+    presentComplaints: consultations.presentComplaints,
+    advisedInvestigations: consultations.advisedInvestigations,
+    treatmentPlan: consultations.treatmentPlan,
+    patientId: patients.patientId,
+    firstName: patients.firstName,
+    lastName: patients.lastName,
+    age: patients.age,
+    gender: patients.gender,
+    contactNumber: patients.contactNumber,
+    consultantName: users.name,
+    qualifications: users.qualifications,
+    specialization: users.specialization,
+    designation: users.designation,
+    registrationCouncil: users.stateCounsilSection,
+    registrationNumber: users.registrationNumber,
+    prescriptionHeaderText: users.prescriptionHeaderText,
+    consultantLogoKey: users.consultantLogoKey,
+    signatureKey: users.signatureKey,
+  }).from(consultations)
+    .innerJoin(patients, eq(consultations.patientId, patients.patientId))
+    .innerJoin(users, eq(consultations.consultantId, users.id))
+    .where(and(eq(consultations.consultationId, consultationId), eq(users.role, "consultant")))
+    .limit(1);
+  return result[0] ?? null;
 }
 
 export async function updateConsultation(consultationId: string, updates: Partial<typeof consultations.$inferInsert>) {
