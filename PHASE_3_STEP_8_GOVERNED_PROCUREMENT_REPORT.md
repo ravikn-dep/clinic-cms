@@ -40,3 +40,29 @@ The implementation preserves authenticated procedures, server-side feature check
 The managed development database is known to be structurally behind canonical schema and was not reset, force-migrated, or used for this feature. Accordingly, no interactive authenticated browser acceptance test was claimed from that stale environment. Before a release decision, run the protected CI workflow and then perform a disposable-development-data UI check covering Vendor Master creation, explicit PO vendor selection, admin approval, partial receipt, duplicate receipt retry, and no OCR-only mutation.
 
 No merge, tag, deployment, force push, production connection, production migration, or production data change has been performed.
+
+## Disposable Browser Acceptance — Synthetic Data Only
+
+An authenticated local-password administrator was seeded only into a fresh disposable MySQL 8 database and used through the temporary browser acceptance server. No managed development or production data was used. The browser created the Vendor Master and PO, approved it, posted both receipts, and displayed the duplicate and receipt-state outcomes. A one-time synthetic test-fixture catalog link was applied to the PO line after manual creation because catalog resolution is deliberately an explicit human review decision and the manual PO form does not infer one from free text.
+
+| Checkpoint | Ordered / received | Inventory total | GRs | Stock movements | Result |
+|---|---:|---:|---:|---:|---|
+| Before PO | — | 0 | 0 | 0 | Baseline |
+| After browser PO creation | 20 / 0 | 0 | 0 | 0 | Active Vendor Master linked; `Pending Approval`; PO creation audit present. |
+| After browser approval | 20 / 0 | 0 | 0 | 0 | `Approved`; server-derived actor/history/audit present; zero-stock boundary held. |
+| After `GR-SYN-001` | 20 / 8 | 8 | 1 | 1 | Partial receipt posted; outstanding 12; PO showed Partially received. |
+| After duplicate `GR-SYN-001` retry | 20 / 8 | 8 | 1 | 1 | Browser returned “Goods receipt ID has already been posted”; no second effect. |
+| After `GR-SYN-002` | 20 / 20 | 20 | 2 | 2 | Remaining 12 posted; outstanding 0; PO showed Fully received. |
+| After `GR-SYN-OVER` over-receipt | 20 / 20 | 20 | 2 | 2 | Server rejected the extra unit; no inventory or stock-movement change. |
+
+The browser-created Vendor Master normalized to `synthetic supplies pvt ltd` with GSTIN `29ABCDE1234F1Z5`, was active, and produced `VENDOR_CREATED` audit evidence. The approved PO produced `PURCHASE_ORDER_APPROVED` audit and `APPROVED` history evidence. Both valid receipt posts produced `GOODS_RECEIPT_POSTED` history/audit evidence.
+
+### Demonstrated Bootstrap Correction
+
+The initial disposable browser run exposed that `purchaseOrders.getAll` failed after a clean baseline bootstrap because `drizzle/schema.ts` expects `vendorGstNumber` while the baseline removed the legacy `vendorGSTNumber` column without preserving the canonical field. The deterministic baseline now uses MySQL’s case-insensitive-safe atomic rename:
+
+```sql
+ALTER TABLE `purchaseOrders` CHANGE COLUMN `vendorGSTNumber` `vendorGstNumber` varchar(50);
+```
+
+No historical migration was changed. A new empty disposable database then bootstrapped successfully with all strict assertions, the browser acceptance sequence passed, and the required post-correction validation passed: `pnpm check`, focused Step 8 suites, **247/247** full tests, production build, and `git diff --check`.

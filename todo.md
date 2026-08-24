@@ -975,3 +975,12 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Run type check, focused and full tests, production build, diff check, clean fresh MySQL baseline bootstrap, and clean fresh MySQL forward-migration validation.
 - [x] Commit, push normally, open a protected PR, verify green protected CI, and stop without merging, tagging, deploying, or modifying production.
 - [x] Produce the Phase 3 Step 8 report and stop without production changes, deployment, automatic merge, tag, or force push.
+
+## Phase 3 Step 8 Publication and Disposable Acceptance Verification
+- [x] Reconcile the requested branch name with the existing canonical Step 8 feature branch and open protected PR without renaming or duplicating published source history.
+- [x] Capture source-fidelity evidence from the canonical baseline through the current Step 8 branch for Vendor Master, PO lifecycle, Goods Receipt, inventory, stock movement, migration, baseline, and tests.
+- [x] Provision a disposable non-production MySQL database from the current Step 8 baseline and confirm schema readiness without using or repairing the stale managed development database.
+- [x] Establish a disposable authenticated acceptance environment using only synthetic data, or document the precise authentication/environment blocker without claiming interactive success.
+- [x] Execute and record the Vendor Master, Pending Approval PO, approval zero-stock boundary, partial receipt, duplicate retry, remaining receipt, and over-receipt acceptance sequence with exact inventory reconciliation values.
+- [ ] Recheck protected CI and publish final evidence without merge, tag, force push, deployment, or production database access.
+- [x] Correct the demonstrated deterministic-baseline omission of `purchaseOrders.vendorGstNumber`, then repeat disposable bootstrap and acceptance validation.

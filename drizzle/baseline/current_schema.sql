@@ -285,7 +285,7 @@ CREATE INDEX `unique_role_feature` ON `rolePermissions` (`role`,`featureKey`);
 CREATE INDEX `idx_role` ON `rolePermissions` (`role`);
 CREATE INDEX `users_userId_unique` ON `users` (`userId`);
 CREATE INDEX `users_username_unique` ON `users` (`username`);
-ALTER TABLE `purchaseOrders` DROP COLUMN `vendorGSTNumber`;
+ALTER TABLE `purchaseOrders` CHANGE COLUMN `vendorGSTNumber` `vendorGstNumber` varchar(50);
 ALTER TABLE `users` DROP COLUMN `qrcodeLoginUrl`;
 ALTER TABLE `users` DROP COLUMN `qrcodeLoginKey`;
 CREATE TABLE IF NOT EXISTS `appointmentBookingLocks` (
