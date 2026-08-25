@@ -1044,3 +1044,4 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Summarize the attachment and compare its requirements with the restored stable project.
 - [x] Apply only the verified, safe, in-scope attachment changes without reintroducing ThreeUI UI.
 - [ ] Validate the applied changes and record the results.
+- [ ] Investigate and, only if justified, narrowly fix the reproducible feature-access permission overwrite transaction stall blocking the full validation suite; preserve RBAC semantics and do not add functionality.

@@ -134,6 +134,8 @@ The available active-checkout RBAC and consultant regression coverage passed whe
 
 The earlier inherited figure of 250/272 was not reused as current evidence because it came from a different worktree/state before this repair. The attachment’s required final classification is therefore not satisfied.
 
+A narrow validation-only attempt batched the permission inserts inside the existing transaction. It did not resolve the reproduced stall and was reverted; the final application source retains the stable pre-existing implementation. No ineffective workaround or semantic RBAC change remains in the delivered checkpoint.
+
 ## 9. Final classification
 
 > **BLOCKED — full Vitest suite is not green.**
