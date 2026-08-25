@@ -965,3 +965,76 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Verify claims against repository state
 - [x] Apply safe supported changes with tests
 - [x] Validate and deliver four-part report
+
+## Attachment Processing (pasted_content_16.txt and pasted_content_17.txt)
+- [ ] Read and summarize both attachments
+- [ ] Verify requirements against Git history and repository state
+- [ ] Apply only safe, supported requirements with appropriate tests
+- [ ] Validate and deliver four-part report
+
+## Phase 3 Step 6 Implementation-Fidelity Recovery
+- [ ] Locate the actual Step 6 source workspace and prove its ancestry and complete source delta against canonical `8999ba7`.
+- [ ] Restore all verified Step 6 source files to `feature/phase3-pdf-ocr` in a real implementation commit.
+- [ ] Re-run the requested focused and full validation from the committed implementation state.
+- [ ] Push normally to GitHub and provide exact Git delta and per-file log evidence without creating a new PR.
+
+## Phase 3 Step 7 Governed Catalog Administration
+- [ ] Verify a clean worktree rooted exactly at canonical baseline `20d1dca9e0a8adca06a5bc46f85057f151388154` on `feature/phase3-catalog-admin`.
+- [ ] Audit existing catalog, alias, matching, RBAC, audit-log, PO-reference, and evidence boundaries with file-and-line evidence.
+- [ ] Implement minimal admin-only catalog item and alias administration with server-derived normalization, duplicate safety, soft deactivation, and durable audit events.
+- [ ] Add a practical feature-gated Catalog Management administration surface without changing PO review, historical references, Goods Receipts, or inventory.
+- [ ] Add focused Step 7 authority, alias, audit, matching, historical-integrity, and zero-mutation regression tests.
+- [ ] Run required local validation, fresh-schema validation only if schema changes, and create a source-backed Step 7 report.
+- [ ] Commit, push normally, open a protected PR, verify green CI, and stop without merging, tagging, deploying, or modifying production.
+
+## Phase 4 Step 1 Consultant-Specific OP Foundation
+- [ ] Verify a clean worktree rooted exactly at canonical baseline `535a0d0` on `feature/phase4-consultant-op-foundation`.
+- [ ] Audit the user, appointment, consultation, OP, branding, storage, print, dashboard, RBAC, and existing Settings → Users architecture with file-and-line evidence.
+- [ ] Reuse existing user/appointment/consultation structures where sufficient and document any minimal forward-only schema decision.
+- [ ] Extend Settings → Users with admin-governed consultant details, secure logo/signature uploads, active-state controls, and server-derived audit events.
+- [ ] Implement server-authoritative active-consultant appointment and consultation attribution without changing shared patients, billing, pharmacy, PO, GR, inventory, or stock boundaries.
+- [ ] Implement a stable printable consultant-left/facility-right single-clinic OP document that degrades safely when optional images are absent.
+- [ ] Add focused Phase 4 Step 1 authority, upload, appointment, consultation, OP, print, audit, and zero-mutation tests plus required Phase 3 regressions.
+- [ ] Run local validation, fresh-schema bootstrap validation if schema changes, and create the source-backed Phase 4 Step 1 report.
+- [ ] Commit, push normally, open a protected PR, verify green CI, and stop without merging, tagging, deploying, or modifying production.
+
+## Phase 4 Step 1 Publication and Protected-CI Verification Only
+- [ ] Verify the existing Phase 4 source implementation, baseline delta, commit ancestry, staged-state exclusions, and local/remote feature-branch synchronization.
+- [ ] Verify the existing protected PR and required CI Validation / validate result; report exact Git, validation, and no-merge evidence without source changes.
+
+## Safe Git Branch-Synchronization Inspection
+- [ ] Inspect the requested main/origin state without running a destructive hard reset or discarding validated feature-branch work.
+- [ ] Report the current branch, remotes, status, and recent history with safe non-destructive synchronization options.
+
+## Publication-Ready Canonical Synchronization
+- [ ] Audit open Phase 3 and Phase 4 pull requests, required CI status, ancestry, mergeability, and safe dependency order.
+- [ ] Merge only validated, eligible pull requests into protected GitHub main through the normal workflow; do not deploy or modify production.
+- [ ] Verify canonical main contains the synchronized source, migrations, reports, and green required validation evidence for publication readiness.
+
+## Development Database receivedQuantity Schema Repair
+- [x] Compare the connected development database against the active Drizzle schema, deterministic baseline, and existing forward migration that introduced `purchaseOrderItems.receivedQuantity`.
+- [x] Apply only the existing lawful migration path to the connected development database; do not create a duplicate migration or touch production.
+- [ ] Verify the repaired column definition, metrics query behavior, Scan PO OCR separation, zero PO/inventory mutation before explicit submission, and check/test/build validation. The metrics and non-mutation checks are complete; the interactive Scan PO request is blocked upstream by a gateway 403 and needs separate upload-path investigation.
+- [x] Restart the active development server after the development-only schema repair and verify that the authenticated Purchase Order metrics route no longer returns HTTP 500.
+
+## Phase 3 OCR Development Upload-Transport Investigation
+- [ ] Capture and compare tiny JPEG, normal JPEG, PNG, and tiny PDF upload requests without exposing credentials, cookies, patient data, or uploaded files.
+- [ ] Prove the exact last transport boundary reached and audit the existing Scan PO/base64/tRPC ingress path without altering OCR, parser, catalog, PO, receipt, inventory, or production.
+- [ ] Create a dedicated canonical repair branch only if a source change is required; preserve all OCR validation, authentication, limits, safe errors, review flow, and zero-mutation boundaries.
+- [ ] Add focused transport security and zero-mutation regression tests only if a repair is required, then run the required validation and interactive small-document test.
+- [ ] Publish only a necessary scoped repair without merging, deploying, tagging, force pushing, or touching production.
+
+## Phase 3 Step 8 Governed End-to-End Procurement and Inventory Posting
+- [ ] Audit canonical vendor, PO, Goods Receipt, inventory, stock-movement, catalog, OCR evidence, audit, RBAC, transaction, constraint, and UI architecture before changes.
+- [ ] Reuse or minimally extend vendor master governance with server normalization, duplicate protection, active state, and admin-only lifecycle actions.
+- [ ] Integrate deterministic vendor resolution and review-field provenance without automatic vendor creation, overwrite, PO creation, or inventory mutation.
+- [ ] Complete server-authorized PO approval/rejection with actor, timestamp, audit evidence, lifecycle guards, and zero inventory mutation.
+- [ ] Complete approved-PO Goods Receipt review and one-time atomic posting with partial receipt, batch/expiry validation, over-receipt prevention, idempotency, PO reconciliation, immutable stock movement, and audit evidence.
+- [ ] Implement only the necessary state-aware Purchase Orders and receipt UI affordances, confirmation, provenance, and authorization boundaries.
+- [ ] Add focused vendor, approval, receipt, transaction, duplicate-post, RBAC, audit, catalog-identity, and zero-pre-posting-mutation tests.
+- [ ] Generate and validate any forward-only schema migration and deterministic fresh-schema baseline update required by the approved implementation.
+- [ ] Run check, focused and full tests, build, diff checks, fresh MySQL bootstrap/schema validation, and protected CI on a dedicated canonical feature branch.
+- [ ] Produce the Phase 3 Step 8 report and stop without production changes, deployment, automatic merge, tag, or force push.
+
+## Development Purchase Orders Goods-Receipt Query Repair
+- [x] Diagnose and repair the development Purchase Orders goods-receipt query failure for an existing purchase-order reference, without changing PO/GR/inventory behavior or production data.
