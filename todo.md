@@ -1038,3 +1038,9 @@ This section records the user-authorized GitHub governance action; the migration
 
 ## Development Purchase Orders Goods-Receipt Query Repair
 - [x] Diagnose and repair the development Purchase Orders goods-receipt query failure for an existing purchase-order reference, without changing PO/GR/inventory behavior or production data.
+
+## Attachment 32: Read, Verify, Summarize, Apply
+- [x] Read and extract the actionable requirements from `pasted_content_32.txt`.
+- [x] Summarize the attachment and compare its requirements with the restored stable project.
+- [x] Apply only the verified, safe, in-scope attachment changes without reintroducing ThreeUI UI.
+- [ ] Validate the applied changes and record the results.
