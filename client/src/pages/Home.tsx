@@ -97,11 +97,11 @@ export default function Home() {
 
   const quickActions = [
     {
-      title: "Register Patient",
-      description: "Start a warm, guided intake",
+		title: "New Visit / Appointment",
+		description: "Match or register, then book in one flow",
       icon: Users,
-      path: "/register-patient",
-      feature: "patient_records" as const,
+		path: "/new-visit",
+		feature: "appointments" as const,
     },
     {
       title: "Ambient Scribe",
@@ -158,9 +158,9 @@ export default function Home() {
             </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
-            <FeatureGate feature="patient_records">
-              <Button onClick={() => navigate("/register-patient")} size="lg" className="friendly-action bg-teal-600 text-white hover:bg-teal-700">
-                + New Patient
+			<FeatureGate feature="appointments">
+				<Button onClick={() => navigate("/new-visit")} size="lg" className="friendly-action bg-teal-600 text-white hover:bg-teal-700">
+					+ New Visit / Appointment
               </Button>
             </FeatureGate>
             <FeatureGate feature="ambient_scribe">

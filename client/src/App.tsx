@@ -27,6 +27,7 @@ import OPFormCustomization from "./pages/OPFormCustomization";
 import Appointments from "./pages/Appointments";
 import Analytics from "./pages/Analytics";
 import CatalogManagement from "./pages/CatalogManagement";
+import NewVisit from "./pages/NewVisit";
 import NotFound from "./pages/NotFound";
 import { useCredentialAuth } from "./_core/hooks/useCredentialAuth";
 import { Button } from "./components/ui/button";
@@ -63,6 +64,7 @@ function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+			<Route path={"/new-visit"}>{() => <ProtectedRoute feature="appointments"><NewVisit /></ProtectedRoute>}</Route>
       <Route path={"/register-patient"} component={PatientRegistration} />
       <Route path={"/patients"}>{() => <ProtectedRoute feature="patient_records"><PatientRecords /></ProtectedRoute>}</Route>
       <Route path={"/scribe"}>{() => <ProtectedRoute feature="ambient_scribe"><AmbientScribe /></ProtectedRoute>}</Route>
