@@ -984,3 +984,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Execute and record the Vendor Master, Pending Approval PO, approval zero-stock boundary, partial receipt, duplicate retry, remaining receipt, and over-receipt acceptance sequence with exact inventory reconciliation values.
 - [x] Recheck protected CI and publish final evidence without merge, tag, force push, deployment, or production database access.
 - [x] Correct the demonstrated deterministic-baseline omission of `purchaseOrders.vendorGstNumber`, then repeat disposable bootstrap and acceptance validation.
+
+## Phase 3 Step 8 Final Publication and Protected CI Verification
+- [x] Verify the actual existing canonical Step 8 feature branch, source delta, clean working tree, and documented branch-name divergence without creating duplicate history.
+- [x] Rerun final type check, focused Step 8 tests, full suite, build, and diff hygiene on the final source tree.
+- [x] Rerun strict fresh empty MySQL bootstrap and canonical pre-Step-8 baseline plus migration 0024 validation without any production or managed-development database access.
+- [x] Confirm latest protected CI, open PR state, local/remote synchronization, and final source-backed evidence without merge, tag, deployment, force push, or new functionality.
