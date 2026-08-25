@@ -259,7 +259,7 @@ async function bootstrap() {
   }
   console.log("[Verification] Consultant profile columns verified on users.");
 
-	for (const [table, column] of [["vendors", "normalizedVendorName"], ["vendors", "normalizedGstNumber"], ["vendors", "bankDetails"], ["purchaseOrders", "vendorId"], ["inventory", "catalogItemId"], ["stockMovements", "catalogItemId"]]) {
+	for (const [table, column] of [["vendors", "normalizedVendorName"], ["vendors", "normalizedGstNumber"], ["vendors", "bankDetails"], ["purchaseOrders", "vendorId"], ["inventory", "catalogItemId"], ["stockMovements", "catalogItemId"], ["appointments", "appointmentSource"], ["consultations", "appointmentId"]]) {
 		const [columnRows] = await connection.query(`SHOW COLUMNS FROM \`${table}\` WHERE Field = ?`, [column]);
 		if ((columnRows as any[]).length === 0) await fail(connection, `${table}.${column} procurement column missing.`);
 	}
@@ -289,7 +289,8 @@ async function bootstrap() {
     ["externalIdempotencyKeys", "externalIdempotency_operation_key_unique", ["operation", "idempotencyKey"]],
     ["externalIdempotencyKeys", "externalIdempotency_idempotencyId_unique", ["idempotencyId"]],
     ["appointmentBookingLocks", "appointmentBookingLocks_consultant_date_unique", ["consultantId", "appointmentDate"]],
-    ["externalRequestReplays", "externalRequestReplays_key_request_unique", ["serviceKeyId", "requestId"]],
+	["externalRequestReplays", "externalRequestReplays_key_request_unique", ["serviceKeyId", "requestId"]],
+	["consultations", "consultations_appointmentId_unique", ["appointmentId"]],
   ];
 
   for (const [table, indexName, columns] of requiredUniqueIndexes) {

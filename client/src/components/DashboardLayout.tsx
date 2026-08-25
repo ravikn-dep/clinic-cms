@@ -30,7 +30,7 @@ import { Button } from "./ui/button";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: UserPlus, label: "Register Patient", path: "/register-patient" },
+	{ icon: UserPlus, label: "New Visit / Appointment", path: "/new-visit", feature: "appointments" as const },
   { icon: Users, label: "Patient Records", path: "/patients", feature: "patient_records" as const },
   { icon: ClipboardPenLine, label: "Ambient Scribe", path: "/scribe", feature: "ambient_scribe" as const },
   { icon: PackageSearch, label: "Pharmacy", path: "/pharmacy", feature: "pharmacy" as const },
@@ -98,8 +98,8 @@ function DashboardLayoutContent({
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const visibleMenuItems = menuItems.filter(item => {
-    // Always show dashboard and register patient
-    if (item.path === "/" || item.path === "/register-patient") return true;
+	// Always show the dashboard; operational entries remain feature-gated.
+	if (item.path === "/") return true;
     // Show admin items only for admins
     if (item.adminOnly) return user?.role === "admin";
     // Show feature-gated items if user has access

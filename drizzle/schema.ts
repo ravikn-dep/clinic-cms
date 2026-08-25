@@ -8,7 +8,8 @@ export const appointments = mysqlTable("appointments", {
 	appointmentDate: varchar({ length: 10 }).notNull(),
 	appointmentTime: varchar({ length: 5 }).notNull(),
 	duration: int().default(30),
-	status: mysqlEnum(['Scheduled','Completed','Cancelled','No-show','Rescheduled']).default('Scheduled'),
+	status: mysqlEnum(['Scheduled','Checked-in','Completed','Cancelled','No-show','Rescheduled']).default('Scheduled'),
+	appointmentSource: mysqlEnum(['MANUAL','WALK_IN','PHONE']).default('MANUAL').notNull(),
 	notes: text(),
 	reminderSent: tinyint().default(0),
 	reminderSentAt: timestamp({ mode: 'string' }),
@@ -107,7 +108,10 @@ export const consultations = mysqlTable("consultations", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	consultantId: int(),
-});
+	appointmentId: varchar({ length: 50 }),
+}, (table) => [
+	uniqueIndex("consultations_appointmentId_unique").on(table.appointmentId),
+]);
 
 export const inventory = mysqlTable("inventory", {
 	itemId: varchar({ length: 50 }).notNull(),

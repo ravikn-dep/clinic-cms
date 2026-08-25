@@ -28,6 +28,8 @@ import { normalizeCatalogText } from "./catalogMatching/normalize";
 import { enrichPurchaseOrderFromVerifiedVendor, normalizeGstNumber } from "./procurement";
 import { storeConsultantImage } from "./consultantAssets";
 import { FIXED_CLINIC_BRANDING } from "../shared/clinicBranding";
+import { normalizeIndianMobile } from "./external/validation";
+import { hasStrongDuplicate, rankPatientCandidates } from "./visitWorkflow";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -2728,13 +2730,81 @@ export const appRouter = router({
 
   }),
 
+  visits: router({
+    activeConsultants: protectedProcedure.query(async ({ ctx }) => {
+      await assertAppointmentWorkflowAccess(ctx);
+      if (ctx.user.role === "consultant") {
+        const consultant = await requireActiveConsultant(ctx.user.id);
+        return [consultant];
+      }
+      return db.getActiveConsultants();
+    }),
+
+    patientCandidates: protectedProcedure
+      .input(z.object({ query: z.string().trim().min(1).max(100) }))
+      .query(async ({ input, ctx }) => {
+        await assertAppointmentWorkflowAccess(ctx);
+        const patients = await db.searchPatients(input.query);
+        const ranked = rankPatientCandidates(input.query, patients);
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(), userId: String(ctx.user.id), actionType: "PHI_ACCESS", tableName: "patients", recordId: "visit-patient-search",
+          newValue: JSON.stringify({ resultCount: ranked.length }), timestamp: new Date().toISOString(),
+        });
+        return ranked.map(({ patientId, firstName, lastName, age, gender, contactNumber, matchStrength }) => ({ patientId, firstName, lastName, age, gender, contactNumber, matchStrength }));
+      }),
+
+    registerPatient: protectedProcedure
+      .input(z.object({
+        firstName: z.string().trim().min(1).max(100), lastName: z.string().trim().min(1).max(100), age: z.number().int().min(0).max(130).optional(),
+        gender: z.enum(["Male", "Female", "Other"]).optional(), contactNumber: z.string().trim().min(10).max(20), email: z.string().trim().email().optional(), address: z.string().trim().max(1000).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await assertAppointmentWorkflowAccess(ctx);
+        const normalizedContactNumber = normalizeIndianMobile(input.contactNumber);
+        if (!normalizedContactNumber) throw new Error("A valid Indian mobile number is required");
+        const conflicts = await db.getPatientsByNormalizedContactNumber(normalizedContactNumber);
+        if (hasStrongDuplicate(normalizedContactNumber, conflicts)) {
+          return { created: false as const, requiresResolution: true as const, candidates: conflicts.map(({ patientId, firstName, lastName, age, gender, contactNumber }) => ({ patientId, firstName, lastName, age, gender, contactNumber })) };
+        }
+        const result = await registerPatientWithTracking(input, { auditActorId: String(ctx.user.id), notificationUserId: ctx.user.id, source: "cms" });
+        return { created: true as const, requiresResolution: false as const, patient: result.patient };
+      }),
+
+    createAppointment: protectedProcedure
+      .input(z.object({ patientId: z.string().trim().min(1), consultantId: z.number().int().positive(), appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), appointmentTime: z.string().regex(/^\d{2}:\d{2}$/), appointmentSource: z.enum(["MANUAL", "WALK_IN", "PHONE"]), notes: z.string().trim().max(2000).optional() }))
+      .mutation(async ({ input, ctx }) => {
+        await assertAppointmentWorkflowAccess(ctx);
+        const patient = await db.getPatientById(input.patientId);
+        if (!patient) throw new Error("Selected patient was not found");
+        if (ctx.user.role === "consultant" && input.consultantId !== ctx.user.id) throw new Error("Consultants cannot create an appointment for another consultant");
+        const consultantId = ctx.user.role === "consultant" ? ctx.user.id : input.consultantId;
+        await requireActiveConsultant(consultantId);
+        const appointmentId = await db.createVisitAppointmentWithAudit({ ...input, consultantId, actorId: String(ctx.user.id) });
+        return { appointmentId, patientId: patient.patientId, consultantId };
+      }),
+
+    checkIn: protectedProcedure
+      .input(z.object({ appointmentId: z.string().trim().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        await requireAccessibleAppointment(ctx, input.appointmentId);
+        return db.checkInAppointmentWithAudit(input.appointmentId, String(ctx.user.id));
+      }),
+
+    startConsultation: protectedProcedure
+      .input(z.object({ appointmentId: z.string().trim().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        await requireAccessibleAppointment(ctx, input.appointmentId);
+        return db.startAppointmentConsultationWithAudit(input.appointmentId, String(ctx.user.id));
+      }),
+  }),
+
   appointments: router({
     // Get all appointments for a consultant or all appointments for admin
     list: protectedProcedure
       .input(z.object({
         consultantId: z.number().optional(),
         patientId: z.string().optional(),
-        status: z.enum(["Scheduled", "Completed", "Cancelled", "No-show"]).optional(),
+        status: z.enum(["Scheduled", "Checked-in", "Completed", "Cancelled", "No-show"]).optional(),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
       }))
@@ -2753,6 +2823,8 @@ export const appRouter = router({
             if (input.patientId) appointments = appointments.filter((appointment) => appointment.patientId === input.patientId);
           } else if (input.patientId) {
             appointments = await db.getAppointmentsByPatient(input.patientId);
+          } else {
+            appointments = await db.getAllAppointments();
           }
           
           if (input.status) {

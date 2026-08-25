@@ -8,10 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus } from "lucide-react";
+import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus, Stethoscope } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { toast } from "sonner";
+import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
 
 export default function Appointments() {
   const { user } = useAuth();
@@ -94,6 +95,43 @@ export default function Appointments() {
     },
   });
 
+  const brandedPrint = trpc.consultations.getBrandedPrintData.useMutation();
+
+  const printConsultationOP = async (consultationId: string) => {
+    try {
+      const printData = await brandedPrint.mutateAsync({ consultationId });
+      const printWindow = window.open("", "", "width=800,height=600");
+      if (!printWindow) {
+        toast.error("Unable to open print window. Please check your browser settings.");
+        return;
+      }
+      printWindow.document.write(generateConsultationOPHTML(printData));
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      toast.success("Consultant-branded OP prepared for printing.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to prepare the consultation OP.");
+    }
+  };
+
+  const checkInMutation = trpc.visits.checkIn.useMutation({
+    onSuccess: () => {
+      toast.success("Patient checked in");
+      appointmentsQuery.refetch();
+    },
+    onError: (error) => toast.error(error.message || "Failed to check in patient"),
+  });
+
+  const startConsultationMutation = trpc.visits.startConsultation.useMutation({
+    onSuccess: (result) => {
+      toast.success(result.created ? "Consultation started" : "Existing consultation reopened");
+      appointmentsQuery.refetch();
+      void printConsultationOP(result.consultation.consultationId);
+    },
+    onError: (error) => toast.error(error.message || "Failed to start consultation"),
+  });
+
   // Filter appointments by date if in list view
   const filteredAppointments = useMemo(() => {
     if (!appointmentsQuery.data) return [];
@@ -117,6 +155,7 @@ export default function Appointments() {
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { color: string; icon: any }> = {
       "Scheduled": { color: "bg-blue-100 text-blue-800", icon: Clock },
+			"Checked-in": { color: "bg-violet-100 text-violet-800", icon: CheckCircle },
       "Completed": { color: "bg-green-100 text-green-800", icon: CheckCircle },
       "Cancelled": { color: "bg-gray-100 text-gray-800", icon: XCircle },
       "No-show": { color: "bg-red-100 text-red-800", icon: AlertCircle },
@@ -276,6 +315,7 @@ export default function Appointments() {
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="Scheduled">Scheduled</SelectItem>
+            <SelectItem value="Checked-in">Checked-in</SelectItem>
             <SelectItem value="Completed">Completed</SelectItem>
             <SelectItem value="Cancelled">Cancelled</SelectItem>
             <SelectItem value="No-show">No-show</SelectItem>
@@ -324,6 +364,7 @@ export default function Appointments() {
                         {getStatusBadge(apt.status)}
                         {apt.status === "Scheduled" && (
                           <div className="flex gap-2">
+								<Button size="sm" onClick={() => checkInMutation.mutate({ appointmentId: apt.appointmentId })} disabled={checkInMutation.isPending}>Check In</Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -350,6 +391,12 @@ export default function Appointments() {
                             </Button>
                           </div>
                         )}
+						{apt.status === "Checked-in" && (
+							<div className="flex gap-2">
+									<Button size="sm" onClick={() => startConsultationMutation.mutate({ appointmentId: apt.appointmentId })} disabled={startConsultationMutation.isPending || brandedPrint.isPending}><Stethoscope className="mr-1 h-4 w-4" />Start Consultation & Print OP</Button>
+								<Button size="sm" variant="outline" onClick={() => completeMutation.mutate({ appointmentId: apt.appointmentId })} disabled={completeMutation.isPending}>Complete</Button>
+							</div>
+						)}
                       </div>
                     </div>
                   </CardContent>

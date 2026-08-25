@@ -990,3 +990,19 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Rerun final type check, focused Step 8 tests, full suite, build, and diff hygiene on the final source tree.
 - [x] Rerun strict fresh empty MySQL bootstrap and canonical pre-Step-8 baseline plus migration 0024 validation without any production or managed-development database access.
 - [x] Confirm latest protected CI, open PR state, local/remote synchronization, and final source-backed evidence without merge, tag, deployment, force push, or new functionality.
+
+## Phase 4 Step 2 Unified Consultant Visit, Patient Match/Register, and OP Workflow
+- [x] Audit canonical consultant, patient, appointment, consultation, OP, RBAC, audit, search, duplicate-protection, and UI architecture with file-and-line evidence.
+- [x] Reuse existing relationships and add only the smallest forward-only appointment/consultation linkage, source, lifecycle, and idempotency schema support proven necessary.
+- [x] Implement deterministic server-side patient candidate search, explicit selection, in-flow registration reuse, and duplicate conflict handling without automatic merge or demographic overwrite.
+- [x] Implement authoritative active-consultant selection, explicit appointment creation, controlled appointment source, and consultant-scoped access for staff/admin/consultant roles.
+- [x] Implement audited check-in and idempotent appointment-context consultation/OP start without client-supplied consultant identity or duplicate consultations.
+- [x] Add a unified Visit/Appointment UI route and state-aware appointment actions while preserving existing Patient Registration, Appointments, OP rendering, procurement, and inventory behavior.
+- [x] Add focused patient-match, duplicate, consultant/RBAC, appointment-state, check-in, consultation-idempotency, audit, source, and zero-mutation regression tests.
+- [x] Generate and validate any required forward-only migration, deterministic bootstrap update, strict schema assertions, and fresh MySQL validation.
+- [ ] Run check, focused and full tests, build, diff checks, disposable browser acceptance, and protected CI on this dedicated branch without merge, tag, deployment, or production access.
+- [x] Produce the Phase 4 Step 2 report with source evidence, validation results, workflow trace, and preserved boundaries.
+- [x] Correct the authorized all-appointments list path so staff/admin can see explicitly booked workflow appointments for check-in and consultation acceptance, without altering consultant scope or procurement/inventory behavior.
+- [x] Preserve the newly registered in-flow patient as the explicit selection until candidate-query results refresh, so the booking UI accurately represents the guarded server selection state.
+- [x] Complete local type check, focused and full tests, build, diff check, fresh bootstrap, forward-migration verification, and disposable synthetic browser acceptance without production or publication actions.
+- [ ] Verify source fidelity, stage only validated Phase 4 Step 2 files, commit, push the authorized feature branch, open a PR to main, and verify required protected CI without merge, deployment, tag, force push, or production action.

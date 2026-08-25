@@ -508,3 +508,7 @@ ALTER TABLE `inventory` ADD CONSTRAINT `inventory_catalog_batch_expiry_unique` U
 CREATE INDEX `purchaseOrders_vendorId_idx` ON `purchaseOrders` (`vendorId`);
 CREATE INDEX `vendors_active_normalizedVendorName_idx` ON `vendors` (`isActive`,`normalizedVendorName`);
 CREATE INDEX `vendors_normalizedGstNumber_idx` ON `vendors` (`normalizedGstNumber`);
+ALTER TABLE `appointments` MODIFY COLUMN `status` enum('Scheduled','Checked-in','Completed','Cancelled','No-show','Rescheduled') DEFAULT 'Scheduled';
+ALTER TABLE `appointments` ADD `appointmentSource` enum('MANUAL','WALK_IN','PHONE') DEFAULT 'MANUAL' NOT NULL;
+ALTER TABLE `consultations` ADD `appointmentId` varchar(50);
+ALTER TABLE `consultations` ADD CONSTRAINT `consultations_appointmentId_unique` UNIQUE(`appointmentId`);

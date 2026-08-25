@@ -7,6 +7,7 @@ import bcrypt from 'bcrypt';
 import { nanoid } from "nanoid";
 import { normalizeIndianMobile } from "./external/validation";
 import { normalizeGstNumber, normalizeVendorName, receiptStateForLines, type VendorMasterRecord } from "./procurement";
+import { canCheckInAppointment, canStartAppointmentConsultation } from "./visitWorkflow";
 
 const SALT_ROUNDS = 10;
 type InsertUser = typeof users.$inferInsert;
@@ -160,12 +161,18 @@ export async function searchPatients(query: string) {
   )).limit(50);
 
   const lowerQuery = trimmedQuery.toLocaleLowerCase("en-IN");
-  return results.filter((patient) => {
+	return results.filter((patient) => {
     const fullName = `${patient.firstName} ${patient.lastName}`.toLocaleLowerCase("en-IN");
     return patient.patientId.toLocaleLowerCase("en-IN").includes(lowerQuery)
       || fullName.includes(lowerQuery)
       || (mobile !== null && patient.normalizedContactNumber === mobile);
-  });
+	});
+}
+
+export async function getPatientsByNormalizedContactNumber(normalizedContactNumber: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(patients).where(eq(patients.normalizedContactNumber, normalizedContactNumber)).limit(10);
 }
 
 // ============ EXTERNAL INTEGRATION QUERIES ============
@@ -259,6 +266,8 @@ export async function getActiveConsultants() {
     userId: users.userId,
     name: users.name,
     department: users.department,
+		qualifications: users.qualifications,
+		specialization: users.specialization,
     registrationNumber: users.registrationNumber,
   }).from(users).where(and(eq(users.role, "consultant"), eq(users.isActive, 1)));
 }
@@ -1583,7 +1592,75 @@ export async function createAppointmentSafely(data: {
     });
   });
 
-  return appointmentId;
+	return appointmentId;
+}
+
+export async function createVisitAppointmentWithAudit(data: {
+	patientId: string;
+	consultantId: number;
+	appointmentDate: string;
+	appointmentTime: string;
+	appointmentSource: "MANUAL" | "WALK_IN" | "PHONE";
+	notes?: string;
+	actorId: string;
+}) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const appointmentId = `APT-${nanoid(16).toUpperCase()}`;
+	await db.transaction(async (transaction) => {
+		await lockConsultantDate(transaction, data.consultantId, data.appointmentDate);
+		const existingAppointments = await getActiveAppointmentsForDate(transaction, data.consultantId, data.appointmentDate);
+		if (rowsHaveAppointmentConflict(existingAppointments, data.appointmentTime, 30)) throw new Error("Time slot already booked");
+		await transaction.insert(appointments).values({
+			appointmentId, patientId: data.patientId, consultantId: data.consultantId,
+			appointmentDate: data.appointmentDate, appointmentTime: data.appointmentTime,
+			duration: 30, notes: data.notes, appointmentSource: data.appointmentSource,
+			notificationMethod: "SMS", status: "Scheduled",
+		});
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: data.actorId, actionType: "APPOINTMENT_CREATED", tableName: "appointments", recordId: appointmentId,
+			newValue: JSON.stringify({ patientId: data.patientId, consultantId: data.consultantId, appointmentSource: data.appointmentSource }), timestamp: new Date().toISOString(),
+		});
+	});
+	return appointmentId;
+}
+
+export async function checkInAppointmentWithAudit(appointmentId: string, actorId: string) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	return db.transaction(async (transaction) => {
+		const appointment = (await transaction.select().from(appointments).where(eq(appointments.appointmentId, appointmentId)).limit(1))[0];
+		if (!appointment) throw new Error("Appointment not found");
+		if (!canCheckInAppointment(appointment.status)) throw new Error("Only booked appointments can be checked in");
+		const checkedInAt = new Date().toISOString();
+		await transaction.update(appointments).set({ status: "Checked-in", checkedInAt, checkedInBy: actorId, updatedAt: checkedInAt }).where(eq(appointments.appointmentId, appointmentId));
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actorId, actionType: "APPOINTMENT_CHECKED_IN", tableName: "appointments", recordId: appointmentId,
+			oldValue: JSON.stringify({ status: appointment.status }), newValue: JSON.stringify({ status: "Checked-in", checkedInAt }), timestamp: checkedInAt,
+		});
+		return { ...appointment, status: "Checked-in" as const, checkedInAt };
+	});
+}
+
+export async function startAppointmentConsultationWithAudit(appointmentId: string, actorId: string) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	return db.transaction(async (transaction) => {
+		const appointment = (await transaction.select().from(appointments).where(eq(appointments.appointmentId, appointmentId)).limit(1))[0];
+		if (!appointment) throw new Error("Appointment not found");
+		if (!canStartAppointmentConsultation(appointment.status)) throw new Error("Appointment must be checked in before starting consultation");
+		const existing = (await transaction.select().from(consultations).where(eq(consultations.appointmentId, appointmentId)).limit(1))[0];
+		if (existing) return { consultation: existing, created: false };
+		const consultationId = `CON-${nanoid(16).toUpperCase()}`;
+		const consultationDate = new Date().toISOString();
+		const consultation = { consultationId, appointmentId, patientId: appointment.patientId, consultantId: appointment.consultantId, consultationDate };
+		await transaction.insert(consultations).values(consultation);
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actorId, actionType: "CONSULTATION_STARTED", tableName: "consultations", recordId: consultationId,
+			newValue: JSON.stringify({ appointmentId, patientId: appointment.patientId, consultantId: appointment.consultantId }), timestamp: consultationDate,
+		});
+		return { consultation, created: true };
+	});
 }
 
 export async function getAppointmentById(appointmentId: string) {
@@ -1599,6 +1676,13 @@ export async function getAppointmentsByPatient(patientId: string) {
   if (!db) throw new Error("Database not available");
 
   return await db.select().from(appointments).where(eq(appointments.patientId, patientId));
+}
+
+export async function getAllAppointments() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.select().from(appointments);
 }
 
 export async function getAppointmentsByConsultant(consultantId: number, date?: string) {
