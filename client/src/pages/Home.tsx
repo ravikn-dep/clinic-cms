@@ -17,12 +17,16 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
+import { useMemo } from "react";
 import { useLocation } from "wouter";
 import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { FeatureGate } from "@/components/FeatureGate";
+import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { TopologyField, type TopologyFieldNode } from "@/components/TopologyField";
 
 export default function Home() {
   const { user, loading } = useAuth();
+  const { hasAccess, isLoading: permissionsLoading } = useFeatureAccess();
   const [, navigate] = useLocation();
 
   const isAuthenticated = !loading && user !== null;
@@ -51,6 +55,63 @@ export default function Home() {
     month: "long",
     day: "numeric",
   });
+
+  const topologyNodes = useMemo<TopologyFieldNode[]>(() => [
+    {
+      id: "patients",
+      label: "Patient records",
+      shortLabel: "Patients",
+      value: patientsQuery.isLoading ? "—" : patients.length,
+      detail: "The intake and records layer is connected to the shared care workspace.",
+      feature: "patient_records",
+      accent: "#8bf0dc",
+      position: [0.24, 0.45],
+    },
+    {
+      id: "queue",
+      label: "Today's queue",
+      shortLabel: "Queue",
+      value: patientsQuery.isLoading ? "—" : todayConsultations.length,
+      detail: "A focused signal for the next people moving through today's care flow.",
+      feature: "appointments",
+      accent: "#a8c7ff",
+      position: [0.51, 0.22],
+    },
+    {
+      id: "pharmacy",
+      label: "Pharmacy stock",
+      shortLabel: "Pharmacy",
+      value: inventoryQuery.isLoading ? "—" : inventoryItems.length,
+      detail: "Inventory stays visible alongside care activity so attention can move early.",
+      feature: "pharmacy",
+      accent: "#f8d38b",
+      position: [0.74, 0.39],
+    },
+    {
+      id: "orders",
+      label: "Pending orders",
+      shortLabel: "Orders",
+      value: purchaseOrdersQuery.isLoading ? "—" : pendingPOs,
+      detail: "Purchase-order work is kept in view without creating a new workflow surface.",
+      feature: "purchase_orders",
+      accent: "#f5a9b8",
+      position: [0.76, 0.73],
+    },
+    {
+      id: "scribe",
+      label: "Ambient scribe",
+      shortLabel: "Scribe",
+      value: "OPEN",
+      detail: "Open the note workspace when a consultation needs a calm, structured capture path.",
+      feature: "ambient_scribe",
+      accent: "#cbb8ff",
+      position: [0.45, 0.74],
+    },
+  ], [inventoryItems.length, inventoryQuery.isLoading, patients.length, patientsQuery.isLoading, pendingPOs, purchaseOrdersQuery.isLoading, todayConsultations.length]);
+  const accessibleTopologyNodes = useMemo(
+    () => permissionsLoading ? [] : topologyNodes.filter((node) => hasAccess(node.feature)),
+    [hasAccess, permissionsLoading, topologyNodes],
+  );
 
   const stats = [
     {
@@ -179,6 +240,12 @@ export default function Home() {
           </CardContent>
         </Card>
       )}
+
+      <TopologyField
+        nodes={accessibleTopologyNodes}
+        isLoading={permissionsLoading || patientsQuery.isLoading || inventoryQuery.isLoading || purchaseOrdersQuery.isLoading}
+        isError={hasDashboardError}
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {stats.map((stat) => (
