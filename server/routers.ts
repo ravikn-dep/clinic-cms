@@ -25,6 +25,7 @@ import type { PurchaseOrderReviewPrefill } from "../shared/poReviewPrefill";
 import type { CatalogResolutionDecision } from "../shared/catalogResolution";
 import { suggestCatalogMatches } from "./catalogMatching/matcher";
 import { normalizeCatalogText } from "./catalogMatching/normalize";
+import { enrichPurchaseOrderFromVerifiedVendor, normalizeGstNumber } from "./procurement";
 import { storeConsultantImage } from "./consultantAssets";
 import { FIXED_CLINIC_BRANDING } from "../shared/clinicBranding";
 
@@ -138,8 +139,9 @@ const catalogResolutionInputSchema = z.object({
 });
 
 const purchaseOrderCreateInputSchema = z.object({
-  vendorName: z.string().min(1),
-  vendorContactNumber: z.string().min(10),
+	vendorId: z.string().trim().min(1).max(50),
+	vendorName: z.string().min(1),
+	vendorContactNumber: z.string().min(10),
   vendorEmail: z.string().email().optional(),
   vendorGSTNumber: z.string().optional(),
   vendorBankDetails: z.string().optional(),
@@ -154,6 +156,26 @@ const purchaseOrderCreateInputSchema = z.object({
     unitPrice: z.string().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Unit price must be a valid non-negative number"),
   })).min(1),
 });
+
+async function canonicalizeLinkedVendorPurchaseOrder(input: z.infer<typeof purchaseOrderCreateInputSchema>) {
+	const vendor = await db.getVendorById(input.vendorId);
+	if (!vendor || !Boolean(vendor.isActive)) throw new Error("Select an active Vendor Master record before creating a purchase order");
+	const inputGst = normalizeGstNumber(input.vendorGSTNumber);
+	if (inputGst && vendor.normalizedGstNumber && inputGst !== vendor.normalizedGstNumber) {
+		throw new Error("Vendor GSTIN conflicts with the selected Vendor Master record and must be reviewed before submission");
+	}
+	const enriched = enrichPurchaseOrderFromVerifiedVendor(input, vendor);
+	return {
+		...input,
+		vendorId: String(vendor.vendorId),
+		vendorName: enriched.vendorName,
+		vendorContactNumber: enriched.vendorContactNumber || input.vendorContactNumber,
+		vendorEmail: enriched.vendorEmail ?? undefined,
+		vendorGSTNumber: enriched.vendorGSTNumber ?? undefined,
+		vendorBankDetails: enriched.vendorBankDetails ?? undefined,
+		vendorAddress: enriched.vendorAddress ?? undefined,
+	} satisfies z.infer<typeof purchaseOrderCreateInputSchema>;
+}
 
 function buildPendingApprovalPurchaseOrder(
   input: z.infer<typeof purchaseOrderCreateInputSchema>,
@@ -179,9 +201,10 @@ function buildPendingApprovalPurchaseOrder(
     purchaseOrderId,
     totalAmount,
     items,
-    purchaseOrder: {
-      purchaseOrderId,
-      vendorName: input.vendorName,
+		purchaseOrder: {
+			purchaseOrderId,
+			vendorId: input.vendorId,
+			vendorName: input.vendorName,
       vendorContactNumber: input.vendorContactNumber,
       vendorEmail: input.vendorEmail,
       vendorGstNumber: input.vendorGSTNumber,
@@ -612,6 +635,46 @@ export const appRouter = router({
           throw safeCatalogWriteError(error);
         }
         return next;
+      }),
+  }),
+
+  vendorAdmin: router({
+    list: protectedProcedure
+      .input(z.object({ includeInactive: z.boolean().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        await requirePurchaseOrderAccess(ctx.user);
+        return db.listVendorsForAdmin(input?.includeInactive ?? false);
+      }),
+    create: adminProcedure
+      .input(z.object({
+        name: z.string().trim().min(1).max(150), contactNumber: z.string().trim().max(20).optional(),
+        gstNumber: z.string().trim().max(50).optional(), email: z.string().email().optional(),
+        address: z.string().trim().max(2_000).optional(), bankDetails: z.string().trim().max(2_000).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => db.createVendorWithAudit(input, ctx.user.id.toString())),
+    update: adminProcedure
+      .input(z.object({
+        vendorId: z.string().trim().min(1).max(50),
+        values: z.object({
+          name: z.string().trim().min(1).max(150), contactNumber: z.string().trim().max(20).optional(),
+          gstNumber: z.string().trim().max(50).optional(), email: z.string().email().optional(),
+          address: z.string().trim().max(2_000).optional(), bankDetails: z.string().trim().max(2_000).optional(),
+        }),
+      }))
+      .mutation(async ({ input, ctx }) => db.updateVendorWithAudit(input.vendorId, input.values, ctx.user.id.toString())),
+    setActive: adminProcedure
+      .input(z.object({ vendorId: z.string().trim().min(1).max(50), active: z.boolean() }))
+      .mutation(async ({ input, ctx }) => db.setVendorActiveWithAudit(input.vendorId, input.active, ctx.user.id.toString())),
+  }),
+
+  vendorResolution: router({
+    resolve: protectedProcedure
+      .input(z.object({ vendorName: z.string().trim().min(1).max(255), vendorGSTNumber: z.string().trim().max(50).optional() }))
+      .query(async ({ input, ctx }) => {
+        await requirePurchaseOrderAccess(ctx.user);
+        const candidates = await db.findActiveVendorCandidates(input.vendorName, input.vendorGSTNumber);
+        const resolution = (await import("./procurement")).resolveVendorMaster({ vendorName: input.vendorName, vendorGSTNumber: input.vendorGSTNumber }, candidates);
+        return resolution;
       }),
   }),
 
@@ -1592,7 +1655,8 @@ export const appRouter = router({
     create: protectedProcedure
       .input(purchaseOrderCreateInputSchema)
       .mutation(async ({ input, ctx }) => {
-        const { purchaseOrderId, totalAmount, items, purchaseOrder } = buildPendingApprovalPurchaseOrder(input);
+        const governedInput = await canonicalizeLinkedVendorPurchaseOrder(input);
+        const { purchaseOrderId, totalAmount, items, purchaseOrder } = buildPendingApprovalPurchaseOrder(governedInput);
 
         await db.createPurchaseOrderWithItems(purchaseOrder, items);
 
@@ -1602,7 +1666,7 @@ export const appRouter = router({
           actionType: "CREATE",
           tableName: "purchaseOrders",
           recordId: purchaseOrderId,
-          newValue: JSON.stringify({ vendorName: input.vendorName, totalAmount, approvalStatus: "Pending Approval" }),
+          newValue: JSON.stringify({ vendorId: governedInput.vendorId, vendorName: governedInput.vendorName, totalAmount, approvalStatus: "Pending Approval" }),
           timestamp: new Date().toISOString(),
         });
 
@@ -1613,12 +1677,12 @@ export const appRouter = router({
           actorId: ctx.user.id.toString(),
           actorName: ctx.user.name ?? null,
           eventSummary: "Purchase order created and submitted for approval.",
-          details: JSON.stringify({ vendorName: input.vendorName, totalAmount, authorizationNotes: input.authorizationNotes ?? null }),
+          details: JSON.stringify({ vendorId: governedInput.vendorId, vendorName: governedInput.vendorName, totalAmount, authorizationNotes: governedInput.authorizationNotes ?? null }),
         });
 
         await safeNotifyOwner(
           "Purchase Order Pending Approval",
-          `PO #${purchaseOrderId} from ${input.vendorName} for ₹${totalAmount} is awaiting approval.`,
+          `PO #${purchaseOrderId} from ${governedInput.vendorName} for ₹${totalAmount} is awaiting approval.`,
         );
 
         return { success: true, purchaseOrderId, approvalStatus: "Pending Approval" as const };
@@ -1637,14 +1701,15 @@ export const appRouter = router({
         const duplicate = await db.getPurchaseOrderExtractionReviewBySubmissionId(input.reviewSubmissionId);
         if (duplicate) throw new Error("This reviewed extraction has already been submitted");
 
+        const governedInput = await canonicalizeLinkedVendorPurchaseOrder(input);
         const finalReview = applySubmittedPurchaseOrderValues(input.review as PurchaseOrderReviewPrefill, {
-          vendorName: input.vendorName,
-          vendorGSTNumber: input.vendorGSTNumber,
-          items: input.items,
+          vendorName: governedInput.vendorName,
+          vendorGSTNumber: governedInput.vendorGSTNumber,
+          items: governedInput.items,
         });
         const reviewedAt = new Date().toISOString();
         const catalogEvidence = await buildCatalogResolutionEvidence(input.catalogResolutions, finalReview, reviewedAt);
-        const { purchaseOrderId, totalAmount, items, purchaseOrder } = buildPendingApprovalPurchaseOrder(input, catalogEvidence.catalogItemIdsByLineIndex);
+        const { purchaseOrderId, totalAmount, items, purchaseOrder } = buildPendingApprovalPurchaseOrder(governedInput, catalogEvidence.catalogItemIdsByLineIndex);
         const reviewEvidence = createExtractionReviewEvidence(finalReview);
         const reviewId = utils.generateAuditLogId();
 
@@ -1697,14 +1762,14 @@ export const appRouter = router({
 
         await safeNotifyOwner(
           "Purchase Order Pending Approval",
-          `PO #${purchaseOrderId} from ${input.vendorName} for ₹${totalAmount} is awaiting approval. Reviewed extraction evidence was recorded.`,
+          `PO #${purchaseOrderId} from ${governedInput.vendorName} for ₹${totalAmount} is awaiting approval. Reviewed extraction evidence was recorded.`,
         );
 
         return { success: true, purchaseOrderId, reviewId, approvalStatus: "Pending Approval" as const, evidenceRecorded: true as const };
       }),
 
     getAll: protectedProcedure.query(async () => {
-      return db.getAllPurchaseOrders();
+      return db.getAllPurchaseOrdersWithReceiptState();
     }),
 
     getMetrics: protectedProcedure.query(async () => {
@@ -1769,6 +1834,7 @@ export const appRouter = router({
         return db.createGoodsReceipt({
           ...input,
           receivedBy: ctx.user.id.toString(),
+          receivedByName: ctx.user.name ?? null,
         });
       }),
 
@@ -1817,41 +1883,14 @@ export const appRouter = router({
     approve: adminProcedure
       .input(z.object({ purchaseOrderId: z.string() }))
       .mutation(async ({ input, ctx }) => {
-        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
-        if (!po) throw new Error("Purchase Order not found");
-
-        if (po.approvalStatus !== "Pending Approval") {
-          throw new Error(`Cannot approve a PO with status: ${po.approvalStatus}`);
-        }
-
-        await db.approvePurchaseOrder(input.purchaseOrderId, ctx.user.name || ctx.user.id.toString());
-
-        // Notify owner
-        await notifyOwner({
-          title: "Purchase Order Approved",
-          content: `PO #${input.purchaseOrderId} from ${po.vendorName} has been approved.`,
+        const po = await db.approvePurchaseOrderWithAudit(input.purchaseOrderId, {
+          actorId: ctx.user.id.toString(), actorName: ctx.user.name ?? null,
         });
 
-        // Log audit trail
-        await db.createAuditLog({
-          logId: utils.generateAuditLogId(),
-          userId: ctx.user.id.toString(),
-          actionType: "UPDATE",
-          tableName: "purchaseOrders",
-          recordId: input.purchaseOrderId,
-          newValue: JSON.stringify({ approvalStatus: "Approved" }),
-          timestamp: new Date().toISOString(),
-        });
-
-        await db.createPurchaseOrderHistory({
-          historyId: utils.generateAuditLogId(),
-          purchaseOrderId: input.purchaseOrderId,
-          eventType: "APPROVED",
-          actorId: ctx.user.id.toString(),
-          actorName: ctx.user.name ?? null,
-          eventSummary: "Purchase order approved.",
-          details: JSON.stringify({ previousStatus: po.approvalStatus, approvalStatus: "Approved" }),
-        });
+		await safeNotifyOwner(
+			"Purchase Order Approved",
+			`PO #${input.purchaseOrderId} from ${po.vendorName} has been approved.`,
+		);
 
         return { success: true };
       }),
@@ -1862,45 +1901,14 @@ export const appRouter = router({
         rejectionReason: z.string().min(5),
       }))
       .mutation(async ({ input, ctx }) => {
-        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
-        if (!po) throw new Error("Purchase Order not found");
-
-        if (po.approvalStatus !== "Pending Approval") {
-          throw new Error(`Cannot reject a PO with status: ${po.approvalStatus}`);
-        }
-
-        await db.rejectPurchaseOrder(
-          input.purchaseOrderId,
-          input.rejectionReason,
-          ctx.user.name || ctx.user.id.toString()
-        );
-
-        // Notify owner
-        await notifyOwner({
-          title: "Purchase Order Rejected",
-          content: `PO #${input.purchaseOrderId} from ${po.vendorName} has been rejected. Reason: ${input.rejectionReason}`,
+        const po = await db.rejectPurchaseOrderWithAudit(input.purchaseOrderId, input.rejectionReason, {
+          actorId: ctx.user.id.toString(), actorName: ctx.user.name ?? null,
         });
 
-        // Log audit trail
-        await db.createAuditLog({
-          logId: utils.generateAuditLogId(),
-          userId: ctx.user.id.toString(),
-          actionType: "UPDATE",
-          tableName: "purchaseOrders",
-          recordId: input.purchaseOrderId,
-          newValue: JSON.stringify({ approvalStatus: "Rejected", rejectionReason: input.rejectionReason }),
-          timestamp: new Date().toISOString(),
-        });
-
-        await db.createPurchaseOrderHistory({
-          historyId: utils.generateAuditLogId(),
-          purchaseOrderId: input.purchaseOrderId,
-          eventType: "REJECTED",
-          actorId: ctx.user.id.toString(),
-          actorName: ctx.user.name ?? null,
-          eventSummary: "Purchase order rejected.",
-          details: JSON.stringify({ previousStatus: po.approvalStatus, approvalStatus: "Rejected", rejectionReason: input.rejectionReason }),
-        });
+		await safeNotifyOwner(
+			"Purchase Order Rejected",
+			`PO #${input.purchaseOrderId} from ${po.vendorName} has been rejected. Reason: ${input.rejectionReason}`,
+		);
 
         return { success: true };
       }),

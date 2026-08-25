@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as db from "./db";
 import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
@@ -33,6 +33,12 @@ const field = <T>(value: T | null, confidence: "high" | "medium" | "low" = "medi
 });
 
 describe("Phase 3 Step 3: Scan PO review and safe structured prefill", () => {
+	beforeEach(() => {
+		vi.spyOn(db, "getVendorById").mockResolvedValue({
+			vendorId: "VENDOR-APEX", name: "Apex Pharma", normalizedVendorName: "apex pharma", isActive: 1,
+			contactNumber: "9876543210", gstNumber: null, normalizedGstNumber: null, email: null, address: null, bankDetails: null,
+		} as any);
+	});
   afterEach(() => {
     setOcrProvider(null);
     vi.restoreAllMocks();
@@ -182,6 +188,7 @@ describe("Phase 3 Step 3: Scan PO review and safe structured prefill", () => {
     const caller = appRouter.createCaller(context);
 
     await caller.purchaseOrders.create({
+		vendorId: "VENDOR-APEX",
       vendorName: "Apex Pharma",
       vendorContactNumber: "9876543210",
       totalAmount: "120",

@@ -1,11 +1,12 @@
 import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, catalogItems, catalogItemAliases, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays } from "../drizzle/schema";
+import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, catalogItems, catalogItemAliases, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays, procurementPostingLocks } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 import { nanoid } from "nanoid";
 import { normalizeIndianMobile } from "./external/validation";
+import { normalizeGstNumber, normalizeVendorName, receiptStateForLines, type VendorMasterRecord } from "./procurement";
 
 const SALT_ROUNDS = 10;
 type InsertUser = typeof users.$inferInsert;
@@ -387,6 +388,20 @@ export async function getAllPurchaseOrders() {
   return db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt));
 }
 
+/** Receipt state is derived from line quantities and never persisted as a second source of truth. */
+export async function getAllPurchaseOrdersWithReceiptState() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [orders, items] = await Promise.all([
+    db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt)),
+    db.select().from(purchaseOrderItems),
+  ]);
+  return orders.map((order) => ({
+    ...order,
+    receiptStatus: receiptStateForLines(items.filter((item) => item.purchaseOrderId === order.purchaseOrderId)),
+  }));
+}
+
 export async function getPurchaseOrderMetrics() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -534,24 +549,34 @@ export async function getPurchaseOrderReceiptSummary(purchaseOrderId: string) {
 }
 
 export type GoodsReceiptLineInput = {
-  poItemId: string;
-  receivedQuantity: number;
-  batchNumber: string;
-  expiryDate: string;
-  unitCost?: string;
+	poItemId: string;
+	receivedQuantity: number;
+	batchNumber: string;
+	expiryDate: string;
+	unitCost?: string;
 };
 
+async function lockPurchaseOrderForReceiptPosting(transaction: any, purchaseOrderId: string) {
+	await transaction.execute(sql`
+		INSERT INTO ${procurementPostingLocks} (${procurementPostingLocks.purchaseOrderId})
+		VALUES (${purchaseOrderId})
+		ON DUPLICATE KEY UPDATE ${procurementPostingLocks.updatedAt} = NOW()
+	`);
+}
+
 export async function createGoodsReceipt(input: {
-  goodsReceiptId: string;
-  purchaseOrderId: string;
-  receivedBy: string;
-  lines: GoodsReceiptLineInput[];
+	goodsReceiptId: string;
+	purchaseOrderId: string;
+	receivedBy: string;
+	receivedByName?: string | null;
+	lines: GoodsReceiptLineInput[];
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return db.transaction(async (transaction) => {
-    const existingReceipt = await transaction.select()
+	return db.transaction(async (transaction) => {
+		await lockPurchaseOrderForReceiptPosting(transaction, input.purchaseOrderId);
+		const existingReceipt = await transaction.select()
       .from(goodsReceipts)
       .where(eq(goodsReceipts.goodsReceiptId, input.goodsReceiptId))
       .limit(1);
@@ -583,10 +608,11 @@ export async function createGoodsReceipt(input: {
       status: "Posted",
     });
 
-    const postedLines: Array<{
-      goodsReceiptItemId: string;
-      poItemId: string;
-      itemName: string;
+		const postedLines: Array<{
+			goodsReceiptItemId: string;
+			poItemId: string;
+			catalogItemId: string;
+			itemName: string;
       receivedQuantity: number;
       batchNumber: string;
       expiryDate: string;
@@ -599,9 +625,12 @@ export async function createGoodsReceipt(input: {
       }
       seenItems.add(line.poItemId);
 
-      const poItem = poItemById.get(line.poItemId);
-      if (!poItem) throw new Error(`PO item ${line.poItemId} does not belong to this purchase order`);
-      const orderedQuantity = Number(poItem.quantity ?? 0);
+		const poItem = poItemById.get(line.poItemId);
+		if (!poItem) throw new Error(`PO item ${line.poItemId} does not belong to this purchase order`);
+		if (!poItem.catalogItemId) {
+			throw new Error(`A governed catalog identity is required before receiving ${poItem.itemName}`);
+		}
+		const orderedQuantity = Number(poItem.quantity ?? 0);
       const previouslyReceived = Number(poItem.receivedQuantity ?? 0);
       if (!Number.isInteger(line.receivedQuantity) || line.receivedQuantity <= 0) {
         throw new Error("Received quantity must be a positive whole number");
@@ -618,16 +647,29 @@ export async function createGoodsReceipt(input: {
         throw new Error(`Expiry date is invalid for ${poItem.itemName}`);
       }
 
-      const matchingInventory = await transaction.select()
-        .from(inventory)
-        .where(and(
-          eq(inventory.itemName, poItem.itemName),
-          eq(inventory.batchNumber, line.batchNumber.trim()),
-          eq(inventory.expiryDate, line.expiryDate),
-        ))
-        .limit(1);
-      const currentInventory = matchingInventory[0];
-      const previousQuantity = Number(currentInventory?.quantityAvailable ?? 0);
+		const matchingInventory = await transaction.select()
+			.from(inventory)
+			.where(and(
+				eq(inventory.catalogItemId, poItem.catalogItemId),
+				eq(inventory.batchNumber, line.batchNumber.trim()),
+				eq(inventory.expiryDate, line.expiryDate),
+			))
+			.limit(1);
+		const currentInventory = matchingInventory[0];
+		if (!currentInventory) {
+			const legacyInventory = await transaction.select()
+				.from(inventory)
+				.where(and(
+					eq(inventory.itemName, poItem.itemName),
+					eq(inventory.batchNumber, line.batchNumber.trim()),
+					eq(inventory.expiryDate, line.expiryDate),
+				))
+				.limit(1);
+			if (legacyInventory[0]) {
+				throw new Error(`Existing batch stock for ${poItem.itemName} requires explicit catalog reconciliation before posting`);
+			}
+		}
+		const previousQuantity = Number(currentInventory?.quantityAvailable ?? 0);
       const resultingQuantity = previousQuantity + line.receivedQuantity;
       const inventoryItemId = currentInventory?.itemId ?? nanoid(20);
       const unitPrice = line.unitCost ?? String(poItem.unitPrice ?? "0");
@@ -643,10 +685,11 @@ export async function createGoodsReceipt(input: {
           })
           .where(eq(inventory.itemId, currentInventory.itemId));
       } else {
-        await transaction.insert(inventory).values({
-          itemId: inventoryItemId,
-          itemName: poItem.itemName,
-          batchNumber: line.batchNumber.trim(),
+		await transaction.insert(inventory).values({
+			itemId: inventoryItemId,
+			itemName: poItem.itemName,
+			catalogItemId: poItem.catalogItemId,
+			batchNumber: line.batchNumber.trim(),
           expiryDate: line.expiryDate,
           quantityAvailable: line.receivedQuantity,
           unitPrice: unitPrice as any,
@@ -674,13 +717,14 @@ export async function createGoodsReceipt(input: {
         .set({ receivedQuantity: previouslyReceived + line.receivedQuantity })
         .where(eq(purchaseOrderItems.poItemId, line.poItemId));
 
-      await transaction.insert(stockMovements).values({
+		await transaction.insert(stockMovements).values({
         movementId: nanoid(20),
         goodsReceiptId: input.goodsReceiptId,
         goodsReceiptItemId,
         purchaseOrderId: input.purchaseOrderId,
-        inventoryItemId,
-        itemName: poItem.itemName,
+			inventoryItemId,
+			catalogItemId: poItem.catalogItemId,
+			itemName: poItem.itemName,
         batchNumber: line.batchNumber.trim(),
         quantityAdded: line.receivedQuantity,
         previousQuantity,
@@ -688,10 +732,11 @@ export async function createGoodsReceipt(input: {
         actorId: input.receivedBy,
       });
 
-      postedLines.push({
-        goodsReceiptItemId,
-        poItemId: line.poItemId,
-        itemName: poItem.itemName,
+		postedLines.push({
+			goodsReceiptItemId,
+			poItemId: line.poItemId,
+			catalogItemId: poItem.catalogItemId,
+			itemName: poItem.itemName,
         receivedQuantity: line.receivedQuantity,
         batchNumber: line.batchNumber.trim(),
         expiryDate: line.expiryDate,
@@ -699,22 +744,23 @@ export async function createGoodsReceipt(input: {
       });
     }
 
-    await transaction.insert(purchaseOrderHistory).values({
-      historyId: nanoid(20),
-      purchaseOrderId: input.purchaseOrderId,
-      eventType: "GOODS_RECEIPT_POSTED",
-      actorId: input.receivedBy,
-      eventSummary: `Goods receipt ${input.goodsReceiptId} posted for ${postedLines.length} item(s).`,
-      details: JSON.stringify({ goodsReceiptId: input.goodsReceiptId, lines: postedLines }),
-    });
+	await transaction.insert(purchaseOrderHistory).values({
+		historyId: nanoid(20),
+		purchaseOrderId: input.purchaseOrderId,
+		eventType: "GOODS_RECEIPT_POSTED",
+		actorId: input.receivedBy,
+		actorName: input.receivedByName ?? null,
+		eventSummary: `Goods receipt ${input.goodsReceiptId} posted for ${postedLines.length} item(s).`,
+		details: JSON.stringify({ goodsReceiptId: input.goodsReceiptId, lineCount: postedLines.length }),
+	});
 
     await transaction.insert(auditLogs).values({
       logId: nanoid(20),
       userId: input.receivedBy,
-      actionType: "CREATE",
+		actionType: "GOODS_RECEIPT_POSTED",
       tableName: "goodsReceipts",
       recordId: input.goodsReceiptId,
-      newValue: JSON.stringify({ purchaseOrderId: input.purchaseOrderId, lines: postedLines }),
+		newValue: JSON.stringify({ purchaseOrderId: input.purchaseOrderId, goodsReceiptId: input.goodsReceiptId, lineCount: postedLines.length, actorId: input.receivedBy }),
       timestamp: new Date().toISOString(),
     });
 
@@ -783,7 +829,65 @@ export async function rejectPurchaseOrder(poId: string, rejectionReason: string,
     rejectionReason,
     approvedBy,
     approvalTimestamp: new Date().toISOString(),
-  }).where(eq(purchaseOrders.purchaseOrderId, poId));
+	}).where(eq(purchaseOrders.purchaseOrderId, poId));
+}
+
+export type PurchaseOrderLifecycleActor = { actorId: string; actorName?: string | null };
+
+export async function approvePurchaseOrderWithAudit(purchaseOrderId: string, actor: PurchaseOrderLifecycleActor) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const approvedAt = new Date().toISOString();
+	return db.transaction(async (transaction) => {
+		await lockPurchaseOrderForReceiptPosting(transaction, purchaseOrderId);
+		const rows = await transaction.select().from(purchaseOrders).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId)).limit(1);
+		const po = rows[0];
+		if (!po) throw new Error("Purchase Order not found");
+		if (po.approvalStatus !== "Pending Approval") throw new Error(`Cannot approve a PO with status: ${po.approvalStatus}`);
+
+		await transaction.update(purchaseOrders).set({
+			approvalStatus: "Approved",
+			approvedBy: actor.actorName || actor.actorId,
+			approvalTimestamp: approvedAt,
+		}).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId));
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actor.actorId, actionType: "PURCHASE_ORDER_APPROVED", tableName: "purchaseOrders", recordId: purchaseOrderId,
+			oldValue: JSON.stringify({ approvalStatus: "Pending Approval" }),
+			newValue: JSON.stringify({ approvalStatus: "Approved", approvedAt }), timestamp: approvedAt,
+		});
+		await transaction.insert(purchaseOrderHistory).values({
+			historyId: nanoid(20), purchaseOrderId, eventType: "APPROVED", actorId: actor.actorId, actorName: actor.actorName ?? null,
+			eventSummary: "Purchase order approved.", details: JSON.stringify({ previousStatus: "Pending Approval", approvalStatus: "Approved" }), createdAt: approvedAt,
+		});
+		return po;
+	});
+}
+
+export async function rejectPurchaseOrderWithAudit(purchaseOrderId: string, rejectionReason: string, actor: PurchaseOrderLifecycleActor) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const rejectedAt = new Date().toISOString();
+	return db.transaction(async (transaction) => {
+		await lockPurchaseOrderForReceiptPosting(transaction, purchaseOrderId);
+		const rows = await transaction.select().from(purchaseOrders).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId)).limit(1);
+		const po = rows[0];
+		if (!po) throw new Error("Purchase Order not found");
+		if (po.approvalStatus !== "Pending Approval") throw new Error(`Cannot reject a PO with status: ${po.approvalStatus}`);
+
+		await transaction.update(purchaseOrders).set({
+			approvalStatus: "Rejected", rejectionReason, approvedBy: actor.actorName || actor.actorId, approvalTimestamp: rejectedAt,
+		}).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId));
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actor.actorId, actionType: "PURCHASE_ORDER_REJECTED", tableName: "purchaseOrders", recordId: purchaseOrderId,
+			oldValue: JSON.stringify({ approvalStatus: "Pending Approval" }),
+			newValue: JSON.stringify({ approvalStatus: "Rejected", rejectionReason, rejectedAt }), timestamp: rejectedAt,
+		});
+		await transaction.insert(purchaseOrderHistory).values({
+			historyId: nanoid(20), purchaseOrderId, eventType: "REJECTED", actorId: actor.actorId, actorName: actor.actorName ?? null,
+			eventSummary: "Purchase order rejected.", details: JSON.stringify({ previousStatus: "Pending Approval", approvalStatus: "Rejected", rejectionReason }), createdAt: rejectedAt,
+		});
+		return po;
+	});
 }
 
 // ============ INVENTORY QUERIES ============
@@ -1866,6 +1970,110 @@ export async function getAllDirectLoginUsers() {
 
 
 // ========== VENDOR MANAGEMENT ==========
+export type VendorMasterInput = {
+	name: string;
+	contactNumber?: string | null;
+	gstNumber?: string | null;
+	email?: string | null;
+	address?: string | null;
+	bankDetails?: string | null;
+};
+
+function vendorValues(input: VendorMasterInput) {
+	const name = input.name.trim();
+	const normalizedVendorName = normalizeVendorName(name);
+	if (!normalizedVendorName) throw new Error("Vendor name must contain searchable text");
+	return {
+		name,
+		normalizedVendorName,
+		contactNumber: input.contactNumber?.trim() || null,
+		gstNumber: input.gstNumber?.trim().toUpperCase() || null,
+		normalizedGstNumber: normalizeGstNumber(input.gstNumber),
+		email: input.email?.trim() || null,
+		address: input.address?.trim() || null,
+		bankDetails: input.bankDetails?.trim() || null,
+	};
+}
+
+export async function listVendorsForAdmin(includeInactive = false) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	return includeInactive
+		? db.select().from(vendors).orderBy(vendors.name)
+		: db.select().from(vendors).where(eq(vendors.isActive, 1)).orderBy(vendors.name);
+}
+
+export async function findActiveVendorCandidates(name: string, gstNumber?: string | null): Promise<VendorMasterRecord[]> {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const normalizedName = normalizeVendorName(name);
+	const normalizedGst = normalizeGstNumber(gstNumber);
+	if (!normalizedName && !normalizedGst) return [];
+	const rows = await db.select().from(vendors).where(eq(vendors.isActive, 1));
+	return rows.filter((vendor) => vendor.normalizedVendorName === normalizedName || (normalizedGst && vendor.normalizedGstNumber === normalizedGst)) as VendorMasterRecord[];
+}
+
+export async function createVendorWithAudit(input: VendorMasterInput, actorId: string) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const values = vendorValues(input);
+	const duplicate = await db.select().from(vendors).where(or(
+		eq(vendors.normalizedVendorName, values.normalizedVendorName),
+		...(values.normalizedGstNumber ? [eq(vendors.normalizedGstNumber, values.normalizedGstNumber)] : []),
+	)).limit(1);
+	if (duplicate[0]) throw new Error("A vendor with the same normalized name or GSTIN already exists");
+	const vendorId = `VENDOR-${nanoid(16).toUpperCase()}`;
+	const createdAt = new Date().toISOString();
+	const vendor = { vendorId, ...values, isActive: 1, createdBy: Number(actorId), createdAt, updatedAt: createdAt };
+	await db.transaction(async (transaction) => {
+		await transaction.insert(vendors).values(vendor);
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actorId, actionType: "VENDOR_CREATED", tableName: "vendors", recordId: vendorId,
+			newValue: JSON.stringify({ vendorId, name: values.name, normalizedVendorName: values.normalizedVendorName, normalizedGstNumber: values.normalizedGstNumber, isActive: true }), timestamp: createdAt,
+		});
+	});
+	return vendor;
+}
+
+export async function updateVendorWithAudit(vendorId: string, input: VendorMasterInput, actorId: string) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const current = await getVendorById(vendorId);
+	if (!current) throw new Error("Vendor not found");
+	const values = vendorValues(input);
+	const duplicate = await db.select().from(vendors).where(or(
+		eq(vendors.normalizedVendorName, values.normalizedVendorName),
+		...(values.normalizedGstNumber ? [eq(vendors.normalizedGstNumber, values.normalizedGstNumber)] : []),
+	)).limit(10);
+	if (duplicate.some((vendor) => vendor.vendorId !== vendorId)) throw new Error("A vendor with the same normalized name or GSTIN already exists");
+	const updatedAt = new Date().toISOString();
+	await db.transaction(async (transaction) => {
+		await transaction.update(vendors).set({ ...values, updatedAt }).where(eq(vendors.vendorId, vendorId));
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actorId, actionType: "VENDOR_UPDATED", tableName: "vendors", recordId: vendorId,
+			oldValue: JSON.stringify({ name: current.name, normalizedVendorName: current.normalizedVendorName, normalizedGstNumber: current.normalizedGstNumber, isActive: Boolean(current.isActive) }),
+			newValue: JSON.stringify({ name: values.name, normalizedVendorName: values.normalizedVendorName, normalizedGstNumber: values.normalizedGstNumber, isActive: Boolean(current.isActive) }), timestamp: updatedAt,
+		});
+	});
+	return { ...current, ...values, updatedAt };
+}
+
+export async function setVendorActiveWithAudit(vendorId: string, active: boolean, actorId: string) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const current = await getVendorById(vendorId);
+	if (!current) throw new Error("Vendor not found");
+	if (Boolean(current.isActive) === active) return { ...current, isActive: active ? 1 : 0 };
+	const updatedAt = new Date().toISOString();
+	await db.transaction(async (transaction) => {
+		await transaction.update(vendors).set({ isActive: active ? 1 : 0, updatedAt }).where(eq(vendors.vendorId, vendorId));
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actorId, actionType: active ? "VENDOR_REACTIVATED" : "VENDOR_DEACTIVATED", tableName: "vendors", recordId: vendorId,
+			oldValue: JSON.stringify({ isActive: Boolean(current.isActive) }), newValue: JSON.stringify({ isActive: active }), timestamp: updatedAt,
+		});
+	});
+	return { ...current, isActive: active ? 1 : 0, updatedAt };
+}
 
 export async function createVendor(vendorData: any): Promise<any> {
   const db = await getDb();

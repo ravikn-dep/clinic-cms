@@ -285,7 +285,7 @@ CREATE INDEX `unique_role_feature` ON `rolePermissions` (`role`,`featureKey`);
 CREATE INDEX `idx_role` ON `rolePermissions` (`role`);
 CREATE INDEX `users_userId_unique` ON `users` (`userId`);
 CREATE INDEX `users_username_unique` ON `users` (`username`);
-ALTER TABLE `purchaseOrders` DROP COLUMN `vendorGSTNumber`;
+ALTER TABLE `purchaseOrders` CHANGE COLUMN `vendorGSTNumber` `vendorGstNumber` varchar(50);
 ALTER TABLE `users` DROP COLUMN `qrcodeLoginUrl`;
 ALTER TABLE `users` DROP COLUMN `qrcodeLoginKey`;
 CREATE TABLE IF NOT EXISTS `appointmentBookingLocks` (
@@ -493,3 +493,18 @@ ALTER TABLE `users` ADD `designation` varchar(255);
 ALTER TABLE `users` ADD `prescriptionHeaderText` text;
 ALTER TABLE `users` ADD `consultantLogoKey` text;
 ALTER TABLE `users` ADD `signatureKey` text;
+CREATE TABLE `procurementPostingLocks` (
+	`purchaseOrderId` varchar(50) NOT NULL,
+	`updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `procurementPostingLocks_purchaseOrderId` PRIMARY KEY(`purchaseOrderId`)
+);
+ALTER TABLE `inventory` ADD `catalogItemId` varchar(50);
+ALTER TABLE `purchaseOrders` ADD `vendorId` varchar(50);
+ALTER TABLE `stockMovements` ADD `catalogItemId` varchar(50);
+ALTER TABLE `vendors` ADD `normalizedVendorName` varchar(255);
+ALTER TABLE `vendors` ADD `normalizedGstNumber` varchar(50);
+ALTER TABLE `vendors` ADD `bankDetails` text;
+ALTER TABLE `inventory` ADD CONSTRAINT `inventory_catalog_batch_expiry_unique` UNIQUE(`catalogItemId`,`batchNumber`,`expiryDate`);
+CREATE INDEX `purchaseOrders_vendorId_idx` ON `purchaseOrders` (`vendorId`);
+CREATE INDEX `vendors_active_normalizedVendorName_idx` ON `vendors` (`isActive`,`normalizedVendorName`);
+CREATE INDEX `vendors_normalizedGstNumber_idx` ON `vendors` (`normalizedGstNumber`);

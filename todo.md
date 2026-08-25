@@ -962,3 +962,31 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Add focused Phase 4 Step 1 authority, upload, appointment, consultation, OP, print, audit, and zero-mutation tests plus required Phase 3 regressions.
 - [x] Run local validation, fresh-schema bootstrap validation if schema changes, and create the source-backed Phase 4 Step 1 report.
 - [ ] Commit, push normally, open a protected PR, verify green CI, and stop without merging, tagging, deploying, or modifying production.
+
+## Phase 3 Step 8 Governed End-to-End Procurement and Inventory Posting
+- [x] Audit canonical vendor, PO, Goods Receipt, inventory, stock-movement, catalog, OCR evidence, audit, RBAC, transaction, constraint, and UI architecture before changes.
+- [x] Reuse and minimally extend Vendor Master governance with server normalization, duplicate protection, active state, admin-only lifecycle actions, and an in-context admin management surface.
+- [x] Integrate explicit Vendor Master links and deterministic read-only resolution without automatic vendor creation, OCR overwrite, PO creation, or inventory mutation.
+- [x] Complete server-authorized PO approval/rejection with actor, timestamp, transactional audit/history evidence, lifecycle guards, and zero inventory mutation.
+- [x] Complete approved-PO Goods Receipt posting with serialized per-PO transaction locking, catalog identity, partial receipt, batch/expiry validation, over-receipt prevention, idempotency, inventory reconciliation, immutable stock movement, and audit evidence.
+- [x] Implement state-aware Purchase Orders and receipt UI affordances, confirmation, provenance, Vendor Master selection, and role boundaries.
+- [x] Add focused vendor, PO, catalog-identity, RBAC, receipt-state, duplicate-protection, audit-snapshot, and zero-pre-posting-mutation tests.
+- [x] Generate and validate forward-only migration 0024 and update the deterministic fresh-schema baseline and strict assertions.
+- [x] Run type check, focused and full tests, production build, diff check, clean fresh MySQL baseline bootstrap, and clean fresh MySQL forward-migration validation.
+- [x] Commit, push normally, open a protected PR, verify green protected CI, and stop without merging, tagging, deploying, or modifying production.
+- [x] Produce the Phase 3 Step 8 report and stop without production changes, deployment, automatic merge, tag, or force push.
+
+## Phase 3 Step 8 Publication and Disposable Acceptance Verification
+- [x] Reconcile the requested branch name with the existing canonical Step 8 feature branch and open protected PR without renaming or duplicating published source history.
+- [x] Capture source-fidelity evidence from the canonical baseline through the current Step 8 branch for Vendor Master, PO lifecycle, Goods Receipt, inventory, stock movement, migration, baseline, and tests.
+- [x] Provision a disposable non-production MySQL database from the current Step 8 baseline and confirm schema readiness without using or repairing the stale managed development database.
+- [x] Establish a disposable authenticated acceptance environment using only synthetic data, or document the precise authentication/environment blocker without claiming interactive success.
+- [x] Execute and record the Vendor Master, Pending Approval PO, approval zero-stock boundary, partial receipt, duplicate retry, remaining receipt, and over-receipt acceptance sequence with exact inventory reconciliation values.
+- [x] Recheck protected CI and publish final evidence without merge, tag, force push, deployment, or production database access.
+- [x] Correct the demonstrated deterministic-baseline omission of `purchaseOrders.vendorGstNumber`, then repeat disposable bootstrap and acceptance validation.
+
+## Phase 3 Step 8 Final Publication and Protected CI Verification
+- [x] Verify the actual existing canonical Step 8 feature branch, source delta, clean working tree, and documented branch-name divergence without creating duplicate history.
+- [x] Rerun final type check, focused Step 8 tests, full suite, build, and diff hygiene on the final source tree.
+- [x] Rerun strict fresh empty MySQL bootstrap and canonical pre-Step-8 baseline plus migration 0024 validation without any production or managed-development database access.
+- [x] Confirm latest protected CI, open PR state, local/remote synchronization, and final source-backed evidence without merge, tag, deployment, force push, or new functionality.
