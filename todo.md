@@ -1038,12 +1038,3 @@ This section records the user-authorized GitHub governance action; the migration
 
 ## Development Purchase Orders Goods-Receipt Query Repair
 - [x] Diagnose and repair the development Purchase Orders goods-receipt query failure for an existing purchase-order reference, without changing PO/GR/inventory behavior or production data.
-
-## ThreeUI Topology Field Dashboard Adaptation
-- [x] Review the linked ThreeUI StructureFlowCollection Topology Field source and record adaptable visual, motion, interaction, and responsive patterns.
-- [x] Audit the existing dashboard layout, data hooks, feature gates, and current visual tokens before changing UI.
-- [x] Implement a topology-inspired dashboard field using the existing React/Three.js-compatible stack without embedding the reference URL.
-- [x] Preserve existing dashboard data, RBAC/FeatureGate behavior, navigation, and clinic workflow actions.
-- [x] Add reduced-motion, pointer/keyboard fallback, responsive, and loading/error/empty-state behavior for the new visual field.
-- [x] Add or update focused tests for the adapted dashboard behavior and run project validation.
-- [x] Capture desktop and mobile previews and review visual quality; checkpoint is pending final save.
