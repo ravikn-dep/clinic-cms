@@ -1069,3 +1069,16 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Summarize the attachment and compare its requirements with the restored stable project.
 - [x] Apply only verified safe, in-scope attachment changes without reintroducing ThreeUI or touching production.
 - [x] Validate the applied changes and record the results.
+
+## Attachment 36: Read, Verify, Summarize, Apply
+- [x] Read and extract the actionable requirements from `pasted_content_36.txt`.
+- [x] Summarize the attachment and compare its requirements with the current stable project.
+- [ ] Apply only verified safe, in-scope attachment changes without reintroducing ThreeUI or touching production; blocked because the exact validated Step 3 source was not recovered after the sandbox reset.
+- [ ] Validate the applied changes and record the results; blocked pending source recovery.
+
+## Attachment 36: Paper-First OP Publication and Protected CI
+- [x] Read and extract the publication requirements from `pasted_content_36.txt`.
+- [x] Summarize the publication requirements and compare them with the restored canonical project state.
+- [ ] Verify the validated Step 3 source, ancestry, scope, migration, and business-boundary evidence.
+- [ ] Publish only the validated Step 3 implementation to the requested feature branch and open a protected PR without merging or deploying.
+- [ ] Run and verify protected CI on the exact PR head, then record the final publication result.
