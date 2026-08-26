@@ -1051,3 +1051,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Reconcile the supplied PRD against canonical main at `210ef792919e588021e3fd6c6e13d35b28d58ed3`.
 - [x] Add the reconciled `PRD.md` and `PRD_INITIAL_RECONCILIATION_REPORT.md` at repository root.
 - [x] Validate that only documentation and ledger files changed; do not modify runtime, schema, RBAC, data, credentials, deployment, or production.
+
+## Attachment 43 Final PRD Materialization Verification
+- [x] Verify the exact reconciled PRD files and required markers on `docs/canonical-prd-v1`.
+- [x] Verify canonical baseline ancestry, clean status, documentation-only delta, and staged-scope rules.
+- [x] Confirm existing exact commit `docs(product): establish canonical Clinic CMS PRD`; do not create a redundant empty commit.
+- [x] Stop without push, PR, merge, tag, deployment, roadmap implementation, or production changes.
