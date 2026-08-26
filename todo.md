@@ -1046,3 +1046,8 @@ This section records the user-authorized GitHub governance action; the migration
 - [ ] Push the feature branch normally and open the requested non-merged PR to `main`.
 - [ ] Wait for protected `CI Validation / validate`; report exact evidence and stop without merging.
 - [x] Correct demonstrated baseline defect: the fail-closed SQL splitter skipped the final bills uniqueness statement because it shared a chunk beginning with a comment.
+
+## Supplied PRD.md Integration
+- [x] Reconcile the supplied PRD against canonical main at `210ef792919e588021e3fd6c6e13d35b28d58ed3`.
+- [x] Add the reconciled `PRD.md` and `PRD_INITIAL_RECONCILIATION_REPORT.md` at repository root.
+- [x] Validate that only documentation and ledger files changed; do not modify runtime, schema, RBAC, data, credentials, deployment, or production.
