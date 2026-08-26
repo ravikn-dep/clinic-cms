@@ -1051,3 +1051,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Classify development user records by role, login method, active state, local-auth fields, and attribution without exposing password hashes.
 - [x] Determine whether non-admin records are genuine local-auth users, OAuth users, or system/artifact records; do not delete or mutate any records.
 - [x] Report the evidence and any safe next-step recommendation to the user.
+
+## Attachment 33: Read, Verify, Summarize, Apply
+- [x] Read and extract the actionable requirements from `pasted_content_33.txt`.
+- [x] Summarize the attachment and compare its requirements with the restored stable project.
+- [x] Apply only verified safe, in-scope attachment changes without reintroducing ThreeUI or touching production.
+- [x] Validate the applied changes and record the results.
