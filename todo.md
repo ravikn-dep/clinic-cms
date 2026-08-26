@@ -1045,3 +1045,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Apply only the verified, safe, in-scope attachment changes without reintroducing ThreeUI UI.
 - [ ] Validate the applied changes and record the results.
 - [ ] Investigate and, only if justified, narrowly fix the reproducible feature-access permission overwrite transaction stall blocking the full validation suite; preserve RBAC semantics and do not add functionality.
+
+## User Management Record Classification Audit
+- [x] Verify the User Management page page-size/pagination and compare its displayed pages with the development users table.
+- [x] Classify development user records by role, login method, active state, local-auth fields, and attribution without exposing password hashes.
+- [x] Determine whether non-admin records are genuine local-auth users, OAuth users, or system/artifact records; do not delete or mutate any records.
+- [x] Report the evidence and any safe next-step recommendation to the user.

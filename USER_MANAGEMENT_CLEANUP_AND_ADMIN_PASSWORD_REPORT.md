@@ -141,3 +141,9 @@ A narrow validation-only attempt batched the permission inserts inside the exist
 > **BLOCKED — full Vitest suite is not green.**
 
 The development schema repair is complete and business-row counts are unchanged. User cleanup performed no deletions or deactivations. The remaining blocker is the existing database-backed `featureAccess` test stall, plus the fact that the active restored stable checkout does not contain the isolated User Management test file. No publication or production action was taken.
+
+## 10. Feature-access stall diagnostics
+
+The isolated `server/featureAccess.test.ts` reproduces the same stall without the full suite. The stall occurs during the second `beforeEach` permission reset after the staff-permission test, rather than as an assertion failure. The development `rolePermissions` table has the expected `unique_role_feature (role, featureKey)` constraint, `idx_role`, and `permissionId` primary key. `SHOW FULL PROCESSLIST` showed no competing active session when inspected. Because the batching experiment did not remove the stall, it was reverted and no RBAC semantics were changed. A database transaction/lock lifecycle investigation remains necessary before the full suite can be called green.
+
+The attachment-32 report therefore intentionally remains a blocker report rather than claiming a successful full validation.
