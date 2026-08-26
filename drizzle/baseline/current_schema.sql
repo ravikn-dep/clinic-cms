@@ -512,3 +512,6 @@ ALTER TABLE `appointments` MODIFY COLUMN `status` enum('Scheduled','Checked-in',
 ALTER TABLE `appointments` ADD `appointmentSource` enum('MANUAL','WALK_IN','PHONE') DEFAULT 'MANUAL' NOT NULL;
 ALTER TABLE `consultations` ADD `appointmentId` varchar(50);
 ALTER TABLE `consultations` ADD CONSTRAINT `consultations_appointmentId_unique` UNIQUE(`appointmentId`);
+
+-- Paper-first encounter billing invariant: historical non-encounter bills may keep NULL consultationId.
+ALTER TABLE `bills` ADD CONSTRAINT `bills_consultationId_unique` UNIQUE(`consultationId`);

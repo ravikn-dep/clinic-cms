@@ -290,7 +290,9 @@ async function bootstrap() {
     ["externalIdempotencyKeys", "externalIdempotency_idempotencyId_unique", ["idempotencyId"]],
     ["appointmentBookingLocks", "appointmentBookingLocks_consultant_date_unique", ["consultantId", "appointmentDate"]],
 	["externalRequestReplays", "externalRequestReplays_key_request_unique", ["serviceKeyId", "requestId"]],
-	["consultations", "consultations_appointmentId_unique", ["appointmentId"]],
+	    ["consultations", "consultations_appointmentId_unique", ["appointmentId"]],
+    ["bills", "bills_consultationId_unique", ["consultationId"]],
+
   ];
 
   for (const [table, indexName, columns] of requiredUniqueIndexes) {

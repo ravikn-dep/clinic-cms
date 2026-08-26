@@ -2251,3 +2251,76 @@ export async function recordExternalRequestReplay(replayData: typeof externalReq
   if (!db) throw new Error("Database not available");
   await db.insert(externalRequestReplays).values(replayData);
 }
+
+
+// ============ PAPER-FIRST ENCOUNTER WORKFLOW ============
+
+export async function completeConsultationWithAudit(consultationId: string, actorId: string, allowAdminOverride = false) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  return database.transaction(async (transaction) => {
+    const consultation = (await transaction.select().from(consultations).where(eq(consultations.consultationId, consultationId)).limit(1))[0];
+    if (!consultation) throw new Error("Consultation not found");
+    const appointment = consultation.appointmentId
+      ? (await transaction.select().from(appointments).where(eq(appointments.appointmentId, consultation.appointmentId)).limit(1))[0]
+      : null;
+    if (!appointment) throw new Error("Appointment not found");
+    if (!allowAdminOverride && appointment.consultantId !== Number(actorId)) throw new Error("Only the assigned consultant can complete this encounter");
+    if (consultation.isFinalized) return { consultation, changed: false };
+    const timestamp = new Date().toISOString();
+    await transaction.update(consultations).set({ isFinalized: 1, updatedAt: timestamp }).where(eq(consultations.consultationId, consultationId));
+    await transaction.insert(auditLogs).values({
+      logId: nanoid(20), userId: actorId, actionType: allowAdminOverride ? "CONSULTATION_COMPLETED_ADMIN_OVERRIDE" : "CONSULTATION_COMPLETED",
+      tableName: "consultations", recordId: consultationId, oldValue: JSON.stringify({ isFinalized: consultation.isFinalized }),
+      newValue: JSON.stringify({ isFinalized: 1, appointmentId: appointment.appointmentId }), timestamp,
+    });
+    return { consultation: { ...consultation, isFinalized: 1 as const, updatedAt: timestamp }, changed: true };
+  });
+}
+
+export async function getEncounterBillByConsultationId(consultationId: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  return (await database.select().from(bills).where(eq(bills.consultationId, consultationId)).limit(1))[0] ?? null;
+}
+
+export async function createEncounterBillAndCloseVisit(data: {
+  bill: typeof bills.$inferInsert;
+  items: Array<typeof billItems.$inferInsert>;
+  appointmentId: string;
+  actorId: string;
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  return database.transaction(async (transaction) => {
+    const consultation = data.bill.consultationId
+      ? (await transaction.select().from(consultations).where(eq(consultations.consultationId, data.bill.consultationId)).limit(1))[0]
+      : null;
+    if (!consultation || !consultation.appointmentId || consultation.appointmentId !== data.appointmentId) throw new Error("Encounter billing context is invalid");
+    if (!consultation.isFinalized) throw new Error("Consultation must be completed before billing");
+    const existing = (await transaction.select().from(bills).where(eq(bills.consultationId, consultation.consultationId)).limit(1))[0];
+    if (existing) return { bill: existing, created: false };
+    await transaction.insert(bills).values(data.bill);
+    for (const item of data.items) await transaction.insert(billItems).values(item);
+    const timestamp = new Date().toISOString();
+    await transaction.update(appointments).set({ status: "Completed", updatedAt: timestamp }).where(eq(appointments.appointmentId, data.appointmentId));
+    await transaction.insert(auditLogs).values({
+      logId: nanoid(20), userId: data.actorId, actionType: "VISIT_CLOSED_AFTER_BILL", tableName: "appointments", recordId: data.appointmentId,
+      newValue: JSON.stringify({ consultationId: consultation.consultationId, billId: data.bill.billId, status: "Completed" }), timestamp,
+    });
+    return { bill: data.bill, created: true };
+  });
+}
+
+export async function getPatientVisitChain(patientId: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  const patientAppointments = await database.select().from(appointments).where(eq(appointments.patientId, patientId)).orderBy(desc(appointments.createdAt));
+  const chains = [];
+  for (const appointment of patientAppointments) {
+    const consultation = (await database.select().from(consultations).where(eq(consultations.appointmentId, appointment.appointmentId)).limit(1))[0] ?? null;
+    const bill = consultation ? (await database.select().from(bills).where(eq(bills.consultationId, consultation.consultationId)).limit(1))[0] ?? null : null;
+    chains.push({ appointment, consultation, bill });
+  }
+  return chains;
+}

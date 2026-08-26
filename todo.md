@@ -1020,3 +1020,13 @@ This section records the user-authorized GitHub governance action; the migration
 - [ ] Commit, push, open a protected PR, verify CI, and stop without merge, tag, deployment, force push, or production database access.
 
 > Historical engineering ledger entries inherited from earlier milestones remain unchanged; this section tracks only the current user-management cleanup branch.
+
+## Attachment 38: Paper-First OP → Billing → Visit Closure V2
+- [x] Implement appointment-linked Generate OP for checked-in visits with retry idempotency.
+- [x] Keep printed OP paper-first with consultant branding, clinic branding, and blank handwriting sections.
+- [x] Add consultant/admin completion authority and auditable completion semantics without closing the visit.
+- [x] Add consultation-derived one-bill-per-encounter billing and close the appointment only after bill linkage succeeds.
+- [x] Add minimal visit-chain access in Patient Records and preserve future digital consultation fields.
+- [x] Add schema migration, baseline, bootstrap assertion, and focused tests without procurement/inventory mutation.
+- [ ] Run focused/full validation, build, diff hygiene, and fresh-database checks. (Focused/full validation, build, and diff hygiene passed; isolated MySQL unavailable.)
+- [x] Commit locally and stop without push, PR, merge, tag, deployment, or production access.

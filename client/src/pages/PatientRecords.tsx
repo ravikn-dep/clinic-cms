@@ -49,6 +49,10 @@ export default function PatientRecords() {
     { patientId: selectedPatientId || "" },
     { enabled: Boolean(selectedPatientId) }
   );
+  const visitChainQuery = trpc.visits.getVisitChain.useQuery(
+    { patientId: selectedPatientId || "" },
+    { enabled: Boolean(selectedPatientId) }
+  );
 
   const exportPatientsCsv = trpc.patients.exportCsv.useMutation({
     onSuccess: (payload) => {
@@ -83,6 +87,7 @@ export default function PatientRecords() {
   const selectedPatient = selectedPatientQuery.data || patients.find((patient) => patient.patientId === selectedPatientId);
   const consultations = consultationsQuery.data || [];
   const bills = billsQuery.data || [];
+  const visitChains = visitChainQuery.data || [];
 
   const storedFiles = selectedPatient ? [
     { label: "QR Code", url: selectedPatient.qrcodeImageUrl, key: selectedPatient.qrcodeImageKey, artifactType: "qr_code" as const, patientId: selectedPatient.patientId, recordId: selectedPatient.patientId, icon: FileText },
@@ -96,6 +101,13 @@ export default function PatientRecords() {
   ].filter((file) => Boolean(file.key || file.url)) : [];
 
   const brandedPrint = trpc.consultations.getBrandedPrintData.useMutation();
+  const completeConsultation = trpc.visits.completeConsultation.useMutation({
+    onSuccess: () => {
+      toast.success("Consultation marked ready for billing.");
+      void consultationsQuery.refetch();
+    },
+    onError: (error) => toast.error(error.message || "Unable to complete consultation."),
+  });
 
   const printConsultationOP = async (consultationId: string) => {
     try {
@@ -271,6 +283,21 @@ export default function PatientRecords() {
                   </TabsList>
 
                   <TabsContent value="consultations" className="mt-4 space-y-3">
+                    {visitChains.length > 0 && (
+                      <div className="rounded-lg border bg-teal-50/50 p-4 shadow-sm">
+                        <div className="mb-3 flex items-center gap-2 font-medium"><FileCheck className="h-4 w-4 text-teal-700" /> Visit chain</div>
+                        <div className="space-y-2 text-sm">
+                          {visitChains.map((chain) => (
+                            <div key={chain.appointment.appointmentId} className="grid gap-1 rounded-md border bg-white p-3 sm:grid-cols-4">
+                              <span><strong>Appointment:</strong> {chain.appointment.status}</span>
+                              <span><strong>Consultation:</strong> {chain.consultation?.consultationId || "—"}</span>
+                              <span><strong>Bill:</strong> {chain.bill?.billId || "—"}</span>
+                              <span><strong>Closure:</strong> {chain.appointment.status === "Completed" ? "Completed" : "Open"}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {consultationsQuery.isLoading ? (
                       <div className="text-sm text-muted-foreground">Loading consultations...</div>
                     ) : consultations.length === 0 ? (
@@ -301,11 +328,24 @@ export default function PatientRecords() {
                               onClick={() => {
                                 setLocation(`/billing?consultationId=${consultation.consultationId}&patientId=${selectedPatientId}`);
                               }}
-                              title="Generate Bill for this consultation"
+                              disabled={!consultation.isFinalized}
+                              title={consultation.isFinalized ? "Generate Bill for this consultation" : "Mark the consultation ready for billing first"}
                             >
                               <DollarSign className="h-3.5 w-3.5" />
                               Generate Bill
                             </Button>
+                            {!consultation.isFinalized && (user?.role === "consultant" || isAdmin) && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-auto gap-1 px-2 py-1 text-xs"
+                                disabled={completeConsultation.isPending}
+                                onClick={() => completeConsultation.mutate({ consultationId: consultation.consultationId })}
+                              >
+                                <FileCheck className="h-3.5 w-3.5" /> Ready for Billing
+                              </Button>
+                            )}
                             <Button
                               type="button"
                               variant="outline"
