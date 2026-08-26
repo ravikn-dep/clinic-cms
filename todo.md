@@ -1020,3 +1020,29 @@ This section records the user-authorized GitHub governance action; the migration
 - [ ] Commit, push, open a protected PR, verify CI, and stop without merge, tag, deployment, force push, or production database access.
 
 > Historical engineering ledger entries inherited from earlier milestones remain unchanged; this section tracks only the current user-management cleanup branch.
+
+## Attachment 38: Paper-First OP → Billing → Visit Closure V2
+- [x] Implement appointment-linked Generate OP for checked-in visits with retry idempotency.
+- [x] Keep printed OP paper-first with consultant branding, clinic branding, and blank handwriting sections.
+- [x] Add consultant/admin completion authority and auditable completion semantics without closing the visit.
+- [x] Add consultation-derived one-bill-per-encounter billing and close the appointment only after bill linkage succeeds.
+- [x] Add minimal visit-chain access in Patient Records and preserve future digital consultation fields.
+- [x] Add schema migration, baseline, bootstrap assertion, and focused tests without procurement/inventory mutation.
+- [ ] Run focused/full validation, build, diff hygiene, and fresh-database checks. (Focused/full validation, build, and diff hygiene passed; isolated MySQL unavailable.)
+- [x] Commit locally and stop without push, PR, merge, tag, deployment, or production access.
+
+## Attachment 39: Canonical Product Requirements Document
+- [ ] Audit canonical repository source, reports, tags, and milestones for product truth.
+- [ ] Reconcile implemented, planned, deferred, retired, blocked, and out-of-scope product decisions.
+- [ ] Create root `PRD.md` with requirement IDs, module inventory, workflows, RBAC, safety boundaries, roadmap, traceability, and governance.
+- [ ] Create `PRD_INITIAL_RECONCILIATION_REPORT.md` documenting evidence, ambiguities, and omissions.
+- [ ] Validate documentation scope with manual source reconciliation and `git diff --check`; do not modify runtime, schema, RBAC, data, or deployment.
+
+## Attachment 40: Phase 4 Step 3 Release Gates
+- [ ] Verify exact implementation commit, canonical ancestry, clean feature tree, and expected changed files.
+- [ ] Validate deterministic baseline and migration 0026 on isolated databases only; do not use operational development or production data.
+- [ ] Validate synthetic paper-first lifecycle, billing idempotency/concurrency, Patient Records linkage, and zero procurement/inventory mutation.
+- [ ] Re-run final local focused/regression/full tests, check, build, and diff hygiene.
+- [ ] Push the feature branch normally and open the requested non-merged PR to `main`.
+- [ ] Wait for protected `CI Validation / validate`; report exact evidence and stop without merging.
+- [x] Correct demonstrated baseline defect: the fail-closed SQL splitter skipped the final bills uniqueness statement because it shared a chunk beginning with a comment.

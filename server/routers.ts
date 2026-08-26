@@ -1415,6 +1415,35 @@ export const appRouter = router({
         return billWithInvoice;
       }),
 
+    createEncounter: protectedProcedure
+      .input(z.object({
+        consultationId: z.string().trim().min(1),
+        appointmentId: z.string().trim().min(1),
+        items: z.array(z.object({ itemType: z.string().trim().min(1), description: z.string().trim().min(1), quantity: z.number().int().positive(), unitPrice: z.string().regex(/^\d+(\.\d{1,2})?$/) })).min(1),
+        discountAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
+        taxAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const consultation = await db.getConsultationById(input.consultationId);
+        if (!consultation || consultation.appointmentId !== input.appointmentId) throw new Error("Encounter billing context is invalid");
+        const appointment = await requireAccessibleAppointment(ctx, input.appointmentId);
+        if (ctx.user.role === "consultant" && consultation.consultantId !== ctx.user.id) throw new Error("Consultants cannot bill another consultant's encounter");
+        const patient = await db.getPatientById(consultation.patientId);
+        if (!patient) throw new Error("Patient not found");
+        const totalAmount = input.items.reduce((sum, item) => sum + Number(item.unitPrice) * item.quantity, 0);
+        const discountAmount = Number(input.discountAmount);
+        const taxAmount = Number(input.taxAmount);
+        const finalAmount = totalAmount - discountAmount + taxAmount;
+        const billId = utils.generateBillId();
+        const result = await db.createEncounterBillAndCloseVisit({
+          bill: { billId, patientId: consultation.patientId, consultationId: consultation.consultationId, totalAmount: totalAmount.toFixed(2) as any, discountAmount: discountAmount.toFixed(2) as any, taxAmount: taxAmount.toFixed(2) as any, finalAmount: finalAmount.toFixed(2) as any, paymentStatus: "Pending" },
+          items: input.items.map((item) => ({ billItemId: utils.generateBillItemId(), billId, itemType: item.itemType, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice as any, subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2) as any })),
+          appointmentId: appointment.appointmentId,
+          actorId: String(ctx.user.id),
+        });
+        return { ...result, patientId: consultation.patientId, consultationId: consultation.consultationId, appointmentId: appointment.appointmentId };
+      }),
+
     getAll: protectedProcedure.query(async () => {
       const bills = await db.getAllBills();
       return Promise.all(
@@ -1542,7 +1571,9 @@ export const appRouter = router({
         return {
           consultationId: consultation.consultationId,
           patientId: consultation.patientId,
+          appointmentId: consultation.appointmentId,
           consultantId: consultation.consultantId,
+          isFinalized: consultation.isFinalized,
           consultationDate: consultation.consultationDate,
           clinicalHistory: consultation.clinicalHistory,
           presentComplaints: consultation.presentComplaints,
@@ -2822,9 +2853,39 @@ export const appRouter = router({
       .input(z.object({ appointmentId: z.string().trim().min(1) }))
       .mutation(async ({ input, ctx }) => {
         await requireAccessibleAppointment(ctx, input.appointmentId);
-        return db.startAppointmentConsultationWithAudit(input.appointmentId, String(ctx.user.id));
-      }),
-  }),
+		return db.startAppointmentConsultationWithAudit(input.appointmentId, String(ctx.user.id));
+		}),
+
+		generateOp: protectedProcedure
+		  .input(z.object({ appointmentId: z.string().trim().min(1) }))
+		  .mutation(async ({ input, ctx }) => {
+		    const appointment = await requireAccessibleAppointment(ctx, input.appointmentId);
+		    if (appointment.status !== "Checked-in") throw new Error("Appointment must be checked in before generating an OP");
+		    const result = await db.startAppointmentConsultationWithAudit(input.appointmentId, String(ctx.user.id));
+		    return { consultation: result.consultation, created: result.created };
+		  }),
+
+		completeConsultation: protectedProcedure
+		  .input(z.object({ consultationId: z.string().trim().min(1) }))
+		  .mutation(async ({ input, ctx }) => {
+		    const consultation = await db.getConsultationById(input.consultationId);
+		    if (!consultation) throw new Error("Consultation not found");
+		    if (ctx.user.role !== "admin" && ctx.user.role !== "consultant") throw new Error("Only the assigned consultant or an admin can complete an encounter");
+		    if (ctx.user.role === "consultant" && consultation.consultantId !== ctx.user.id) throw new Error("Consultants can complete only their own encounters");
+		    return db.completeConsultationWithAudit(input.consultationId, String(ctx.user.id), ctx.user.role === "admin");
+		  }),
+
+		getVisitChain: protectedProcedure
+		  .input(z.object({ patientId: z.string().trim().min(1) }))
+		  .query(async ({ input, ctx }) => {
+		    await assertAppointmentWorkflowAccess(ctx);
+		    if (ctx.user.role === "consultant") {
+		      const chains = await db.getPatientVisitChain(input.patientId);
+		      return chains.filter((chain) => chain.appointment.consultantId === ctx.user.id);
+		    }
+		    return db.getPatientVisitChain(input.patientId);
+		  }),
+	  }),
 
   appointments: router({
     // Get all appointments for a consultant or all appointments for admin

@@ -338,10 +338,10 @@ export function generateConsultationOPHTML(op: BrandedConsultationOP): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
-  const section = (title: string, value?: string | null) => `
-    <section class="clinical-section">
+  const blankSection = (title: string) => `
+    <section class="clinical-section paper-blank">
       <h3>${escapeHtml(title)}</h3>
-      <p>${escapeHtml(value || "Not documented")}</p>
+      <div class="handwriting-lines" aria-label="Blank handwriting area"></div>
     </section>`;
   const consultantLogo = op.consultantLogoUrl
     ? `<img class="identity-image" src="${escapeHtml(op.consultantLogoUrl)}" alt="Consultant logo" />`
@@ -376,6 +376,8 @@ export function generateConsultationOPHTML(op: BrandedConsultationOP): string {
     .clinical-section { border-top:1px solid #dbe3ea; padding:3mm 0; }
     .clinical-section h3 { font-size:11px; letter-spacing:.06em; color:#0f766e; margin:0 0 1.5mm; text-transform:uppercase; }
     .clinical-section p { white-space:pre-wrap; margin:0; line-height:1.5; min-height:6mm; }
+    .paper-blank { min-height:25mm; }
+    .handwriting-lines { min-height:17mm; background: repeating-linear-gradient(to bottom, transparent 0, transparent 7mm, #cbd5e1 7.2mm, transparent 7.6mm); }
     .signature-block { margin-top:7mm; margin-left:auto; width:64mm; min-height:28mm; text-align:center; border-top:1px solid #94a3b8; padding-top:2mm; }
     .signature-image { max-width:50mm; max-height:15mm; object-fit:contain; display:block; margin:0 auto 1mm; }
     .signature-name { font-weight:700; margin:1mm 0; }
@@ -400,11 +402,12 @@ export function generateConsultationOPHTML(op: BrandedConsultationOP): string {
       <div><span class="field-label">Gender</span><span class="field-value">${escapeHtml(op.gender)}</span></div>
       <div><span class="field-label">Contact number</span><span class="field-value">${escapeHtml(op.contactNumber)}</span></div>
     </section>
-    ${section("Chief complaints / clinical history", op.presentComplaints || op.clinicalHistory)}
-    ${section("Clinical history", op.clinicalHistory)}
-    ${section("Investigations advised", op.advisedInvestigations)}
-    ${section("Treatment / prescription", op.treatmentPlan)}
-    ${section("Advice and follow-up", "Follow the consultant's documented advice and return as directed.")}
+    ${blankSection("Chief complaints / history")}
+    ${blankSection("Clinical examination / findings")}
+    ${blankSection("Investigations")}
+    ${blankSection("Diagnosis / assessment")}
+    ${blankSection("Treatment / prescription")}
+    ${blankSection("Advice / follow-up")}
     <section class="signature-block">${signature}<p class="signature-name">${escapeHtml(op.consultantName)}</p><p>${escapeHtml(op.qualifications)}</p><p>${escapeHtml(op.registrationNumber)}</p></section>
     <footer class="footer"><span>${escapeHtml(op.facility.name)} · ${escapeHtml(op.facility.location)}</span><span>Consultation ${escapeHtml(op.consultationId)}</span></footer>
   </main></body></html>`;

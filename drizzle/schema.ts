@@ -76,8 +76,10 @@ export const bills = mysqlTable("bills", {
 	receiptDeliveryTimestamp: timestamp({ mode: 'string' }),
 	receiptPdfUrl: text(),
 	receiptPdfKey: text(),
-	consultationNotes: text(),
-});
+		consultationNotes: text(),
+	}, (table) => [
+		uniqueIndex("bills_consultationId_unique").on(table.consultationId),
+	]);
 
 export const consultantAvailability = mysqlTable("consultantAvailability", {
 	availabilityId: varchar({ length: 50 }).notNull(),

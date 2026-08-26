@@ -123,7 +123,7 @@ export default function Appointments() {
     onError: (error) => toast.error(error.message || "Failed to check in patient"),
   });
 
-  const startConsultationMutation = trpc.visits.startConsultation.useMutation({
+  const startConsultationMutation = trpc.visits.generateOp.useMutation({
     onSuccess: (result) => {
       toast.success(result.created ? "Consultation started" : "Existing consultation reopened");
       appointmentsQuery.refetch();
@@ -368,14 +368,6 @@ export default function Appointments() {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => completeMutation.mutate({ appointmentId: apt.appointmentId })}
-                              disabled={completeMutation.isPending}
-                            >
-                              Complete
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
                               onClick={() => noShowMutation.mutate({ appointmentId: apt.appointmentId })}
                               disabled={noShowMutation.isPending}
                             >
@@ -393,8 +385,7 @@ export default function Appointments() {
                         )}
 						{apt.status === "Checked-in" && (
 							<div className="flex gap-2">
-									<Button size="sm" onClick={() => startConsultationMutation.mutate({ appointmentId: apt.appointmentId })} disabled={startConsultationMutation.isPending || brandedPrint.isPending}><Stethoscope className="mr-1 h-4 w-4" />Start Consultation & Print OP</Button>
-								<Button size="sm" variant="outline" onClick={() => completeMutation.mutate({ appointmentId: apt.appointmentId })} disabled={completeMutation.isPending}>Complete</Button>
+									<Button size="sm" onClick={() => startConsultationMutation.mutate({ appointmentId: apt.appointmentId })} disabled={startConsultationMutation.isPending || brandedPrint.isPending}><Stethoscope className="mr-1 h-4 w-4" />Generate OP & Print</Button>
 							</div>
 						)}
                       </div>
