@@ -749,22 +749,24 @@ export const appRouter = router({
 
     setPassword: protectedProcedure
       .input(z.object({
-        password: z.string().min(6),
+        password: z.string().min(8).max(128),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
+          const existing = await db.getUserById(ctx.user.id as number);
+          if (existing?.passwordHash) throw new Error("A password already exists; use Change Password instead");
           await db.setUserPassword(ctx.user.id as number, input.password);
           return { success: true };
         } catch (error) {
           console.error("[Auth] Set password failed:", error);
-          throw new Error("Failed to set password");
+          throw new Error(error instanceof Error ? error.message : "Failed to set password");
         }
       }),
 
     changePassword: protectedProcedure
       .input(z.object({
         currentPassword: z.string(),
-        newPassword: z.string().min(6),
+        newPassword: z.string().min(8).max(128),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
@@ -2162,7 +2164,8 @@ export const appRouter = router({
     createStaffUser: adminProcedure
       .input(z.object({
         role: z.enum(["consultant", "staff"]),
-        name: z.string().min(2),
+        name: z.string().trim().min(2).max(150),
+        password: z.string().min(8).max(128),
         email: z.string().email().optional(),
         phone: z.string().optional(),
         department: z.string().optional(),
@@ -2175,17 +2178,13 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         try {
-          // Generate user ID and temporary password
           const sequence = await db.getNextUserSequence(input.role);
           const userId = utils.generateUserId(input.role, sequence);
-          const tempPassword = utils.generateTemporaryPassword();
-          const passwordHash = await utils.hashPassword(tempPassword);
           const username = userId.toLowerCase();
+          if (await db.getUserByUsername(username)) throw new Error("A user with this login ID already exists");
+          if (input.email && await db.getUserByEmail(input.email)) throw new Error("A user with this email already exists");
+          const passwordHash = await utils.hashPassword(input.password);
 
-          // Generate QR code for login
-          const qrcodeLoginUrl = await utils.generateQRCodeForLogin(username, tempPassword);
-
-          // Create user
           const userData = {
             openId: `local-${userId}`,
             name: input.name,
@@ -2197,7 +2196,6 @@ export const appRouter = router({
             username,
             passwordHash,
             isActive: 1,
-            qrcodeLoginUrl,
             createdBy: ctx.user.id,
             loginMethod: "local",
             stateCounsilSection: input.stateCounsilSection,
@@ -2222,21 +2220,20 @@ export const appRouter = router({
             });
           }
 
-          // Notify owner
           await safeNotifyOwner(
             `New ${input.role} created`,
-            `${input.name} (${userId}) has been added to the system. Temporary password: ${tempPassword}`
+            `${input.name} (${userId}) has been added to the system. The administrator supplied the initial password.`
           );
 
           return {
             success: true,
             userId,
             username,
-            tempPassword,
-            qrcodeLoginUrl,
           };
         } catch (error) {
           console.error("[RBAC] Create staff user failed:", error);
+          const message = error instanceof Error ? error.message : "Failed to create staff user";
+          if (message.includes("already exists")) throw new Error(message);
           throw new Error("Failed to create staff user");
         }
       }),
@@ -2274,7 +2271,7 @@ export const appRouter = router({
         email: z.string().email().optional(),
         phone: z.string().optional(),
         department: z.string().optional(),
-        role: z.enum(["admin", "consultant", "staff", "user"]).optional(),
+        role: z.enum(["consultant", "staff"]).optional(),
         stateCounsilSection: z.string().optional(),
         registrationNumber: z.string().optional(),
         qualifications: z.string().max(255).optional(),
@@ -2289,7 +2286,11 @@ export const appRouter = router({
           if (!existing) throw new Error("User not found");
           const updates: Record<string, any> = {};
           if (input.name !== undefined) updates.name = input.name;
-          if (input.email !== undefined) updates.email = input.email;
+          if (input.email !== undefined) {
+            const duplicate = await db.getUserByEmail(input.email);
+            if (duplicate && duplicate.id !== existing.id) throw new Error("A user with this email already exists");
+            updates.email = input.email;
+          }
           if (input.phone !== undefined) updates.phone = input.phone;
           if (input.department !== undefined) updates.department = input.department;
           if (input.role !== undefined) updates.role = input.role;
@@ -2317,20 +2318,47 @@ export const appRouter = router({
           return { success: true };
         } catch (error) {
           console.error("[RBAC] Update staff user failed:", error);
+          const message = error instanceof Error ? error.message : "Failed to update staff user";
+          if (message.includes("already exists")) throw new Error(message);
           throw new Error("Failed to update staff user");
         }
       }),
 
+    resetUserPassword: adminProcedure
+      .input(z.object({ userId: z.string().trim().min(1), password: z.string().min(8).max(128) }))
+      .mutation(async ({ input, ctx }) => {
+        const target = await db.getStaffUserById(input.userId);
+        if (!target) throw new Error("User not found");
+        await db.updateUserPassword(target.id, await utils.hashPassword(input.password));
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(), userId: ctx.user.id.toString(), actionType: "USER_PASSWORD_RESET",
+          tableName: "users", recordId: target.id.toString(),
+          newValue: JSON.stringify({ targetUserId: input.userId }), timestamp: new Date().toISOString(),
+        });
+        return { success: true, userId: input.userId };
+      }),
+
     deleteStaffUser: adminProcedure
-      .input(z.object({ userId: z.string() }))
-      .mutation(async ({ input }) => {
+      .input(z.object({ userId: z.string().trim().min(1) }))
+      .mutation(async ({ input, ctx }) => {
         try {
+          const target = await db.getStaffUserById(input.userId);
+          if (!target) throw new Error("User not found");
+          if (target.role === "admin" && target.isActive && await db.getActiveAdminCount() <= 1) {
+            throw new Error("The last active administrator cannot be deleted");
+          }
+          const references = await db.getUserReferenceSummary(target.id);
+          if (references.total > 0) throw new Error("This user is referenced by historical or operational records and cannot be deleted; deactivate the account instead.");
           await db.deleteStaffUser(input.userId);
-          await safeNotifyOwner("Staff user deleted", `User ${input.userId} has been removed from the system`);
+          await db.createAuditLog({
+            logId: utils.generateAuditLogId(), userId: ctx.user.id.toString(), actionType: "USER_DELETED",
+            tableName: "users", recordId: target.id.toString(),
+            oldValue: JSON.stringify({ userId: target.userId, role: target.role, name: target.name }), timestamp: new Date().toISOString(),
+          });
           return { success: true };
         } catch (error) {
           console.error("[RBAC] Delete staff user failed:", error);
-          throw new Error("Failed to delete staff user");
+          throw new Error(error instanceof Error ? error.message : "Failed to delete staff user");
         }
       }),
 

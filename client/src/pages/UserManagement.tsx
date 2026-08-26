@@ -8,11 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Edit2, ImageUp, Plus, Trash2 } from "lucide-react";
+import { Edit2, ImageUp, KeyRound, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type FormData = {
   name: string;
+  password: string;
   email: string;
   phone: string;
   department: string;
@@ -27,7 +28,7 @@ type FormData = {
 };
 
 const emptyForm = (): FormData => ({
-  name: "", email: "", phone: "", department: "", role: "consultant",
+  name: "", password: "", email: "", phone: "", department: "", role: "consultant",
   stateCounsilSection: "", registrationNumber: "", qualifications: "", specialization: "",
   designation: "", prescriptionHeaderText: "", isActive: true,
 });
@@ -65,20 +66,28 @@ export default function UserManagement() {
   const updateUser = trpc.rbac.updateStaffUser.useMutation({ onSuccess: saveSuccess, onError: (error) => toast.error(error.message) });
   const deleteUser = trpc.rbac.deleteStaffUser.useMutation({ onSuccess: () => { utils.rbac.listStaffUsers.invalidate(); toast.success("User removed."); }, onError: (error) => toast.error(error.message) });
   const uploadAsset = trpc.consultants.uploadAsset.useMutation({ onSuccess: () => toast.success("Consultant image stored securely."), onError: (error) => toast.error(error.message) });
+  const resetPassword = trpc.rbac.resetUserPassword.useMutation({ onSuccess: () => toast.success("Password reset successfully."), onError: (error) => toast.error(error.message) });
+  const handleResetPassword = (staffUser: any) => {
+    const password = window.prompt("Enter a new password (at least 8 characters). It will not be shown again.");
+    if (password === null) return;
+    if (password.length < 8) { toast.error("Password must be at least 8 characters."); return; }
+    resetPassword.mutate({ userId: staffUser.userId, password });
+  };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (editingUser) {
-      updateUser.mutate({ userId: editingUser.userId, ...formData });
+      const { password: _password, ...updateData } = formData;
+      updateUser.mutate({ userId: editingUser.userId, ...updateData });
     } else {
-      const { isActive, ...createData } = formData;
-      createUser.mutate(createData);
+      const { isActive, password, ...createData } = formData;
+      createUser.mutate({ ...createData, password, email: createData.email || undefined });
     }
   };
   const handleEdit = (staffUser: any) => {
     setEditingUser(staffUser);
     setFormData({
-      name: staffUser.name || "", email: staffUser.email || "", phone: staffUser.phone || "", department: staffUser.department || "",
+      name: staffUser.name || "", password: "", email: staffUser.email || "", phone: staffUser.phone || "", department: staffUser.department || "",
       role: staffUser.role, stateCounsilSection: staffUser.stateCounsilSection || "", registrationNumber: staffUser.registrationNumber || "",
       qualifications: staffUser.qualifications || "", specialization: staffUser.specialization || "", designation: staffUser.designation || "",
       prescriptionHeaderText: staffUser.prescriptionHeaderText || "", isActive: Boolean(staffUser.isActive),
@@ -102,6 +111,7 @@ export default function UserManagement() {
     {showForm && <Card className="border-teal-200 bg-teal-50"><CardHeader><CardTitle>{editingUser ? "Edit User" : "Create New User"}</CardTitle><CardDescription>Consultant registration and branding data is authoritative and admin-controlled.</CardDescription></CardHeader><CardContent><form onSubmit={handleSubmit} className="space-y-5">
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Display Name *"><Input value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} required /></Field>
+        {!editingUser && <Field label="Initial Password *"><Input type="password" minLength={8} value={formData.password} onChange={(event) => setFormData({ ...formData, password: event.target.value })} required autoComplete="new-password" /></Field>}
         <Field label="Role *"><Select value={formData.role} onValueChange={(role: "consultant" | "staff") => setFormData({ ...formData, role })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="consultant">Consultant</SelectItem><SelectItem value="staff">Staff</SelectItem></SelectContent></Select></Field>
         <Field label="Email"><Input type="email" value={formData.email} onChange={(event) => setFormData({ ...formData, email: event.target.value })} /></Field>
         <Field label="Phone"><Input value={formData.phone} onChange={(event) => setFormData({ ...formData, phone: event.target.value })} /></Field>
@@ -121,7 +131,7 @@ export default function UserManagement() {
       </section>}
       <div className="flex gap-2"><Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={createUser.isPending || updateUser.isPending}>{editingUser ? "Save User" : "Create User"}</Button><Button type="button" variant="outline" onClick={resetForm}>Cancel</Button></div>
     </form></CardContent></Card>}
-    <Card><CardHeader><CardTitle>Users</CardTitle><CardDescription>{staffUsers.data?.length || 0} consultant(s) and staff member(s)</CardDescription></CardHeader><CardContent>{staffUsers.isLoading ? <div className="text-center text-slate-500">Loading users…</div> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>User ID</TableHead><TableHead>Name</TableHead><TableHead>Role</TableHead><TableHead>Specialization</TableHead><TableHead>Registration</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{(staffUsers.data || []).map((staffUser: any) => <TableRow key={staffUser.id}><TableCell className="font-mono text-sm">{staffUser.userId}</TableCell><TableCell><div className="font-medium">{staffUser.name}</div><div className="text-xs text-muted-foreground">{staffUser.email || "—"}</div></TableCell><TableCell className="capitalize">{staffUser.role}</TableCell><TableCell>{staffUser.specialization || staffUser.department || "—"}</TableCell><TableCell>{staffUser.registrationNumber || "—"}</TableCell><TableCell>{staffUser.isActive ? "Active" : "Inactive"}</TableCell><TableCell className="flex gap-2"><Button size="sm" variant="outline" onClick={() => handleEdit(staffUser)}><Edit2 className="mr-1 h-3 w-3" />Edit</Button><Button size="sm" variant="destructive" onClick={() => { if (confirm(`Delete ${staffUser.name}?`)) deleteUser.mutate({ userId: staffUser.userId }); }}><Trash2 className="mr-1 h-3 w-3" />Delete</Button></TableCell></TableRow>)}</TableBody></Table></div>}</CardContent></Card>
+    <Card><CardHeader><CardTitle>Users</CardTitle><CardDescription>{staffUsers.data?.length || 0} consultant(s) and staff member(s)</CardDescription></CardHeader><CardContent>{staffUsers.isLoading ? <div className="text-center text-slate-500">Loading users…</div> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>User ID</TableHead><TableHead>Name</TableHead><TableHead>Role</TableHead><TableHead>Specialization</TableHead><TableHead>Registration</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{(staffUsers.data || []).map((staffUser: any) => <TableRow key={staffUser.id}><TableCell className="font-mono text-sm">{staffUser.userId}</TableCell><TableCell><div className="font-medium">{staffUser.name}</div><div className="text-xs text-muted-foreground">{staffUser.email || "—"}</div></TableCell><TableCell className="capitalize">{staffUser.role}</TableCell><TableCell>{staffUser.specialization || staffUser.department || "—"}</TableCell><TableCell>{staffUser.registrationNumber || "—"}</TableCell><TableCell>{staffUser.isActive ? "Active" : "Inactive"}</TableCell><TableCell className="flex gap-2"><Button size="sm" variant="outline" onClick={() => handleEdit(staffUser)}><Edit2 className="mr-1 h-3 w-3" />Edit</Button><Button size="sm" variant="outline" onClick={() => handleResetPassword(staffUser)} disabled={resetPassword.isPending}><KeyRound className="mr-1 h-3 w-3" />Reset Password</Button><Button size="sm" variant="destructive" onClick={() => { if (confirm(`Delete ${staffUser.name}?`)) deleteUser.mutate({ userId: staffUser.userId }); }}><Trash2 className="mr-1 h-3 w-3" />Delete</Button></TableCell></TableRow>)}</TableBody></Table></div>}</CardContent></Card>
   </div>;
 }
 
