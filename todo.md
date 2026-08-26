@@ -1082,3 +1082,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [ ] Verify the validated Step 3 source, ancestry, scope, migration, and business-boundary evidence.
 - [ ] Publish only the validated Step 3 implementation to the requested feature branch and open a protected PR without merging or deploying.
 - [ ] Run and verify protected CI on the exact PR head, then record the final publication result.
+
+## Attachment 37: Read, Verify, Summarize, Apply
+- [x] Read and extract the actionable requirements from `pasted_content_37.txt`.
+- [x] Summarize the attachment and compare its requirements with the current stable project and GitHub state.
+- [x] Apply only verified safe, in-scope attachment actions without reintroducing ThreeUI or touching production; created a recovery report only and no source code.
+- [x] Validate the applied actions and record the results; exact Step 3 source was not recoverable.
