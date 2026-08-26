@@ -1030,3 +1030,19 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Add schema migration, baseline, bootstrap assertion, and focused tests without procurement/inventory mutation.
 - [ ] Run focused/full validation, build, diff hygiene, and fresh-database checks. (Focused/full validation, build, and diff hygiene passed; isolated MySQL unavailable.)
 - [x] Commit locally and stop without push, PR, merge, tag, deployment, or production access.
+
+## Attachment 39: Canonical Product Requirements Document
+- [ ] Audit canonical repository source, reports, tags, and milestones for product truth.
+- [ ] Reconcile implemented, planned, deferred, retired, blocked, and out-of-scope product decisions.
+- [ ] Create root `PRD.md` with requirement IDs, module inventory, workflows, RBAC, safety boundaries, roadmap, traceability, and governance.
+- [ ] Create `PRD_INITIAL_RECONCILIATION_REPORT.md` documenting evidence, ambiguities, and omissions.
+- [ ] Validate documentation scope with manual source reconciliation and `git diff --check`; do not modify runtime, schema, RBAC, data, or deployment.
+
+## Attachment 40: Phase 4 Step 3 Release Gates
+- [ ] Verify exact implementation commit, canonical ancestry, clean feature tree, and expected changed files.
+- [ ] Validate deterministic baseline and migration 0026 on isolated databases only; do not use operational development or production data.
+- [ ] Validate synthetic paper-first lifecycle, billing idempotency/concurrency, Patient Records linkage, and zero procurement/inventory mutation.
+- [ ] Re-run final local focused/regression/full tests, check, build, and diff hygiene.
+- [ ] Push the feature branch normally and open the requested non-merged PR to `main`.
+- [ ] Wait for protected `CI Validation / validate`; report exact evidence and stop without merging.
+- [x] Correct demonstrated baseline defect: the fail-closed SQL splitter skipped the final bills uniqueness statement because it shared a chunk beginning with a comment.

@@ -42,7 +42,7 @@ Consultants may operate on their own appointments and consultations. Admins may 
 
 The canonical base is an ancestor of the implementation branch and the diff contains no ThreeUI, topology, or Three.js changes. `pnpm check` passed with zero TypeScript errors. Focused validation passed: `server/paperFirstWorkflow.test.ts` 40/40, together with Phase 4 Step 1/2 suites for 60/60 tests. The complete local suite passed **312/312 tests across 35 files**. `pnpm build` passed and `git diff --check` passed. The full test run emitted only the existing expected QR-code negative-case stderr and no test failures.
 
-A fresh isolated MySQL bootstrap was not executed because this sandbox has the MySQL client but no local MySQL server (`mysqld`) or Docker runtime. The configured `DATABASE_URL` was deliberately not used, so no development or production database was touched. Fresh-bootstrap validation therefore remains an explicit pending gate rather than being claimed as passed.
+The first protected fresh-MySQL CI run demonstrated one baseline defect: the final `bills_consultationId_unique` statement shared a SQL chunk beginning with a comment, and the existing fail-closed splitter correctly skipped that entire comment-prefixed chunk. The smallest correction removed only that leading comment; the SQL statement and bootstrap assertions remain unchanged. Local check, focused/full tests, build, and diff hygiene were rerun successfully after the correction. A fresh isolated MySQL 8 bootstrap is now being re-run in protected CI. No development or production database was touched.
 
 ## Commit and stop gate
 
