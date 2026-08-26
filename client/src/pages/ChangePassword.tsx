@@ -32,8 +32,8 @@ export default function ChangePassword() {
       setError("New password is required");
       return false;
     }
-    if (newPassword.length < 6) {
-      setError("New password must be at least 6 characters");
+    if (newPassword.length < 8) {
+      setError("New password must be at least 8 characters");
       return false;
     }
     if (newPassword !== confirmPassword) {
@@ -167,7 +167,7 @@ export default function ChangePassword() {
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
+                <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
               </div>
 
               {/* Confirm Password */}

@@ -278,6 +278,7 @@ class SDKServer {
         const staffUser = await db.getStaffUserById(localUserId);
         
         if (staffUser) {
+          if (staffUser.isActive === 0) throw ForbiddenError("User account is inactive");
           // User exists, update last signed in
           await db.updateStaffUser(localUserId, { lastSignedIn: signedInAt });
           return staffUser;
@@ -303,6 +304,9 @@ class SDKServer {
 
     if (!user) {
       throw ForbiddenError("User not found");
+    }
+    if (user.isActive === 0) {
+      throw ForbiddenError("User account is inactive");
     }
 
     // Update last signed in for OAuth users

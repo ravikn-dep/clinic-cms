@@ -1223,6 +1223,37 @@ export async function getAllStaffUsers() {
   return db.select().from(users).where(inArray(users.role, ["consultant", "staff"])).orderBy(desc(users.createdAt));
 }
 
+export async function getUserReferenceSummary(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const actor = String(userId);
+  const [rows] = await db.execute(sql`
+    SELECT
+      (SELECT COUNT(*) FROM appointments WHERE consultantId = ${userId} OR checkedInBy = ${actor}) AS appointments,
+      (SELECT COUNT(*) FROM consultations WHERE consultantId = ${userId}) AS consultations,
+      (SELECT COUNT(*) FROM consultantAvailability WHERE consultantId = ${userId}) AS availability,
+      (SELECT COUNT(*) FROM notifications WHERE userId = ${userId}) AS notifications,
+      (SELECT COUNT(*) FROM auditLogs WHERE userId = ${actor}) AS auditLogs,
+      (SELECT COUNT(*) FROM purchaseOrders WHERE approvedBy = ${actor}) AS purchaseOrders,
+      (SELECT COUNT(*) FROM goodsReceipts WHERE receivedBy = ${actor}) AS goodsReceipts,
+      (SELECT COUNT(*) FROM stockMovements WHERE actorId = ${actor}) AS stockMovements,
+      (SELECT COUNT(*) FROM purchaseOrderHistory WHERE actorId = ${actor}) AS purchaseOrderHistory,
+      (SELECT COUNT(*) FROM vendors WHERE createdBy = ${userId}) AS vendors,
+      (SELECT COUNT(*) FROM billTemplates WHERE createdBy = ${userId}) AS billTemplates,
+      (SELECT COUNT(*) FROM users WHERE createdBy = ${userId} AND id <> ${userId}) AS childUsers
+  `);
+  const row = (rows as unknown as any[])[0] || {};
+  const counts = Object.fromEntries(Object.entries(row).map(([key, value]) => [key, Number(value || 0)]));
+  return { ...counts, total: Object.values(counts).reduce((sum, value) => sum + Number(value), 0) };
+}
+
+export async function getActiveAdminCount() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select({ count: sql<number>`COUNT(*)` }).from(users).where(and(eq(users.role, "admin"), eq(users.isActive, 1)));
+  return Number(result[0]?.count || 0);
+}
+
 export async function getStaffUserById(userId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1903,8 +1934,11 @@ export async function authenticateUser(userIdOrEmail: string, password: string):
   if (user.length === 0) {
     user = await db.select().from(users).where(eq(users.userId, userIdOrEmail.toUpperCase())).limit(1);
   }
+  if (user.length === 0) {
+    user = await db.select().from(users).where(eq(users.username, userIdOrEmail.toLowerCase())).limit(1);
+  }
   
-  if (user.length === 0 || !user[0].passwordHash) {
+  if (user.length === 0 || user[0].isActive === 0 || !user[0].passwordHash) {
     return null;
   }
 
@@ -2035,7 +2069,7 @@ export async function updateUserPassword(userId: number, passwordHash: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+  await db.update(users).set({ passwordHash, updatedAt: new Date().toISOString() }).where(eq(users.id, userId));
 }
 
 export async function updateUserStatus(userId: number, isActive: boolean) {

@@ -1006,3 +1006,17 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Preserve the newly registered in-flow patient as the explicit selection until candidate-query results refresh, so the booking UI accurately represents the guarded server selection state.
 - [x] Complete local type check, focused and full tests, build, diff check, fresh bootstrap, forward-migration verification, and disposable synthetic browser acceptance without production or publication actions.
 - [x] Verify source fidelity, stage only validated Phase 4 Step 2 files, commit, push the authorized feature branch, open a PR to main, and verify required protected CI without merge, deployment, tag, force push, or production action.
+
+## User Management Cleanup and Admin Password Management
+- [x] Audit users schema, authentication, password hashing, roles, active state, consultant fields, permissions, references, and connected database classification before changing data.
+- [ ] Classify all development users as safe-to-delete or historically referenced; preserve referenced identities and retain at least one usable admin.
+- [x] Perform only approved disposable-development stale-user cleanup; no connected-data deletion was performed because the database is operational-looking and contains substantial clinical/history data; cleanup remains deferred pending an explicitly disposable database.
+- [x] Implement or harden admin-only user creation, role assignment, activation/deactivation, consultant profile editing, and server-side uniqueness validation.
+- [x] Implement admin-only password reset using the existing server-side bcrypt mechanism without plaintext/hash exposure, audit leakage, or global session invalidation.
+- [x] Preserve self-service password change and document the must-change-password and session-invalidation decisions.
+- [x] Add focused authentication, RBAC, historical-attribution, password-secrecy, inactive-user, last-admin, consultant-integrity, deletion, and zero-business-mutation tests.
+- [ ] Run check, focused auth/user and Phase 3/4 regression tests, full tests, build, diff checks, and fresh migration validation only if schema changes. Focused checks and build pass; full suite is blocked by pre-existing development-schema drift (`appointments.appointmentSource`).
+- [ ] Complete synthetic non-production interactive acceptance; report written to `USER_MANAGEMENT_CLEANUP_AND_ADMIN_PASSWORD_REPORT.md`, but browser acceptance remains deferred because the synthetic dashboard session is inaccessible.
+- [ ] Commit, push, open a protected PR, verify CI, and stop without merge, tag, deployment, force push, or production database access.
+
+> Historical engineering ledger entries inherited from earlier milestones remain unchanged; this section tracks only the current user-management cleanup branch.
