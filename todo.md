@@ -1063,3 +1063,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Summarize the attachment and compare its requirements with the restored stable project.
 - [x] Apply only verified safe, in-scope attachment changes without reintroducing ThreeUI or touching production.
 - [x] Validate the applied changes and record the results.
+
+## Attachment 35: Read, Verify, Summarize, Apply
+- [x] Read and extract the actionable requirements from `pasted_content_35.txt`.
+- [x] Summarize the attachment and compare its requirements with the restored stable project.
+- [x] Apply only verified safe, in-scope attachment changes without reintroducing ThreeUI or touching production.
+- [x] Validate the applied changes and record the results.
