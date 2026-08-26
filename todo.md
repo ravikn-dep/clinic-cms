@@ -1043,8 +1043,8 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Read and extract the actionable requirements from `pasted_content_32.txt`.
 - [x] Summarize the attachment and compare its requirements with the restored stable project.
 - [x] Apply only the verified, safe, in-scope attachment changes without reintroducing ThreeUI UI.
-- [ ] Validate the applied changes and record the results.
-- [ ] Investigate and, only if justified, narrowly fix the reproducible feature-access permission overwrite transaction stall blocking the full validation suite; preserve RBAC semantics and do not add functionality.
+- [x] Validate the applied changes and record the results.
+- [x] Investigate and, only if justified, narrowly fix the reproducible feature-access permission overwrite transaction stall blocking the full validation suite; preserve RBAC semantics and do not add functionality. The stall was intermittent; three bounded isolated runs and the coherent full suite passed, so no speculative repair was retained.
 
 ## User Management Record Classification Audit
 - [x] Verify the User Management page page-size/pagination and compare its displayed pages with the development users table.
