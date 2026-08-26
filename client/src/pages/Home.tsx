@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   ArrowRight,
   CalendarDays,
-  ClipboardPenLine,
   Clock,
   HeartPulse,
   Loader2,
@@ -33,18 +32,21 @@ export default function Home() {
     refetchIntervalInBackground: false,
   };
 
-  const patientsQuery = trpc.patients.getAll.useQuery(undefined, pollingOptions);
+  const today = new Date().toISOString().slice(0, 10);
+  const appointmentsQuery = trpc.appointments.list.useQuery({ dateFrom: today, dateTo: today }, pollingOptions);
   const inventoryQuery = trpc.inventory.getAll.useQuery(undefined, pollingOptions);
   const lowStockQuery = trpc.inventory.getLowStock.useQuery(undefined, pollingOptions);
   const purchaseOrdersQuery = trpc.purchaseOrders.getAll.useQuery(undefined, pollingOptions);
 
-  const patients = patientsQuery.data || [];
+  const appointments = appointmentsQuery.data || [];
   const inventoryItems = inventoryQuery.data || [];
   const lowStockItems = lowStockQuery.data || [];
   const purchaseOrders = purchaseOrdersQuery.data || [];
   const pendingPOs = purchaseOrders.filter((po: any) => po.paymentStatus === "Pending").length;
-  const hasDashboardError = patientsQuery.isError || inventoryQuery.isError || lowStockQuery.isError || purchaseOrdersQuery.isError;
-  const todayConsultations = patients.slice(0, 5);
+  const checkedInCount = appointments.filter((appointment: any) => appointment.status === "Checked-in").length;
+  const completedCount = appointments.filter((appointment: any) => appointment.status === "Completed").length;
+  const hasDashboardError = appointmentsQuery.isError || inventoryQuery.isError || lowStockQuery.isError || purchaseOrdersQuery.isError;
+  const todayConsultations = appointments.slice(0, 5);
   const todayLabel = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -54,19 +56,27 @@ export default function Home() {
 
   const stats = [
     {
-      label: "Patients cared for",
-      value: patientsQuery.isLoading ? null : patients.length,
-      icon: Users,
-      helper: "Registered in this workspace",
+      label: "Today's appointments",
+      value: appointmentsQuery.isLoading ? null : appointments.length,
+      icon: CalendarDays,
+      helper: "Authoritative visit queue",
       tone: "from-teal-50 to-cyan-50 text-teal-700 border-teal-100",
-      feature: "patient_records" as const,
+      feature: "appointments" as const,
     },
     {
-      label: "Today's queue",
-      value: todayConsultations.length,
+      label: "Checked in",
+      value: appointmentsQuery.isLoading ? null : checkedInCount,
       icon: Clock,
-      helper: "Refreshing every 30 seconds",
+      helper: "Ready for OP generation",
       tone: "from-blue-50 to-indigo-50 text-blue-700 border-blue-100",
+      feature: "appointments" as const,
+    },
+    {
+      label: "Completed today",
+      value: appointmentsQuery.isLoading ? null : completedCount,
+      icon: HeartPulse,
+      helper: "Closed after encounter billing",
+      tone: "from-emerald-50 to-teal-50 text-emerald-700 border-emerald-100",
       feature: "appointments" as const,
     },
     {
@@ -102,13 +112,6 @@ export default function Home() {
       icon: Users,
 		path: "/new-visit",
 		feature: "appointments" as const,
-    },
-    {
-      title: "Ambient Scribe",
-      description: "Create a consultation note",
-      icon: ClipboardPenLine,
-      path: "/scribe",
-      feature: "ambient_scribe" as const,
     },
     {
       title: "Pharmacy",
@@ -163,11 +166,6 @@ export default function Home() {
 					+ New Visit / Appointment
               </Button>
             </FeatureGate>
-            <FeatureGate feature="ambient_scribe">
-              <Button onClick={() => navigate("/scribe")} size="lg" variant="outline" className="friendly-action border-teal-200 bg-white/80 text-teal-800 hover:bg-teal-50">
-                Start Scribe
-              </Button>
-            </FeatureGate>
           </div>
         </div>
       </section>
@@ -210,9 +208,9 @@ export default function Home() {
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <CardTitle className="flex items-center gap-2 text-teal-950 text-xl">
-                    <Sparkles className="h-5 w-5 text-amber-500" /> Today's Patient Queue
+                    <Sparkles className="h-5 w-5 text-amber-500" /> Today's Visit Queue
                   </CardTitle>
-                <CardDescription className="text-teal-700 mt-2">Patients scheduled for consultation today. The queue refreshes automatically while the dashboard is open.</CardDescription>
+                <CardDescription className="text-teal-700 mt-2">Appointments scheduled today. Status and actions follow the paper-first visit workflow.</CardDescription>
               </div>
               <Badge variant="outline" className="rounded-full border-teal-300 bg-white text-teal-800 font-semibold px-3 py-1 flex-shrink-0">
                 <span className="inline-block h-2 w-2 rounded-full bg-teal-500 mr-2 animate-pulse"></span>
@@ -221,32 +219,30 @@ export default function Home() {
             </div>
           </CardHeader>
           <CardContent className="pt-5">
-            {patientsQuery.isLoading ? (
+            {appointmentsQuery.isLoading ? (
               <div className="flex items-center justify-center rounded-2xl border border-dashed border-teal-200 bg-teal-50/50 py-16 text-muted-foreground">
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Refreshing queue...
               </div>
             ) : todayConsultations.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-teal-200 bg-teal-50/50 px-6 py-16 text-center">
-                <p className="font-semibold text-teal-950 text-lg">No patients are waiting right now.</p>
-                <p className="mt-2 text-sm text-muted-foreground">When you register a patient, they will appear here for a quick next-step review.</p>
+                <p className="font-semibold text-teal-950 text-lg">No appointments are scheduled today.</p>
+                <p className="mt-2 text-sm text-muted-foreground">Start a New Visit / Appointment to add the next patient to the clinic queue.</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {todayConsultations.map((patient, idx) => (
-                  <div key={patient.patientId} className="flex flex-col gap-3 rounded-2xl border border-teal-100/50 bg-gradient-to-r from-white to-teal-50/30 p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-teal-200 sm:flex-row sm:items-center sm:justify-between">
+                {todayConsultations.map((appointment: any, idx) => (
+                  <div key={appointment.appointmentId} className="flex flex-col gap-3 rounded-2xl border border-teal-100/50 bg-gradient-to-r from-white to-teal-50/30 p-4 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-teal-200 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-4">
                       <Badge variant="outline" className="rounded-lg border-teal-300 bg-gradient-to-br from-teal-50 to-cyan-50 px-3 py-2 text-sm font-bold text-teal-800 flex-shrink-0">
-                        #{idx + 1}
+                        {appointment.appointmentTime || `#${idx + 1}`}
                       </Badge>
                       <div className="flex-1">
-                        <p className="font-semibold text-teal-950 text-sm">
-                          {patient.firstName} {patient.lastName}
-                        </p>
-                        <p className="text-xs text-muted-foreground">ID: {patient.patientId}</p>
+                        <p className="font-semibold text-teal-950 text-sm">Patient {appointment.patientId}</p>
+                        <p className="text-xs text-muted-foreground">{appointment.status} · Consultant {appointment.consultantId}</p>
                       </div>
                     </div>
-                    <Button variant="outline" size="sm" className="friendly-action border-teal-200 bg-white hover:bg-teal-50 text-teal-800 rounded-lg transition-all" onClick={() => navigate("/patients")}>
-                      View Details <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                    <Button variant="outline" size="sm" className="friendly-action border-teal-200 bg-white hover:bg-teal-50 text-teal-800 rounded-lg transition-all" onClick={() => navigate("/appointments")}>
+                      Open Queue <ArrowRight className="ml-2 h-3.5 w-3.5" />
                     </Button>
                   </div>
                 ))}

@@ -10,6 +10,9 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -21,31 +24,12 @@ import {
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
-import { FEATURE_TO_ROUTES } from "@/lib/featureAccess";
-import { Activity, Bell, BarChart3, Calendar, ClipboardPenLine, LayoutDashboard, LogOut, PackageSearch, PanelLeft, Receipt, ShoppingCart, UserPlus, Users, Download, Settings, Lock, Tags } from "lucide-react";
+import { DASHBOARD_NAVIGATION_GROUPS, getVisibleNavigationGroups } from "@/lib/dashboardNavigation";
+import { LayoutDashboard, LogOut, Lock } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
-
-const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-	{ icon: UserPlus, label: "New Visit / Appointment", path: "/new-visit", feature: "appointments" as const },
-  { icon: Users, label: "Patient Records", path: "/patients", feature: "patient_records" as const },
-  { icon: ClipboardPenLine, label: "Ambient Scribe", path: "/scribe", feature: "ambient_scribe" as const },
-  { icon: PackageSearch, label: "Pharmacy", path: "/pharmacy", feature: "pharmacy" as const },
-  { icon: Receipt, label: "Billing", path: "/billing", feature: "billing" as const },
-  { icon: ShoppingCart, label: "Purchase Orders", path: "/purchase-orders", feature: "purchase_orders" as const },
-  { icon: Calendar, label: "Appointments", path: "/appointments", feature: "appointments" as const },
-  { icon: Bell, label: "Notifications", path: "/notifications", feature: "notifications" as const },
-  { icon: Users, label: "User Management", path: "/users", adminOnly: true },
-  { icon: Settings, label: "Feature Access Control", path: "/feature-access", adminOnly: true },
-  { icon: Tags, label: "Catalog Management", path: "/catalog-management", adminOnly: true },
-  { icon: Settings, label: "OP Form Customization", path: "/op-form-customization", adminOnly: true },
-  { icon: BarChart3, label: "Analytics", path: "/analytics", adminOnly: true },
-  { icon: Activity, label: "Audit Trail", path: "/audit-logs", feature: "audit_trail" as const },
-  { icon: Download, label: "Daily Export", path: "/daily-export", feature: "daily_export" as const },
-];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -97,15 +81,7 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const visibleMenuItems = menuItems.filter(item => {
-	// Always show the dashboard; operational entries remain feature-gated.
-	if (item.path === "/") return true;
-    // Show admin items only for admins
-    if (item.adminOnly) return user?.role === "admin";
-    // Show feature-gated items if user has access
-    if (item.feature) return hasAccess(item.feature);
-    return true;
-  });
+  const visibleNavigationGroups = getVisibleNavigationGroups(DASHBOARD_NAVIGATION_GROUPS, user?.role, hasAccess);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -154,21 +130,48 @@ function DashboardLayoutContent({
         </SidebarHeader>
         <SidebarContent className="px-2 py-4">
           <SidebarMenu className="gap-1">
-            {visibleMenuItems.map((item) => (
-              <SidebarMenuItem key={item.path}>
-                <SidebarMenuButton
-                  asChild
-                  isActive={location === item.path}
-                  onClick={() => setLocation(item.path)}
-                  className="cursor-pointer rounded-lg transition-all duration-200 hover:bg-teal-100/50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-teal-500 data-[active=true]:to-cyan-500 data-[active=true]:text-white data-[active=true]:shadow-md"
-                >
-                  <a href={item.path} className="flex items-center gap-3">
-                    <item.icon className="h-5 w-5 flex-shrink-0" />
-                    <span className="text-sm font-medium">{item.label}</span>
-                  </a>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            ))}
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={location === "/"}
+                onClick={() => setLocation("/")}
+                className="cursor-pointer rounded-lg transition-all duration-200 hover:bg-teal-100/50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-teal-500 data-[active=true]:to-cyan-500 data-[active=true]:text-white data-[active=true]:shadow-md"
+              >
+                <a href="/" className="flex items-center gap-3">
+                  <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+                  <span className="text-sm font-medium">Dashboard</span>
+                </a>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+            {visibleNavigationGroups.map((group) => {
+              const visibleItems = group.items;
+              return (
+                <SidebarGroup key={group.label} className="px-0 pt-4 first:pt-2">
+                  <SidebarGroupLabel className="px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-teal-700/70 group-data-[collapsible=icon]:hidden">
+                    {group.label}
+                  </SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarMenu className="gap-1">
+                      {visibleItems.map((item) => (
+                        <SidebarMenuItem key={item.path}>
+                          <SidebarMenuButton
+                            asChild
+                            isActive={location === item.path}
+                            onClick={() => setLocation(item.path)}
+                            className="cursor-pointer rounded-lg transition-all duration-200 hover:bg-teal-100/50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-teal-500 data-[active=true]:to-cyan-500 data-[active=true]:text-white data-[active=true]:shadow-md"
+                          >
+                            <a href={item.path} className="flex items-center gap-3">
+                              <item.icon className="h-5 w-5 flex-shrink-0" />
+                              <span className="text-sm font-medium">{item.label}</span>
+                            </a>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              );
+            })}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="border-t border-border/40 bg-gradient-to-r from-slate-50 to-teal-50/30 px-2 py-4">
