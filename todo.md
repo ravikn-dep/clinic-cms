@@ -1057,3 +1057,8 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Verify canonical baseline ancestry, clean status, documentation-only delta, and staged-scope rules.
 - [x] Confirm existing exact commit `docs(product): establish canonical Clinic CMS PRD`; do not create a redundant empty commit.
 - [x] Stop without push, PR, merge, tag, deployment, roadmap implementation, or production changes.
+
+## PRD V1 Final Documentation Commit Verification
+- [x] Verify branch, required files, corrected milestone table, baseline, and documentation-only scope.
+- [x] Stage only `PRD.md`, `PRD_INITIAL_RECONCILIATION_REPORT.md`, and `todo.md`; verify staged diff and commit with the exact requested message.
+- [x] Stop after the local commit without push, PR, merge, tag, deployment, or production changes.
