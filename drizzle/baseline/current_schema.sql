@@ -514,3 +514,34 @@ ALTER TABLE `consultations` ADD `appointmentId` varchar(50);
 ALTER TABLE `consultations` ADD CONSTRAINT `consultations_appointmentId_unique` UNIQUE(`appointmentId`);
 
 ALTER TABLE `bills` ADD CONSTRAINT `bills_consultationId_unique` UNIQUE(`consultationId`);
+
+-- Phase 4 unified Patient Visit additive schema
+CREATE TABLE `encounters` (
+  `encounterId` varchar(50) NOT NULL,
+  `patientId` varchar(50) NOT NULL,
+  `consultantId` int NOT NULL,
+  `appointmentId` varchar(50),
+  `source` enum('WALK_IN','APPOINTMENT','PHONE','MANUAL') NOT NULL DEFAULT 'WALK_IN',
+  `status` enum('Present','Checked-in','OP Generated','Ready for Billing','Closed') NOT NULL DEFAULT 'Present',
+  `createdBy` varchar(100) NOT NULL,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `closedAt` timestamp,
+  CONSTRAINT `encounters_encounterId` PRIMARY KEY(`encounterId`),
+  CONSTRAINT `encounters_encounterId_unique` UNIQUE(`encounterId`),
+  CONSTRAINT `encounters_appointmentId_unique` UNIQUE(`appointmentId`)
+);
+CREATE TABLE `patientIdSequences` (
+  `sequenceDate` varchar(10) NOT NULL,
+  `nextSequence` int NOT NULL DEFAULT 1,
+  `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT `patientIdSequences_sequenceDate` PRIMARY KEY(`sequenceDate`),
+  CONSTRAINT `patientIdSequences_sequenceDate_unique` UNIQUE(`sequenceDate`)
+);
+ALTER TABLE `consultations` ADD `encounterId` varchar(50);
+ALTER TABLE `consultations` ADD CONSTRAINT `consultations_encounterId_unique` UNIQUE(`encounterId`);
+ALTER TABLE `bills` ADD `encounterId` varchar(50);
+ALTER TABLE `bills` ADD CONSTRAINT `bills_encounterId_unique` UNIQUE(`encounterId`);
+CREATE INDEX `encounters_patientId_idx` ON `encounters` (`patientId`);
+CREATE INDEX `encounters_consultantId_idx` ON `encounters` (`consultantId`);

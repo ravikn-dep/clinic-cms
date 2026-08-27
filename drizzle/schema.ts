@@ -77,8 +77,10 @@ export const bills = mysqlTable("bills", {
 	receiptPdfUrl: text(),
 	receiptPdfKey: text(),
 		consultationNotes: text(),
+	encounterId: varchar({ length: 50 }),
 	}, (table) => [
 		uniqueIndex("bills_consultationId_unique").on(table.consultationId),
+		uniqueIndex("bills_encounterId_unique").on(table.encounterId),
 	]);
 
 export const consultantAvailability = mysqlTable("consultantAvailability", {
@@ -93,6 +95,33 @@ export const consultantAvailability = mysqlTable("consultantAvailability", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
+
+export const patientIdSequences = mysqlTable("patientIdSequences", {
+	sequenceDate: varchar({ length: 10 }).notNull(),
+	nextSequence: int().notNull().default(1),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+	uniqueIndex("patientIdSequences_sequenceDate_unique").on(table.sequenceDate),
+]);
+
+export const encounters = mysqlTable("encounters", {
+	encounterId: varchar({ length: 50 }).notNull(),
+	patientId: varchar({ length: 50 }).notNull(),
+	consultantId: int().notNull(),
+	appointmentId: varchar({ length: 50 }),
+	source: mysqlEnum(['WALK_IN','APPOINTMENT','PHONE','MANUAL']).default('WALK_IN').notNull(),
+	status: mysqlEnum(['Present','Checked-in','OP Generated','Ready for Billing','Closed']).default('Present').notNull(),
+	createdBy: varchar({ length: 100 }).notNull(),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+	closedAt: timestamp({ mode: 'string' }),
+}, (table) => [
+	uniqueIndex("encounters_encounterId_unique").on(table.encounterId),
+	uniqueIndex("encounters_appointmentId_unique").on(table.appointmentId),
+	index("encounters_patientId_idx").on(table.patientId),
+	index("encounters_consultantId_idx").on(table.consultantId),
+]);
 
 export const consultations = mysqlTable("consultations", {
 	consultationId: varchar({ length: 50 }).notNull(),
@@ -110,9 +139,11 @@ export const consultations = mysqlTable("consultations", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	consultantId: int(),
-	appointmentId: varchar({ length: 50 }),
-}, (table) => [
-	uniqueIndex("consultations_appointmentId_unique").on(table.appointmentId),
+		appointmentId: varchar({ length: 50 }),
+		encounterId: varchar({ length: 50 }),
+	}, (table) => [
+		uniqueIndex("consultations_appointmentId_unique").on(table.appointmentId),
+		uniqueIndex("consultations_encounterId_unique").on(table.encounterId),
 ]);
 
 export const inventory = mysqlTable("inventory", {

@@ -92,11 +92,12 @@ export default function PatientRecords() {
   const bills = billsQuery.data || [];
   const visitChains = visitChainQuery.data || [];
   const eligibleBillingVisits = useMemo(
-    () => visitChains.filter((chain) => Boolean(chain.consultation?.isFinalized && !chain.bill && chain.consultation?.appointmentId)),
+    () => visitChains.filter((chain) => Boolean(chain.consultation?.isFinalized && !chain.bill && (chain.consultation?.appointmentId || chain.encounter?.encounterId))),
     [visitChains],
   );
-  const openEncounterBilling = (consultationId: string, patientId: string) => {
-    setLocation(`/billing?consultationId=${encodeURIComponent(consultationId)}&patientId=${encodeURIComponent(patientId)}`);
+  const openEncounterBilling = (consultationId: string, patientId: string, encounterId?: string | null) => {
+    const encounterParam = encounterId ? `&encounterId=${encodeURIComponent(encounterId)}` : "";
+    setLocation(`/billing?consultationId=${encodeURIComponent(consultationId)}&patientId=${encodeURIComponent(patientId)}${encounterParam}`);
   };
   useEffect(() => {
     const visibleIds = filteredPatients.map((patient) => patient.patientId);
@@ -328,7 +329,7 @@ export default function PatientRecords() {
                                                                               <div className="mb-3 flex items-center gap-2 font-medium"><FileCheck className="h-4 w-4 text-teal-700" /> Visit chain</div>
                                                                               <div className="space-y-2 text-sm">
                                                                                 {visitChains.map((chain) => (
-                                                                                  <div key={chain.appointment.appointmentId} className="grid gap-1 rounded-md border bg-white p-3 sm:grid-cols-4">
+                                                                                  <div key={chain.encounter?.encounterId || chain.appointment.appointmentId} className="grid gap-1 rounded-md border bg-white p-3 sm:grid-cols-4">
                                                                                     <span><strong>Appointment:</strong> {chain.appointment.status}</span>
                                                                                     <span><strong>Consultation:</strong> {chain.consultation?.consultationId || "—"}</span>
                                                                                     <span><strong>Bill:</strong> {chain.bill?.billId || "—"}</span>
@@ -371,7 +372,7 @@ export default function PatientRecords() {
                                                                                                           setLocation(`/billing?consultationId=${encodeURIComponent(consultation.consultationId)}&patientId=${encodeURIComponent(selectedPatientId || "")}`);
                                                                                                           return;
                                                                                                         }
-                                                                                                        openEncounterBilling(consultation.consultationId, selectedPatientId || "");
+                                                                                                        openEncounterBilling(consultation.consultationId, selectedPatientId || "", chain?.encounter?.encounterId);
                                                                                     }}
                                                                                     disabled={!canAccessBilling || !consultation.isFinalized}
                                                                                     title={!canAccessBilling ? "Billing access is not enabled" : consultation.isFinalized ? "Generate Bill for this consultation" : "Mark the consultation ready for billing first"}

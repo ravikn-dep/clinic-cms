@@ -1,13 +1,14 @@
 import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, catalogItems, catalogItemAliases, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays, procurementPostingLocks } from "../drizzle/schema";
+import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, catalogItems, catalogItemAliases, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays, procurementPostingLocks, encounters, patientIdSequences } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 import { nanoid } from "nanoid";
 import { normalizeIndianMobile } from "./external/validation";
 import { normalizeGstNumber, normalizeVendorName, receiptStateForLines, type VendorMasterRecord } from "./procurement";
 import { canCheckInAppointment, canStartAppointmentConsultation } from "./visitWorkflow";
+import { canCheckInEncounter, canGenerateEncounterOp } from "./paperFirstWorkflow";
 
 const SALT_ROUNDS = 10;
 type InsertUser = typeof users.$inferInsert;
@@ -130,6 +131,16 @@ export async function getAllPatients() {
   if (!db) throw new Error("Database not available");
   
   return db.select().from(patients).orderBy(desc(patients.createdAt));
+}
+
+export async function reserveDailyPatientSequence(sequenceDate: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.execute(sql`INSERT INTO patientIdSequences (sequenceDate, nextSequence) VALUES (${sequenceDate}, 2) ON DUPLICATE KEY UPDATE nextSequence = nextSequence + 1`);
+  const result = await db.execute(sql`SELECT nextSequence - 1 AS allocatedSequence FROM patientIdSequences WHERE sequenceDate = ${sequenceDate}`);
+  const row = (result as any)[0]?.[0] as { allocatedSequence?: number } | undefined;
+  if (!row?.allocatedSequence || row.allocatedSequence < 1) throw new Error("Unable to allocate a daily Patient ID");
+  return Number(row.allocatedSequence);
 }
 
 export async function countPatientsByPatientIdPrefix(patientIdPrefix: string) {
@@ -1685,18 +1696,91 @@ export async function startAppointmentConsultationWithAudit(appointmentId: strin
 		const appointment = (await transaction.select().from(appointments).where(eq(appointments.appointmentId, appointmentId)).limit(1))[0];
 		if (!appointment) throw new Error("Appointment not found");
 		if (!canStartAppointmentConsultation(appointment.status)) throw new Error("Appointment must be checked in before starting consultation");
-		const existing = (await transaction.select().from(consultations).where(eq(consultations.appointmentId, appointmentId)).limit(1))[0];
-		if (existing) return { consultation: existing, created: false };
-		const consultationId = `CON-${nanoid(16).toUpperCase()}`;
+    const encounter = (await transaction.select().from(encounters).where(eq(encounters.appointmentId, appointmentId)).limit(1))[0] ?? null;
+    const existing = (await transaction.select().from(consultations).where(eq(consultations.appointmentId, appointmentId)).limit(1))[0];
+    if (existing) return { consultation: existing, created: false };
+    const consultationId = `CON-${nanoid(16).toUpperCase()}`;
 		const consultationDate = new Date().toISOString();
-		const consultation = { consultationId, appointmentId, patientId: appointment.patientId, consultantId: appointment.consultantId, consultationDate };
-		await transaction.insert(consultations).values(consultation);
+    const consultation = { consultationId, appointmentId, encounterId: encounter?.encounterId, patientId: appointment.patientId, consultantId: appointment.consultantId, consultationDate };
+    await transaction.insert(consultations).values(consultation);
+    if (encounter) await transaction.update(encounters).set({ status: "OP Generated", updatedAt: consultationDate }).where(eq(encounters.encounterId, encounter.encounterId));
 		await transaction.insert(auditLogs).values({
 			logId: nanoid(20), userId: actorId, actionType: "CONSULTATION_STARTED", tableName: "consultations", recordId: consultationId,
 			newValue: JSON.stringify({ appointmentId, patientId: appointment.patientId, consultantId: appointment.consultantId }), timestamp: consultationDate,
 		});
 		return { consultation, created: true };
 	});
+}
+
+export async function createDirectEncounterWithAudit(data: { patientId: string; consultantId: number; source: "WALK_IN" | "PHONE" | "MANUAL"; actorId: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (transaction) => {
+    const existing = (await transaction.select().from(encounters).where(sql`${encounters.patientId} = ${data.patientId} AND ${encounters.consultantId} = ${data.consultantId} AND DATE(${encounters.createdAt}) = CURDATE() AND ${encounters.status} <> 'Closed'`).limit(1))[0];
+    if (existing) return { encounter: existing, created: false };
+    const encounterId = `ENC-${nanoid(16).toUpperCase()}`;
+    const createdAt = new Date().toISOString();
+    const encounter = { encounterId, patientId: data.patientId, consultantId: data.consultantId, source: data.source, status: "Present" as const, createdBy: data.actorId, createdAt, updatedAt: createdAt };
+    await transaction.insert(encounters).values(encounter);
+    await transaction.insert(auditLogs).values({ logId: nanoid(20), userId: data.actorId, actionType: "ENCOUNTER_CREATED", tableName: "encounters", recordId: encounterId, newValue: JSON.stringify({ patientId: data.patientId, consultantId: data.consultantId, source: data.source }), timestamp: createdAt });
+    return { encounter, created: true };
+  });
+}
+
+export async function checkInEncounterWithAudit(encounterId: string, actorId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (transaction) => {
+    const encounter = (await transaction.select().from(encounters).where(eq(encounters.encounterId, encounterId)).limit(1))[0];
+    if (!encounter) throw new Error("Encounter not found");
+    if (!canCheckInEncounter(encounter.status)) return encounter;
+    const timestamp = new Date().toISOString();
+    await transaction.update(encounters).set({ status: "Checked-in", updatedAt: timestamp }).where(eq(encounters.encounterId, encounterId));
+    await transaction.insert(auditLogs).values({ logId: nanoid(20), userId: actorId, actionType: "ENCOUNTER_CHECKED_IN", tableName: "encounters", recordId: encounterId, oldValue: JSON.stringify({ status: encounter.status }), newValue: JSON.stringify({ status: "Checked-in" }), timestamp });
+    return { ...encounter, status: "Checked-in" as const, updatedAt: timestamp };
+  });
+}
+
+export async function startEncounterConsultationWithAudit(encounterId: string, actorId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (transaction) => {
+    const encounter = (await transaction.select().from(encounters).where(eq(encounters.encounterId, encounterId)).limit(1))[0];
+    if (!encounter) throw new Error("Encounter not found");
+    if (!canGenerateEncounterOp(encounter.status)) throw new Error("Encounter must be checked in before generating an OP");
+    const existing = (await transaction.select().from(consultations).where(eq(consultations.encounterId, encounterId)).limit(1))[0];
+    if (existing) return { consultation: existing, created: false };
+    const consultationId = `CON-${nanoid(16).toUpperCase()}`;
+    const consultationDate = new Date().toISOString();
+    const consultation = { consultationId, encounterId, patientId: encounter.patientId, consultantId: encounter.consultantId, consultationDate };
+    await transaction.insert(consultations).values(consultation);
+    await transaction.update(encounters).set({ status: "OP Generated", updatedAt: consultationDate }).where(eq(encounters.encounterId, encounterId));
+    await transaction.insert(auditLogs).values({ logId: nanoid(20), userId: actorId, actionType: "OP_GENERATED", tableName: "encounters", recordId: encounterId, newValue: JSON.stringify({ encounterId, consultationId, patientId: encounter.patientId, consultantId: encounter.consultantId }), timestamp: consultationDate });
+    return { consultation, created: true };
+  });
+}
+
+export async function createEncounterForAppointmentWithAudit(data: { appointmentId: string; actorId: string; appointment?: typeof appointments.$inferSelect }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.transaction(async (transaction) => {
+    const appointment = data.appointment ?? (await transaction.select().from(appointments).where(eq(appointments.appointmentId, data.appointmentId)).limit(1))[0];
+    if (!appointment) throw new Error("Appointment not found");
+    const existing = (await transaction.select().from(encounters).where(eq(encounters.appointmentId, data.appointmentId)).limit(1))[0];
+    if (existing) return { encounter: existing, created: false };
+    const encounterId = `ENC-${nanoid(16).toUpperCase()}`;
+    const timestamp = new Date().toISOString();
+    const encounter = { encounterId, patientId: appointment.patientId, consultantId: appointment.consultantId, appointmentId: appointment.appointmentId, source: appointment.appointmentSource === "PHONE" ? "PHONE" as const : "APPOINTMENT" as const, status: "Present" as const, createdBy: data.actorId, createdAt: timestamp, updatedAt: timestamp };
+    await transaction.insert(encounters).values(encounter);
+    await transaction.insert(auditLogs).values({ logId: nanoid(20), userId: data.actorId, actionType: "ENCOUNTER_CREATED", tableName: "encounters", recordId: encounterId, newValue: JSON.stringify({ appointmentId: appointment.appointmentId, patientId: appointment.patientId, consultantId: appointment.consultantId, source: encounter.source }), timestamp });
+    return { encounter, created: true };
+  });
+}
+
+export async function getEncounterById(encounterId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return (await db.select().from(encounters).where(eq(encounters.encounterId, encounterId)).limit(1))[0];
 }
 
 export async function getAppointmentById(appointmentId: string) {
@@ -2266,19 +2350,24 @@ export async function completeConsultationWithAudit(consultationId: string, acto
   return database.transaction(async (transaction) => {
     const consultation = (await transaction.select().from(consultations).where(eq(consultations.consultationId, consultationId)).limit(1))[0];
     if (!consultation) throw new Error("Consultation not found");
-    const appointment = consultation.appointmentId
+    const encounter = consultation.encounterId
+      ? (await transaction.select().from(encounters).where(eq(encounters.encounterId, consultation.encounterId)).limit(1))[0]
+      : null;
+    const appointment = !encounter && consultation.appointmentId
       ? (await transaction.select().from(appointments).where(eq(appointments.appointmentId, consultation.appointmentId)).limit(1))[0]
       : null;
-    if (!appointment) throw new Error("Appointment not found");
-    if (!allowAdminOverride && appointment.consultantId !== Number(actorId)) throw new Error("Only the assigned consultant can complete this encounter");
+    if (!encounter && !appointment) throw new Error("Encounter not found");
+    const consultantId = encounter?.consultantId ?? appointment?.consultantId;
+    if (!allowAdminOverride && consultantId !== Number(actorId)) throw new Error("Only the assigned consultant can complete this encounter");
     if (consultation.isFinalized) return { consultation, changed: false };
     const timestamp = new Date().toISOString();
     await transaction.update(consultations).set({ isFinalized: 1, updatedAt: timestamp }).where(eq(consultations.consultationId, consultationId));
     await transaction.insert(auditLogs).values({
       logId: nanoid(20), userId: actorId, actionType: allowAdminOverride ? "CONSULTATION_COMPLETED_ADMIN_OVERRIDE" : "CONSULTATION_COMPLETED",
       tableName: "consultations", recordId: consultationId, oldValue: JSON.stringify({ isFinalized: consultation.isFinalized }),
-      newValue: JSON.stringify({ isFinalized: 1, appointmentId: appointment.appointmentId }), timestamp,
+      newValue: JSON.stringify({ isFinalized: 1, encounterId: encounter?.encounterId ?? null, appointmentId: appointment?.appointmentId ?? null }), timestamp,
     });
+    if (encounter) await transaction.update(encounters).set({ status: "Ready for Billing", updatedAt: timestamp }).where(eq(encounters.encounterId, encounter.encounterId));
     return { consultation: { ...consultation, isFinalized: 1 as const, updatedAt: timestamp }, changed: true };
   });
 }
@@ -2292,7 +2381,8 @@ export async function getEncounterBillByConsultationId(consultationId: string) {
 export async function createEncounterBillAndCloseVisit(data: {
   bill: typeof bills.$inferInsert;
   items: Array<typeof billItems.$inferInsert>;
-  appointmentId: string;
+  appointmentId?: string;
+  encounterId?: string;
   actorId: string;
 }) {
   const database = await getDb();
@@ -2301,17 +2391,23 @@ export async function createEncounterBillAndCloseVisit(data: {
     const consultation = data.bill.consultationId
       ? (await transaction.select().from(consultations).where(eq(consultations.consultationId, data.bill.consultationId)).limit(1))[0]
       : null;
-    if (!consultation || !consultation.appointmentId || consultation.appointmentId !== data.appointmentId) throw new Error("Encounter billing context is invalid");
-    if (!consultation.isFinalized) throw new Error("Consultation must be completed before billing");
+    if (!consultation || !consultation.isFinalized) throw new Error("Consultation must be completed before billing");
+    const encounter = consultation.encounterId
+      ? (await transaction.select().from(encounters).where(eq(encounters.encounterId, consultation.encounterId)).limit(1))[0]
+      : null;
+    if (data.encounterId && (!encounter || encounter.encounterId !== data.encounterId)) throw new Error("Encounter billing context is invalid");
+    if (data.appointmentId && consultation.appointmentId !== data.appointmentId) throw new Error("Encounter billing context is invalid");
+    if (!encounter && !data.appointmentId) throw new Error("Encounter billing context is invalid");
     const existing = (await transaction.select().from(bills).where(eq(bills.consultationId, consultation.consultationId)).limit(1))[0];
     if (existing) return { bill: existing, created: false };
-    await transaction.insert(bills).values(data.bill);
+    await transaction.insert(bills).values({ ...data.bill, encounterId: encounter?.encounterId ?? undefined });
     for (const item of data.items) await transaction.insert(billItems).values(item);
     const timestamp = new Date().toISOString();
-    await transaction.update(appointments).set({ status: "Completed", updatedAt: timestamp }).where(eq(appointments.appointmentId, data.appointmentId));
+    if (encounter) await transaction.update(encounters).set({ status: "Closed", closedAt: timestamp, updatedAt: timestamp }).where(eq(encounters.encounterId, encounter.encounterId));
+    if (data.appointmentId) await transaction.update(appointments).set({ status: "Completed", updatedAt: timestamp }).where(eq(appointments.appointmentId, data.appointmentId));
     await transaction.insert(auditLogs).values({
-      logId: nanoid(20), userId: data.actorId, actionType: "VISIT_CLOSED_AFTER_BILL", tableName: "appointments", recordId: data.appointmentId,
-      newValue: JSON.stringify({ consultationId: consultation.consultationId, billId: data.bill.billId, status: "Completed" }), timestamp,
+      logId: nanoid(20), userId: data.actorId, actionType: "VISIT_CLOSED_AFTER_BILL", tableName: encounter ? "encounters" : "appointments", recordId: encounter?.encounterId ?? data.appointmentId,
+      newValue: JSON.stringify({ consultationId: consultation.consultationId, billId: data.bill.billId, status: "Closed", encounterId: encounter?.encounterId ?? null }), timestamp,
     });
     return { bill: data.bill, created: true };
   });
@@ -2321,32 +2417,45 @@ export async function getPatientVisitChain(patientId: string) {
   const database = await getDb();
   if (!database) throw new Error("Database not available");
   const patientAppointments = await database.select().from(appointments).where(eq(appointments.patientId, patientId)).orderBy(desc(appointments.createdAt));
-  const chains = [];
+  const chains: any[] = [];
   for (const appointment of patientAppointments) {
     const consultation = (await database.select().from(consultations).where(eq(consultations.appointmentId, appointment.appointmentId)).limit(1))[0] ?? null;
     const bill = consultation ? (await database.select().from(bills).where(eq(bills.consultationId, consultation.consultationId)).limit(1))[0] ?? null : null;
-    chains.push({ appointment, consultation, bill });
+    const encounter = (await database.select().from(encounters).where(eq(encounters.appointmentId, appointment.appointmentId)).limit(1))[0] ?? null;
+    chains.push({ appointment, encounter, consultation, bill });
   }
-  return chains;
+  const directEncounters = await database.select().from(encounters).where(and(eq(encounters.patientId, patientId), sql`${encounters.appointmentId} IS NULL`)).orderBy(desc(encounters.createdAt));
+  for (const encounter of directEncounters) {
+    const consultation = (await database.select().from(consultations).where(eq(consultations.encounterId, encounter.encounterId)).limit(1))[0] ?? null;
+    const bill = consultation ? (await database.select().from(bills).where(eq(bills.consultationId, consultation.consultationId)).limit(1))[0] ?? null : null;
+    const date = new Date(encounter.createdAt);
+    chains.push({ appointment: { appointmentId: null, patientId, consultantId: encounter.consultantId, appointmentDate: date.toISOString().slice(0, 10), appointmentTime: date.toISOString().slice(11, 16), status: encounter.status, appointmentSource: encounter.source }, encounter, consultation, bill });
+  }
+  return chains.sort((left, right) => new Date(right.encounter?.createdAt ?? right.appointment.createdAt).getTime() - new Date(left.encounter?.createdAt ?? left.appointment.createdAt).getTime());
 }
 
 export async function getBillingCandidatesByDate(appointmentDate: string) {
   const database = await getDb();
   if (!database) throw new Error("Database not available");
-
-  return database
-    .select({
-      appointment: appointments,
-      patient: patients,
-      consultation: consultations,
-      bill: bills,
-      consultant: users,
-    })
+  const appointmentRows = await database.select({ appointment: appointments, patient: patients, consultation: consultations, bill: bills, consultant: users, encounter: encounters })
     .from(appointments)
     .leftJoin(patients, eq(appointments.patientId, patients.patientId))
     .leftJoin(consultations, eq(appointments.appointmentId, consultations.appointmentId))
     .leftJoin(bills, eq(consultations.consultationId, bills.consultationId))
     .leftJoin(users, eq(appointments.consultantId, users.id))
+    .leftJoin(encounters, eq(appointments.appointmentId, encounters.appointmentId))
     .where(eq(appointments.appointmentDate, appointmentDate))
     .orderBy(appointments.appointmentTime, appointments.createdAt);
+  const directRows = await database.select({ encounter: encounters, patient: patients, consultation: consultations, bill: bills, consultant: users })
+    .from(encounters)
+    .leftJoin(patients, eq(encounters.patientId, patients.patientId))
+    .leftJoin(consultations, eq(encounters.encounterId, consultations.encounterId))
+    .leftJoin(bills, eq(consultations.consultationId, bills.consultationId))
+    .leftJoin(users, eq(encounters.consultantId, users.id))
+    .where(and(sql`${encounters.appointmentId} IS NULL`, sql`DATE(${encounters.createdAt}) = ${appointmentDate}`));
+  const directAsLegacyShape = directRows.map(({ encounter, patient, consultation, bill, consultant }) => {
+    const date = new Date(encounter.createdAt);
+    return { appointment: { appointmentId: null, patientId: encounter.patientId, consultantId: encounter.consultantId, appointmentDate, appointmentTime: date.toISOString().slice(11, 16), status: encounter.status, appointmentSource: encounter.source }, patient, consultation, bill, consultant, encounter };
+  });
+  return [...appointmentRows, ...directAsLegacyShape];
 }

@@ -188,14 +188,14 @@ async function bootstrap() {
     "users", "patients", "consultations", "inventory", "bills", "billItems", "billTemplates", "auditLogs", "notifications",
     "purchaseOrders", "purchaseOrderItems", "purchaseOrderHistory", "purchaseOrderExtractionReviews", "catalogItems", "catalogItemAliases", "goodsReceipts", "goodsReceiptItems", "stockMovements",
     "appointments", "consultantAvailability", "notificationPreferences", "rolePermissions", "vendors", "appointmentBookingLocks",
-    "enquiries", "externalApiAuditLogs", "externalIdempotencyKeys", "externalRequestReplays", "procurementPostingLocks",
+    "enquiries", "externalApiAuditLogs", "externalIdempotencyKeys", "externalRequestReplays", "procurementPostingLocks", "encounters", "patientIdSequences",
   ];
 
   for (const reqTable of requiredTables) {
     const found = tables.some(t => t.toLowerCase() === reqTable.toLowerCase());
     if (!found) await fail(connection, `Required table missing: ${reqTable}`);
   }
-  console.log("[Verification] All 29 required tables verified successfully.");
+  console.log("[Verification] All 31 required tables verified successfully.");
 
   const expectedPrimaryKeys: Array<[string, string[]]> = [
     ["users", ["id"]],
@@ -227,12 +227,14 @@ async function bootstrap() {
     ["externalIdempotencyKeys", ["idempotencyId"]],
     ["externalRequestReplays", ["replayId"]],
 	["procurementPostingLocks", ["purchaseOrderId"]],
+    ["encounters", ["encounterId"]],
+    ["patientIdSequences", ["sequenceDate"]],
   ];
 
   for (const [table, columns] of expectedPrimaryKeys) {
     await assertPrimaryKey(connection, table, columns);
   }
-  console.log("[Verification] Exact PRIMARY KEY columns verified on all 29 tables.");
+  console.log("[Verification] Exact PRIMARY KEY columns verified on all 31 tables.");
 
   const [usersCols] = await connection.query("SHOW COLUMNS FROM `users` WHERE Field = 'id'");
   const usersIdCol = (usersCols as any[])[0];
@@ -259,7 +261,7 @@ async function bootstrap() {
   }
   console.log("[Verification] Consultant profile columns verified on users.");
 
-	for (const [table, column] of [["vendors", "normalizedVendorName"], ["vendors", "normalizedGstNumber"], ["vendors", "bankDetails"], ["purchaseOrders", "vendorId"], ["inventory", "catalogItemId"], ["stockMovements", "catalogItemId"], ["appointments", "appointmentSource"], ["consultations", "appointmentId"]]) {
+		for (const [table, column] of [["vendors", "normalizedVendorName"], ["vendors", "normalizedGstNumber"], ["vendors", "bankDetails"], ["purchaseOrders", "vendorId"], ["inventory", "catalogItemId"], ["stockMovements", "catalogItemId"], ["appointments", "appointmentSource"], ["consultations", "appointmentId"], ["consultations", "encounterId"], ["bills", "encounterId"], ["encounters", "appointmentId"]]) {
 		const [columnRows] = await connection.query(`SHOW COLUMNS FROM \`${table}\` WHERE Field = ?`, [column]);
 		if ((columnRows as any[]).length === 0) await fail(connection, `${table}.${column} procurement column missing.`);
 	}
@@ -292,6 +294,11 @@ async function bootstrap() {
 	["externalRequestReplays", "externalRequestReplays_key_request_unique", ["serviceKeyId", "requestId"]],
 	    ["consultations", "consultations_appointmentId_unique", ["appointmentId"]],
     ["bills", "bills_consultationId_unique", ["consultationId"]],
+    ["encounters", "encounters_encounterId_unique", ["encounterId"]],
+    ["encounters", "encounters_appointmentId_unique", ["appointmentId"]],
+    ["patientIdSequences", "patientIdSequences_sequenceDate_unique", ["sequenceDate"]],
+    ["consultations", "consultations_encounterId_unique", ["encounterId"]],
+    ["bills", "bills_encounterId_unique", ["encounterId"]],
 
   ];
 

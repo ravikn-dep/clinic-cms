@@ -1428,15 +1428,20 @@ export const appRouter = router({
     createEncounter: protectedProcedure
       .input(z.object({
         consultationId: z.string().trim().min(1),
-        appointmentId: z.string().trim().min(1),
+        appointmentId: z.string().trim().min(1).optional(),
+        encounterId: z.string().trim().min(1).optional(),
         items: z.array(z.object({ itemType: z.string().trim().min(1), description: z.string().trim().min(1), quantity: z.number().int().positive(), unitPrice: z.string().regex(/^\d+(\.\d{1,2})?$/) })).min(1),
         discountAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
         taxAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
       }))
       .mutation(async ({ input, ctx }) => {
         const consultation = await db.getConsultationById(input.consultationId);
-        if (!consultation || consultation.appointmentId !== input.appointmentId) throw new Error("Encounter billing context is invalid");
-        const appointment = await requireAccessibleAppointment(ctx, input.appointmentId);
+        if (!consultation) throw new Error("Encounter billing context is invalid");
+        if (!input.appointmentId && !input.encounterId) throw new Error("Encounter billing context is invalid");
+        const encounter = input.encounterId ? await db.getEncounterById(input.encounterId) : null;
+        if (input.encounterId && (!encounter || consultation.encounterId !== input.encounterId)) throw new Error("Encounter billing context is invalid");
+        const appointment = input.appointmentId ? await requireAccessibleAppointment(ctx, input.appointmentId) : null;
+        if (input.appointmentId && consultation.appointmentId !== input.appointmentId) throw new Error("Encounter billing context is invalid");
         if (ctx.user.role === "consultant" && consultation.consultantId !== ctx.user.id) throw new Error("Consultants cannot bill another consultant's encounter");
         const patient = await db.getPatientById(consultation.patientId);
         if (!patient) throw new Error("Patient not found");
@@ -1448,10 +1453,11 @@ export const appRouter = router({
         const result = await db.createEncounterBillAndCloseVisit({
           bill: { billId, patientId: consultation.patientId, consultationId: consultation.consultationId, totalAmount: totalAmount.toFixed(2) as any, discountAmount: discountAmount.toFixed(2) as any, taxAmount: taxAmount.toFixed(2) as any, finalAmount: finalAmount.toFixed(2) as any, paymentStatus: "Pending" },
           items: input.items.map((item) => ({ billItemId: utils.generateBillItemId(), billId, itemType: item.itemType, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice as any, subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2) as any })),
-          appointmentId: appointment.appointmentId,
+          appointmentId: appointment?.appointmentId,
+          encounterId: encounter?.encounterId,
           actorId: String(ctx.user.id),
         });
-        return { ...result, patientId: consultation.patientId, consultationId: consultation.consultationId, appointmentId: appointment.appointmentId };
+        return { ...result, patientId: consultation.patientId, consultationId: consultation.consultationId, appointmentId: appointment?.appointmentId ?? null, encounterId: encounter?.encounterId ?? null };
       }),
 
     getEncounterCandidatesByDate: protectedProcedure
@@ -1460,7 +1466,7 @@ export const appRouter = router({
         const rows = await db.getBillingCandidatesByDate(input.date);
         return rows
           .filter(({ appointment }) => ctx.user.role !== "consultant" || appointment.consultantId === ctx.user.id)
-          .map(({ appointment, patient, consultation, bill, consultant }) => {
+          .map(({ appointment, patient, consultation, bill, consultant, encounter }) => {
             const readyForBilling = Boolean(consultation && isReadyForBilling(consultation.isFinalized, Boolean(bill)));
             const status = bill
               ? "Billed"
@@ -1471,6 +1477,7 @@ export const appRouter = router({
                   : appointment.status;
             return {
               appointmentId: appointment.appointmentId,
+              encounterId: encounter?.encounterId ?? null,
               appointmentDate: appointment.appointmentDate,
               appointmentTime: appointment.appointmentTime,
               appointmentStatus: appointment.status,
@@ -2884,6 +2891,37 @@ export const appRouter = router({
         return { created: true as const, requiresResolution: false as const, patient: result.patient };
       }),
 
+    createEncounter: protectedProcedure
+      .input(z.object({ patientId: z.string().trim().min(1), consultantId: z.number().int().positive(), source: z.enum(["WALK_IN", "PHONE", "MANUAL"]) }))
+      .mutation(async ({ input, ctx }) => {
+        await assertAppointmentWorkflowAccess(ctx);
+        const patient = await db.getPatientById(input.patientId);
+        if (!patient) throw new Error("Selected patient was not found");
+        const consultantId = ctx.user.role === "consultant" ? ctx.user.id : input.consultantId;
+        if (ctx.user.role === "consultant" && input.consultantId !== ctx.user.id) throw new Error("Consultants cannot create an encounter for another consultant");
+        await requireActiveConsultant(consultantId);
+        return db.createDirectEncounterWithAudit({ patientId: patient.patientId, consultantId, source: input.source, actorId: String(ctx.user.id) });
+      }),
+
+    checkInEncounter: protectedProcedure
+      .input(z.object({ encounterId: z.string().trim().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const encounter = await db.getEncounterById(input.encounterId);
+        if (!encounter) throw new Error("Encounter not found");
+        if (ctx.user.role === "consultant" && encounter.consultantId !== ctx.user.id) throw new Error("Consultants can access only their own encounters");
+        return db.checkInEncounterWithAudit(input.encounterId, String(ctx.user.id));
+      }),
+
+    generateEncounterOp: protectedProcedure
+      .input(z.object({ encounterId: z.string().trim().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const encounter = await db.getEncounterById(input.encounterId);
+        if (!encounter) throw new Error("Encounter not found");
+        if (ctx.user.role === "consultant" && encounter.consultantId !== ctx.user.id) throw new Error("Consultants can access only their own encounters");
+        const result = await db.startEncounterConsultationWithAudit(input.encounterId, String(ctx.user.id));
+        return { consultation: result.consultation, created: result.created, encounterId: input.encounterId };
+      }),
+
     createAppointment: protectedProcedure
       .input(z.object({ patientId: z.string().trim().min(1), consultantId: z.number().int().positive(), appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), appointmentTime: z.string().regex(/^\d{2}:\d{2}$/), appointmentSource: z.enum(["MANUAL", "WALK_IN", "PHONE"]), notes: z.string().trim().max(2000).optional() }))
       .mutation(async ({ input, ctx }) => {
@@ -2900,8 +2938,10 @@ export const appRouter = router({
     checkIn: protectedProcedure
       .input(z.object({ appointmentId: z.string().trim().min(1) }))
       .mutation(async ({ input, ctx }) => {
-        await requireAccessibleAppointment(ctx, input.appointmentId);
-        return db.checkInAppointmentWithAudit(input.appointmentId, String(ctx.user.id));
+        const appointment = await requireAccessibleAppointment(ctx, input.appointmentId);
+        const checkedIn = await db.checkInAppointmentWithAudit(input.appointmentId, String(ctx.user.id));
+        const encounter = await db.createEncounterForAppointmentWithAudit({ appointmentId: input.appointmentId, actorId: String(ctx.user.id), appointment });
+        return { ...checkedIn, encounterId: encounter.encounter.encounterId };
       }),
 
     startConsultation: protectedProcedure

@@ -1166,3 +1166,20 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Trace test-patient registration, appointment confirmation, redirect, and Generate OP interaction from current logs and source.
 - [x] Apply the smallest safe response/navigation/loading-state correction without changing paper-first business rules.
 - [x] Add regression coverage and run focused workflow tests, full suite, type-check, build, diff, and Preview validation.
+
+## Attachment 57 Review and Application
+- [x] Read and summarize attachment 57.
+- [x] Verify attachment 57 claims and requested scope against the current Clinic CMS.
+- [x] Apply only safe, explicitly authorized changes from attachment 57.
+- [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.
+
+## Attachment 57 — Unified Patient Visit Reconciliation (2026-08-27)
+- [x] Reviewed attachment 57 requirements, evidence, constraints, and stop rules.
+- [x] Added additive first-class encounters and daily patient-ID sequence schema with forward migration 0027.
+- [x] Added deterministic-baseline coverage for encounters and patientIdSequences.
+- [x] Added concurrency-safe daily DOCM Patient ID allocation while preserving historical IDs.
+- [x] Added direct and appointment-linked encounter convergence for check-in, OP generation, Patient Records, and Billing.
+- [x] Replaced the New Visit appointment-only funnel with a unified Patient Visit workspace and optional appointment scheduling.
+- [x] Added focused encounter/paper-first regression tests.
+- [x] Updated PRD with validated unified Encounter architecture and optional-appointment workflow.
+- [x] Completed validation: pnpm check passed, full suite 350/350 passed across 46 files, pnpm build passed, git diff --check passed, and Preview screenshots verified New Visit, Patient Records, and Billing.

@@ -25,6 +25,7 @@ type BillItem = {
 type BillFormState = {
   patientId: string;
   consultationId: string;
+  encounterId: string;
   selectedTemplateId?: string;
   items: BillItem[];
   discountAmount: string;
@@ -34,6 +35,7 @@ type BillFormState = {
 const initialBillForm: BillFormState = {
   patientId: "",
   consultationId: "",
+  encounterId: "",
   items: [
     {
       id: "item-1",
@@ -89,12 +91,14 @@ export default function Billing() {
   useEffect(() => {
     const params = new URLSearchParams(location.split('?')[1]);
     const consultationId = params.get('consultationId');
+    const encounterId = params.get('encounterId');
     const patientId = params.get('patientId');
     
     if (consultationId || patientId) {
       setForm((current) => ({
         ...current,
         consultationId: consultationId || current.consultationId,
+        encounterId: encounterId || current.encounterId,
         patientId: patientId || current.patientId,
       }));
       setShowNewBill(true);
@@ -237,8 +241,8 @@ export default function Billing() {
   const handleCreateBill = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (form.consultationId.trim() && (!consultationNotes || !consultationNotes.appointmentId)) {
-      toast.error("This consultation is not linked to an appointment.");
+    if (form.consultationId.trim() && (!consultationNotes || (!consultationNotes.appointmentId && !form.encounterId.trim()))) {
+      toast.error("This consultation is not linked to a valid encounter.");
       return;
     }
     if (form.consultationId.trim() && consultationNotes && consultationNotes.isFinalized !== 1) {
@@ -271,10 +275,11 @@ export default function Billing() {
       quantity: Number.parseInt(item.quantity, 10),
       unitPrice: parseCurrency(item.unitPrice).toString(),
     }));
-    if (form.consultationId.trim() && consultationNotes?.appointmentId) {
+    if (form.consultationId.trim() && (consultationNotes?.appointmentId || form.encounterId.trim())) {
       createEncounterBill.mutate({
-        consultationId: consultationNotes.consultationId,
-        appointmentId: consultationNotes.appointmentId,
+        consultationId: consultationNotes!.consultationId,
+        appointmentId: consultationNotes!.appointmentId || undefined,
+        encounterId: form.encounterId.trim() || undefined,
         items,
         discountAmount: parseCurrency(form.discountAmount).toString(),
         taxAmount: parseCurrency(form.taxAmount).toString(),
@@ -293,7 +298,7 @@ export default function Billing() {
   const selectEncounter = (candidate: NonNullable<typeof billingCandidatesQuery.data>[number]) => {
     const consultationId = candidate.consultationId;
     if (!candidate.canRaiseBill || !consultationId) return;
-    setForm((current) => ({ ...current, patientId: candidate.patientId, consultationId }));
+    setForm((current) => ({ ...current, patientId: candidate.patientId, consultationId, encounterId: candidate.encounterId || "" }));
     setPatientDetails(null);
     setConsultationNotes(null);
   };
