@@ -15,11 +15,13 @@ export default function PasswordLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const loginMutation = trpc.auth.loginWithPassword.useMutation({
     onSuccess: () => {
+      setSuccessMessage("Signed in successfully. Redirecting to your workspace…");
       setIsLoading(false);
-      window.location.href = "/";
+      window.location.assign("/");
     },
     onError: (err) => {
       setIsLoading(false);
@@ -31,6 +33,7 @@ export default function PasswordLogin() {
     e.preventDefault();
     if (isLoading) return;
     setError("");
+    setSuccessMessage("");
     setIsLoading(true);
 
     try {
@@ -60,6 +63,13 @@ export default function PasswordLogin() {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {successMessage && (
+              <div role="status" aria-live="polite" className="flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <span className="text-emerald-700" aria-hidden="true">✓</span>
+                <p className="text-sm text-emerald-700">{successMessage}</p>
+              </div>
+            )}
+
             {error && (
               <div role="alert" aria-live="polite" className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <AlertCircle className="h-4 w-4 text-red-600" />
@@ -108,6 +118,7 @@ export default function PasswordLogin() {
             <Button
               type="submit"
               disabled={isLoading || !userIdOrEmail || !password}
+              aria-busy={isLoading}
               className="w-full bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 text-white font-medium"
             >
               {isLoading ? (

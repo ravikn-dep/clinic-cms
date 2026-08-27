@@ -1095,3 +1095,14 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Apply a minimal safe authentication UI/server correction without using or persisting chat-shared credentials.
 - [x] Add or update regression coverage for sign-in pending, success, and error feedback.
 - [x] Validate type-check, focused tests, full suite, build, diff hygiene, and Preview behavior; checkpoint the fix.
+
+## Attachment 52 Continuation
+- [ ] Re-read attachment 52 and confirm its inline-preview requirements against current Patient Records source.
+- [ ] Complete immediate-below-row preview behavior with one expanded patient and stale-filter collapse.
+- [ ] Complete focused, full, build, diff, and visual validation for attachment 52.
+- [ ] Update PRD, save the local checkpoint, and report the final classification.
+
+## Recurring Sign-in No-Response Report
+- [x] Recheck whether Preview Sign In submits, remains pending, or returns a visible authentication error.
+- [x] Correct any remaining sign-in feedback or interaction defect without changing credential/OAuth security semantics.
+- [x] Re-run focused authentication tests and Preview validation, then checkpoint if changed.
