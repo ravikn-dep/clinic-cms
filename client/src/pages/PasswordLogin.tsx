@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { getLoginUrl } from "@/const";
+import { getPasswordLoginErrorMessage } from "@/lib/passwordLogin";
 
 export default function PasswordLogin() {
   const [, setLocation] = useLocation();
@@ -21,12 +23,13 @@ export default function PasswordLogin() {
     },
     onError: (err) => {
       setIsLoading(false);
-      setError(err.message || "Login failed. Please check your credentials.");
+      setError(getPasswordLoginErrorMessage(err.message));
     },
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setError("");
     setIsLoading(true);
 
@@ -58,7 +61,7 @@ export default function PasswordLogin() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div role="alert" aria-live="polite" className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <AlertCircle className="h-4 w-4 text-red-600" />
                 <p className="text-sm text-red-700">{error}</p>
               </div>
@@ -115,6 +118,20 @@ export default function PasswordLogin() {
               ) : (
                 "Sign In"
               )}
+            </Button>
+
+            <div className="relative py-1" aria-hidden="true">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+              <div className="relative flex justify-center"><span className="bg-white px-2 text-xs text-slate-500">or</span></div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { window.location.href = getLoginUrl(); }}
+              disabled={isLoading}
+              className="w-full border-teal-200 text-teal-800 hover:bg-teal-50"
+            >
+              Continue with Microsoft
             </Button>
 
             {/* Help Text */}

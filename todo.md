@@ -1082,3 +1082,16 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Verify its claims against the current repository, database-safe boundaries, and existing implementation.
 - [x] Apply only explicitly supported and safe changes from the attachment.
 - [x] Run required tests, type-check, build, and diff validation; document any blocked or unapplied items.
+
+## New Attached Report Review
+- [ ] Read and summarize the newly attached report or instructions.
+- [ ] Verify its claims and requested scope against the current Clinic CMS implementation.
+- [ ] Apply only safe, authorized changes from the attachment.
+- [ ] Validate tests, type-check, build, diff hygiene, and Preview behavior; checkpoint the result.
+- [ ] Add focused pure-policy coverage for one-expanded-patient behavior, toggle collapse, and stale selection safety.
+
+## Sign-in Button Responsiveness
+- [x] Reproduce and diagnose why clicking Sign In produces no visible response in Preview.
+- [x] Apply a minimal safe authentication UI/server correction without using or persisting chat-shared credentials.
+- [x] Add or update regression coverage for sign-in pending, success, and error feedback.
+- [x] Validate type-check, focused tests, full suite, build, diff hygiene, and Preview behavior; checkpoint the fix.
