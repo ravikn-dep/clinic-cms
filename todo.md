@@ -1189,7 +1189,7 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Verify complete Attachment 57 delta and exclude unrelated procurement, inventory, ThreeUI, credentials, deployment, and production changes.
 - [ ] Validate fresh deterministic baseline and canonical pre-Attachment-57 forward migration against disposable isolated MySQL 8. BLOCKED: no isolated MySQL 8 server/container is available in the sandbox; the connected development database is excluded by Attachment 58.
 - [x] Run focused workflow, Encounter, Patient-ID, paper-first, appointment compatibility, Patient Records, Billing, RBAC/security, full tests, check, build, and diff validation.
-- [ ] Verify DOCM sequence expansion, date reset, concurrency uniqueness, returning-patient ID preservation, and historical ID immutability.
+- [x] Verify DOCM sequence expansion, date reset, concurrency uniqueness, returning-patient ID preservation, and historical ID immutability.
 - [ ] Push the exact feature branch normally and open a protected PR without merging, tagging, deploying, or touching production. BLOCKED: remote Git credentials are unavailable in this session.
 - [ ] Verify protected CI against the exact PR head and report the final classification only if all gates pass.
 
@@ -1202,10 +1202,10 @@ This section records the user-authorized GitHub governance action; the migration
 ## Attachment 60 — Master OP Template Visual Refinement
 - [x] Read all attachment 60 requirements and inspect the approved OP reference image. The supplied `/mnt/data/ChatGPT Image Aug 27, 2026, 09_56_16 PM.png` path is unavailable in this sandbox, so visual inspection could not be performed.
 - [x] Verify durable consultant location and timing data sources; timings are available through `consultantAvailability`, but no durable consultant/location field exists. Per attachment 60, stop with `BLOCKED — CONSULTANT LOCATION FIELD REQUIRED`.
-- [ ] Refactor the single master OP view model/template without creating consultant-specific markup or changing clinical business behavior.
-- [ ] Match A4 one-page geometry, compact three-row patient block, upper-right proportional logo, dominant blank handwriting area, bottom-right signature area, compact footer, and exact OP validity text.
-- [ ] Add/update renderer tests for dynamic branding, missing optional assets, 12-hour date/time, exact validity text, and one-page geometry.
-- [ ] Run focused/full tests, type-check, build, diff hygiene, Preview print rendering, and save a checkpoint.
+- [x] Refactor the single master OP view model/template without creating consultant-specific markup or changing clinical business behavior.
+- [x] Match A4 one-page geometry, compact three-row patient block, upper-right proportional logo, dominant blank handwriting area, bottom-right signature area, compact footer, and exact OP validity text.
+- [x] Add/update renderer tests for dynamic branding, missing optional assets, 12-hour date/time, exact validity text, and one-page geometry.
+- [x] Run focused/full tests, type-check, build, diff hygiene, Preview print rendering, and save a checkpoint.
 
 ## Attachment 61 — Approved Master OP Location and Template Implementation
 - [x] Add only nullable consultantLocation to the existing consultant/user schema through the smallest additive migration; do not modify unrelated tables or production.
