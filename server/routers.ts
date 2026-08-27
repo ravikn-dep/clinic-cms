@@ -2230,7 +2230,15 @@ export const appRouter = router({
           newValue: JSON.stringify({ assetType: input.assetType, mimeType: stored.mimeType, sizeBytes: stored.sizeBytes }),
           timestamp: new Date().toISOString(),
         });
-        return { success: true };
+        return {
+          success: true,
+          asset: {
+            key: stored.key,
+            url: stored.url,
+            mimeType: stored.mimeType,
+            sizeBytes: stored.sizeBytes,
+          },
+        };
       }),
   }),
 
@@ -2315,7 +2323,7 @@ export const appRouter = router({
     listStaffUsers: adminProcedure.query(async () => {
       try {
         const staffUsers = await db.getAllStaffUsers();
-        return staffUsers.map(u => ({
+        return Promise.all(staffUsers.map(async u => ({
           id: u.id,
           userId: u.userId,
           name: u.name,
@@ -2330,8 +2338,10 @@ export const appRouter = router({
           specialization: u.specialization,
           designation: u.designation,
           prescriptionHeaderText: u.prescriptionHeaderText,
+          consultantLogoUrl: u.consultantLogoKey ? (await storageGet(u.consultantLogoKey)).url : null,
+          signatureUrl: u.signatureKey ? (await storageGet(u.signatureKey)).url : null,
           createdAt: u.createdAt,
-        }));
+        })));
       } catch (error) {
         console.error("[RBAC] List staff users failed:", error);
         throw new Error("Failed to list staff users");

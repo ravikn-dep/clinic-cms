@@ -1121,3 +1121,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Trace the `/users` mutation, request URL, and latest server/network response to identify the HTML response source.
 - [x] Apply the smallest safe fix while preserving admin-only authorization and audit behavior.
 - [x] Add or update focused User Management regression coverage and validate type-check, tests, build, diff, and Preview behavior.
+
+## Attachment 53 Review and Application
+- [x] Read and summarize attachment 53.
+- [x] Verify attachment 53 claims and requested scope against the current Clinic CMS.
+- [x] Apply only safe, explicitly authorized changes from attachment 53.
+- [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.

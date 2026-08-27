@@ -67,7 +67,15 @@ export default function UserManagement() {
   const createUser = trpc.rbac.createStaffUser.useMutation({ onSuccess: saveSuccess, onError: showMutationError });
   const updateUser = trpc.rbac.updateStaffUser.useMutation({ onSuccess: saveSuccess, onError: showMutationError });
   const deleteUser = trpc.rbac.deleteStaffUser.useMutation({ onSuccess: () => { utils.rbac.listStaffUsers.invalidate(); toast.success("User removed."); }, onError: showMutationError });
-  const uploadAsset = trpc.consultants.uploadAsset.useMutation({ onSuccess: () => toast.success("Consultant image stored securely."), onError: showMutationError });
+  const uploadAsset = trpc.consultants.uploadAsset.useMutation({
+    onSuccess: (result, variables) => {
+      const previewField = variables.assetType === "logo" ? "consultantLogoUrl" : "signatureUrl";
+      setEditingUser((current: any) => current ? { ...current, [previewField]: result.asset.url } : current);
+      utils.rbac.listStaffUsers.invalidate();
+      toast.success(`${variables.assetType === "logo" ? "Logo" : "Signature"} stored securely.`);
+    },
+    onError: showMutationError,
+  });
   const resetPassword = trpc.rbac.resetUserPassword.useMutation({ onSuccess: () => toast.success("Password reset successfully."), onError: showMutationError });
   const handleResetPassword = (staffUser: any) => {
     const password = window.prompt("Enter a new password (at least 8 characters). It will not be shown again.");
@@ -128,7 +136,13 @@ export default function UserManagement() {
         <Field label="Registration Number"><Input value={formData.registrationNumber} onChange={(event) => setFormData({ ...formData, registrationNumber: event.target.value })} /></Field>
         <Field label="Prescription Header Text"><Input value={formData.prescriptionHeaderText} onChange={(event) => setFormData({ ...formData, prescriptionHeaderText: event.target.value })} /></Field>
       </div>
-      {editingUser && <div className="grid gap-3 md:grid-cols-2"><AssetControl label="Upload / Replace Consultant Logo" onFile={(file) => handleAsset("logo", file)} disabled={uploadAsset.isPending} /><AssetControl label="Upload / Replace Digital Signature" onFile={(file) => handleAsset("signature", file)} disabled={uploadAsset.isPending} /></div>}
+      {editingUser && <>
+        <div className="grid gap-3 md:grid-cols-2"><AssetControl label="Upload / Replace Consultant Logo" onFile={(file) => handleAsset("logo", file)} disabled={uploadAsset.isPending} /><AssetControl label="Upload / Replace Digital Signature" onFile={(file) => handleAsset("signature", file)} disabled={uploadAsset.isPending} /></div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <AssetPreview label="Current consultant logo" url={editingUser.consultantLogoUrl} />
+          <AssetPreview label="Current digital signature" url={editingUser.signatureUrl} />
+        </div>
+      </>}
       {!editingUser && <p className="text-xs text-muted-foreground">Save the consultant first, then upload optional PNG/JPEG logo or signature files (maximum 1.5 MB).</p>}
       </section>}
       <div className="flex gap-2"><Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={createUser.isPending || updateUser.isPending}>{editingUser ? "Save User" : "Create User"}</Button><Button type="button" variant="outline" onClick={resetForm}>Cancel</Button></div>
@@ -139,3 +153,4 @@ export default function UserManagement() {
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="space-y-1.5"><Label>{label}</Label>{children}</div>; }
 function AssetControl({ label, onFile, disabled }: { label: string; onFile: (file?: File) => void; disabled: boolean }) { return <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-teal-300 bg-teal-50 px-3 py-4 text-sm font-medium text-teal-900 hover:bg-teal-100"><ImageUp className="h-4 w-4" />{label}<input className="sr-only" type="file" accept="image/png,image/jpeg" disabled={disabled} onChange={(event) => onFile(event.target.files?.[0])} /></label>; }
+function AssetPreview({ label, url }: { label: string; url?: string | null }) { return <div className="rounded-lg border border-slate-200 bg-white p-3"><p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>{url ? <img src={url} alt={label} className="max-h-24 w-full object-contain object-left" /> : <p className="text-sm text-slate-500">No file stored.</p>}</div>; }
