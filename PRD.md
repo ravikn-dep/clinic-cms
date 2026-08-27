@@ -742,7 +742,7 @@ Patient Records should be able to resolve:
 
 **Status: `IMPLEMENTED_VALIDATED`**
 
-The patient identity preview surfaces billing context near the patient identity when the user has billing access. One eligible finalized unbilled encounter opens Billing directly; multiple eligible encounters require explicit encounter selection; and zero eligible encounters displays an explanatory non-actionable state. Visit-level actions remain state-aware, including `Raise Bill` only for eligible encounters and `View Bill` for billed encounters. These actions do not create appointments, consultations, bills, or procurement records from Patient Records.
+The patient identity preview surfaces billing context near the patient identity when the user has billing access. One eligible finalized unbilled encounter opens Billing directly; multiple eligible encounters require explicit encounter selection; and zero eligible encounters displays an explanatory non-actionable state. Visit-level actions remain state-aware, including `Raise Bill` only for eligible encounters and `View Bill` for billed encounters. These actions do not create appointments, consultations, bills, or procurement records from Patient Records. The selected patient is presented as an inline expanded preview immediately beneath the selected patient row; only one patient preview is expanded at a time, and contextual patient/visit actions remain adjacent to the patient identity and relevant visit. This inline-preview refinement is `IMPLEMENTED_VALIDATED` after Preview acceptance.
 
 ### 19.3 Future Actions
 
@@ -2023,6 +2023,7 @@ Historical TODO claims were not automatically treated as current product truth w
 | 1.0.0 | 2026-08-26 | Initial canonical reconstruction after Phase 4 Step 3; reconciles current source, stable milestones, retired workflows, and approved future direction. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
 | 1.0.1 | 2026-08-26 | Records the validated dashboard/navigation refinement: grouped role-aware navigation, New Visit as the principal front-desk entry point, appointment-authoritative Home queue, and no new analytics subsystem. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
 | 1.0.2 | 2026-08-27 | Records the validated Billing visit-date selection and Patient Records contextual-action refinement; preserves encounter billing safeguards, paper-first lifecycle boundaries, RBAC, and no-schema-change procurement isolation. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
+| 1.0.3 | 2026-08-27 | Records the visually accepted Patient Records inline expanded preview: one preview immediately beneath the selected row, state-aware actions adjacent to patient identity, and safe collapse during selection/filter changes. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
 
 ---
 

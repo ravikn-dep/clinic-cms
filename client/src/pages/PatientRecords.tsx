@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -229,7 +229,7 @@ export default function PatientRecords() {
                   </thead>
                   <tbody>
                     {filteredPatients.map((patient) => (
-                      <>
+                      <Fragment key={patient.patientId}>
                         <tr key={patient.patientId} className={`border-b border-teal-50 transition-all duration-200 hover:bg-teal-50/50 ${selectedPatientId === patient.patientId ? "border-l-4 border-l-teal-500 bg-teal-50/80" : ""}`}>
                           <td className="py-3 px-4 font-mono text-xs text-teal-700 font-semibold">{patient.patientId}</td>
                           <td className="py-3 px-4">
@@ -488,7 +488,7 @@ export default function PatientRecords() {
                             </td>
                           </tr>
                         )}
-                      </>
+                      </Fragment>
                     ))}
                   </tbody>
                 </table>

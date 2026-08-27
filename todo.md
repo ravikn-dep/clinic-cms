@@ -1084,11 +1084,11 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Run required tests, type-check, build, and diff validation; document any blocked or unapplied items.
 
 ## New Attached Report Review
-- [ ] Read and summarize the newly attached report or instructions.
-- [ ] Verify its claims and requested scope against the current Clinic CMS implementation.
-- [ ] Apply only safe, authorized changes from the attachment.
-- [ ] Validate tests, type-check, build, diff hygiene, and Preview behavior; checkpoint the result.
-- [ ] Add focused pure-policy coverage for one-expanded-patient behavior, toggle collapse, and stale selection safety.
+- [x] Read and summarize the newly attached report or instructions.
+- [x] Verify its claims and requested scope against the current Clinic CMS implementation.
+- [x] Apply only safe, authorized changes from the attachment.
+- [x] Validate tests, type-check, build, diff hygiene, and Preview behavior; checkpoint the result.
+- [x] Add focused pure-policy coverage for one-expanded-patient behavior, toggle collapse, and stale selection safety.
 
 ## Sign-in Button Responsiveness
 - [x] Reproduce and diagnose why clicking Sign In produces no visible response in Preview.
@@ -1097,12 +1097,22 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Validate type-check, focused tests, full suite, build, diff hygiene, and Preview behavior; checkpoint the fix.
 
 ## Attachment 52 Continuation
-- [ ] Re-read attachment 52 and confirm its inline-preview requirements against current Patient Records source.
-- [ ] Complete immediate-below-row preview behavior with one expanded patient and stale-filter collapse.
-- [ ] Complete focused, full, build, diff, and visual validation for attachment 52.
-- [ ] Update PRD, save the local checkpoint, and report the final classification.
+- [x] Re-read attachment 52 and confirm its inline-preview requirements against current Patient Records source.
+- [x] Complete immediate-below-row preview behavior with one expanded patient and stale-filter collapse.
+- [x] Complete focused, full, build, diff, and visual validation for attachment 52.
+- [x] Update PRD, save the local checkpoint, and report the final classification.
 
 ## Recurring Sign-in No-Response Report
 - [x] Recheck whether Preview Sign In submits, remains pending, or returns a visible authentication error.
 - [x] Correct any remaining sign-in feedback or interaction defect without changing credential/OAuth security semantics.
 - [x] Re-run focused authentication tests and Preview validation, then checkpoint if changed.
+
+## Attachment 52 Continued Review
+- [x] Re-read attachment 52 and identify any remaining requested Patient Records behavior.
+- [x] Verify the current inline preview implementation against each remaining requirement.
+- [x] Complete only safe, in-scope changes and validation, then update the checkpoint/report.
+
+## Patient Records React Key Warning
+- [x] Audit every mapped list in PatientRecords.tsx, including fragment-wrapped table rows and preview content.
+- [x] Add stable keys to the actual list elements without changing billing or patient behavior.
+- [x] Add focused regression coverage where practical and run type-check, tests, build, diff, and Preview validation.
