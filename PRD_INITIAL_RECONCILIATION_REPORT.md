@@ -86,5 +86,4 @@ The supplied PRD was copied, reconciled, and reviewed for terminology, status co
 [10]: `git tag` and protected merge history — stable milestone evidence
 
 ## Publication review
-
-Documentation branch established through PR #15 for protected canonical review.
+The canonical PRD documentation was previously reviewed through PR #15. The dashboard/navigation implementation remains a separate validated feature delta.

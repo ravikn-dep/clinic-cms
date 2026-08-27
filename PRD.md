@@ -143,6 +143,27 @@ Consultant identity is server-authoritative for appointment attribution and cons
 
 The system must prefer **one coherent patient-visit workflow** over separate disconnected front-desk modules.
 
+### 5.4 Unified Dashboard and Navigation
+
+**Status: `IMPLEMENTED_VALIDATED`**
+
+The authenticated application uses one role-aware dashboard and one primary navigation shell for admins, consultants, and staff. The dashboard and navigation are not separate role-specific applications; visible modules continue to be filtered by the existing feature-access and admin-only guards.
+
+Primary navigation is grouped by operational intent:
+
+| Group | Current destinations |
+|---|---|
+| **Dashboard** | Operational Home dashboard |
+| **Clinic Workflow** | New Visit / Appointment, Today's Appointments, Patient Records, Billing |
+| **Pharmacy & Inventory** | Pharmacy, Purchase Orders |
+| **Admin / Management** | Catalog Management, User Management, Feature Access Control, OP Form Customization, Analytics, Audit Trail, Daily Export, Notifications where permitted |
+
+**New Visit / Appointment** is the principal front-desk entry point. It combines consultant selection, conservative patient search, in-flow registration when required, explicit patient selection, and appointment creation. The underlying `/register-patient` route and registration API remain reachable for legitimate record-management use but are not promoted as a competing primary navigation action.
+
+The Home dashboard is an operational read surface. Its primary CTA opens New Visit / Appointment, and its appointment queue is derived from the authoritative appointment list for the current day. Summary cards show today's appointments, checked-in visits, completed visits, and existing pharmacy/procurement attention where the current user has access. These dashboard reads do not create appointments, consultations, bills, Goods Receipts, stock movements, or other business records.
+
+The dashboard does not introduce a separate analytics subsystem. The current Analytics page remains a limited administrative reporting surface, and future analytics requirements must not be inferred from dashboard presentation alone.
+
 ---
 
 ## 6. Foundational Domain Model
@@ -1964,6 +1985,8 @@ Current PRD v1.0.0 was reconciled primarily against the merged repository state 
 - `client/src/pages/CatalogManagement.tsx`
 - `client/src/pages/UserManagement.tsx`
 - `client/src/lib/opFormGenerator.ts`
+- `client/src/lib/dashboardNavigation.ts`
+- `server/dashboardNavigation.test.ts`
 - `todo.md`
 - merged Phase 3/Phase 4 implementation history
 - stable milestone tags
@@ -1980,6 +2003,7 @@ Historical TODO claims were not automatically treated as current product truth w
 | Version | Date | Change | Approved By | Canonical Baseline |
 |---|---|---|---|---|
 | 1.0.0 | 2026-08-26 | Initial canonical reconstruction after Phase 4 Step 3; reconciles current source, stable milestones, retired workflows, and approved future direction. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
+| 1.0.1 | 2026-08-26 | Records the validated dashboard/navigation refinement: grouped role-aware navigation, New Visit as the principal front-desk entry point, appointment-authoritative Home queue, and no new analytics subsystem. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
 
 ---
 
@@ -2004,3 +2028,6 @@ Future AI, voice, WhatsApp, website, digital consultation, pharmacy dispensing, 
 ---
 
 **End of CMS-PRD-001 v1.0.0**
+
+## Publication review
+Documentation branch established through PR #15 for protected canonical review; dashboard refinement is preserved as a separate feature delta for PR #16.

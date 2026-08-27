@@ -1047,7 +1047,21 @@ This section records the user-authorized GitHub governance action; the migration
 - [ ] Wait for protected `CI Validation / validate`; report exact evidence and stop without merging.
 - [x] Correct demonstrated baseline defect: the fail-closed SQL splitter skipped the final bills uniqueness statement because it shared a chunk beginning with a comment.
 
-## Supplied PRD.md Integration
-- [x] Reconcile the supplied PRD against canonical main at `210ef792919e588021e3fd6c6e13d35b28d58ed3`.
-- [x] Add the reconciled `PRD.md` and `PRD_INITIAL_RECONCILIATION_REPORT.md` at repository root.
-- [x] Validate that only documentation and ledger files changed; do not modify runtime, schema, RBAC, data, credentials, deployment, or production.
+## Attachment 41: Dashboard and Navigation Refinement
+- [ ] Audit current navigation, dashboard cards, shortcuts, duplicate entry points, and role/feature visibility against `PRD.md`.
+- [ ] Refine primary navigation into unified clinic workflow, pharmacy/inventory, and admin/management groupings without deleting underlying capabilities.
+- [ ] Make New Visit / Appointment the dominant front-desk entry point and preserve standalone registration only as a secondary reachable route.
+- [ ] Refine Home into an operational dashboard using authoritative read-only data only; do not add an analytics subsystem.
+- [ ] Preserve paper-first lifecycle, future digital consultation fields, procurement/inventory behavior, User Management hardening, and no-ThreeUI boundary.
+- [ ] Add/update focused UI/navigation tests and update affected PRD sections.
+- [ ] Run check, focused tests, full tests, build, diff hygiene, and commit locally without push or PR.
+
+## Attachment 46: Dashboard and Navigation Refinement
+- [x] Read the complete PRD and Attachment 46 and audit current navigation, routes, dashboard cards, shortcuts, duplicate entry points, and RBAC visibility.
+- [x] Implement the minimal unified workflow navigation and operational dashboard refinement without changing business logic or adding analytics infrastructure.
+- [x] Preserve paper-first visit closure, future digital consultation fields, procurement/inventory boundaries, User Management hardening, and no-ThreeUI boundary.
+- [x] Update only affected PRD sections after implementation and add focused UI/navigation regression tests.
+- [x] Run check, focused tests, full tests, build, diff hygiene, and commit locally without push, PR, merge, tag, deployment, or production action.
+
+## Main-side PRD Publication Review
+- [x] Preserve the canonical PRD and reconciliation evidence already reviewed through PR #15.
