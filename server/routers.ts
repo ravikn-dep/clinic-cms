@@ -770,10 +770,17 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         try {
-          const user = await db.getUserByEmail(ctx.user.email || "");
-          
-          if (!user || !user.passwordHash) {
-            throw new Error("User not found or password not set");
+          // Bind the password change to the authenticated session identity, not
+          // a caller-controlled or nullable email value. OAuth-only accounts may
+          // legitimately have no local password hash yet; those accounts must use
+          // setPassword instead of pretending a current password exists.
+          const user = await db.getUserById(ctx.user.id as number);
+
+          if (!user) {
+            throw new Error("Authenticated user not found");
+          }
+          if (!user.passwordHash) {
+            throw new Error("No local password is set. Use Set Password to create one.");
           }
 
           const isValid = await db.verifyPassword(input.currentPassword, user.passwordHash);

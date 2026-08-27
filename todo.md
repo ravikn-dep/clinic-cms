@@ -1070,3 +1070,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Trace the failing user lookup fields against current schema, migrations, Preview logs, and development database state.
 - [x] Apply the smallest safe development-only schema reconciliation or compatible fix; preserve authentication and RBAC semantics.
 - [x] Add or update regression coverage for consultant profile lookup and validate check, tests, build, and Preview response.
+
+## Change-Password OAuth Identity Fix
+- [x] Trace the change-password route and confirm the OAuth user has no local password hash.
+- [x] Implement the smallest secure UX/API correction that distinguishes OAuth-only users from local-password users without weakening authentication.
+- [x] Add regression coverage for OAuth-only rejection guidance and local-password change behavior.
+- [x] Validate type-check, focused auth tests, full suite, build, Preview behavior, and save a checkpoint.
