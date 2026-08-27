@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Edit2, ImageUp, KeyRound, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { getUserManagementErrorMessage } from "@shared/userManagementErrors";
 
 type FormData = {
   name: string;
@@ -62,11 +63,12 @@ export default function UserManagement() {
     toast.success(editingUser ? "User updated." : "User created.");
     resetForm();
   };
-  const createUser = trpc.rbac.createStaffUser.useMutation({ onSuccess: saveSuccess, onError: (error) => toast.error(error.message) });
-  const updateUser = trpc.rbac.updateStaffUser.useMutation({ onSuccess: saveSuccess, onError: (error) => toast.error(error.message) });
-  const deleteUser = trpc.rbac.deleteStaffUser.useMutation({ onSuccess: () => { utils.rbac.listStaffUsers.invalidate(); toast.success("User removed."); }, onError: (error) => toast.error(error.message) });
-  const uploadAsset = trpc.consultants.uploadAsset.useMutation({ onSuccess: () => toast.success("Consultant image stored securely."), onError: (error) => toast.error(error.message) });
-  const resetPassword = trpc.rbac.resetUserPassword.useMutation({ onSuccess: () => toast.success("Password reset successfully."), onError: (error) => toast.error(error.message) });
+  const showMutationError = (error: { message: string }) => toast.error(getUserManagementErrorMessage(error.message));
+  const createUser = trpc.rbac.createStaffUser.useMutation({ onSuccess: saveSuccess, onError: showMutationError });
+  const updateUser = trpc.rbac.updateStaffUser.useMutation({ onSuccess: saveSuccess, onError: showMutationError });
+  const deleteUser = trpc.rbac.deleteStaffUser.useMutation({ onSuccess: () => { utils.rbac.listStaffUsers.invalidate(); toast.success("User removed."); }, onError: showMutationError });
+  const uploadAsset = trpc.consultants.uploadAsset.useMutation({ onSuccess: () => toast.success("Consultant image stored securely."), onError: showMutationError });
+  const resetPassword = trpc.rbac.resetUserPassword.useMutation({ onSuccess: () => toast.success("Password reset successfully."), onError: showMutationError });
   const handleResetPassword = (staffUser: any) => {
     const password = window.prompt("Enter a new password (at least 8 characters). It will not be shown again.");
     if (password === null) return;
@@ -99,7 +101,7 @@ export default function UserManagement() {
     try {
       await uploadAsset.mutateAsync({ consultantId: editingUser.id, assetType, dataUrl: await readImageFile(file) });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to upload consultant image.");
+      toast.error(getUserManagementErrorMessage(error instanceof Error ? error.message : "Unable to upload consultant image."));
     }
   };
 

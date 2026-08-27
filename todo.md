@@ -1116,3 +1116,8 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Audit every mapped list in PatientRecords.tsx, including fragment-wrapped table rows and preview content.
 - [x] Add stable keys to the actual list elements without changing billing or patient behavior.
 - [x] Add focused regression coverage where practical and run type-check, tests, build, diff, and Preview validation.
+
+## User Management HTML-as-JSON Mutation Failure
+- [x] Trace the `/users` mutation, request URL, and latest server/network response to identify the HTML response source.
+- [x] Apply the smallest safe fix while preserving admin-only authorization and audit behavior.
+- [x] Add or update focused User Management regression coverage and validate type-check, tests, build, diff, and Preview behavior.
