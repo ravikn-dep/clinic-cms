@@ -1145,3 +1145,8 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Map each approved attachment 52 step to completed, pending, or blocked status.
 - [x] Execute only genuinely pending approved steps; do not repeat completed changes.
 - [x] Validate the executed steps, update documentation if required, and save a checkpoint.
+
+## New Visit Contact Number Validation
+- [x] Trace the contact-number field, normalization, and register-patient submission path.
+- [x] Apply the smallest safe Indian mobile-number normalization and user-facing validation correction.
+- [x] Add regression coverage and run New Visit-focused tests, type-check, full suite, build, diff, and Preview validation.
