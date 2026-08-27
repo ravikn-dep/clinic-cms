@@ -1145,6 +1145,7 @@ export const appRouter = router({
         const consultantLogo = printData.consultantLogoKey ? await storageGet(printData.consultantLogoKey) : null;
         const signature = printData.signatureKey ? await storageGet(printData.signatureKey) : null;
         const { consultantLogoKey: _consultantLogoKey, signatureKey: _signatureKey, ...safePrintData } = printData;
+        const printableConsultantName = safePrintData.consultantName ?? `Consultant ${safePrintData.consultantId}`;
         await db.createAuditLog({
           logId: utils.generateAuditLogId(),
           userId: ctx.user.id.toString(),
@@ -1156,6 +1157,7 @@ export const appRouter = router({
         });
         return {
           ...safePrintData,
+          consultantName: printableConsultantName,
           consultantLogoUrl: consultantLogo?.url,
           signatureUrl: signature?.url,
           facility: FIXED_CLINIC_BRANDING,

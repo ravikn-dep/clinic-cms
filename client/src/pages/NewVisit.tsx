@@ -92,7 +92,7 @@ export default function NewVisit() {
   };
 
   if (confirmed) {
-    return <Card className="max-w-3xl border-emerald-200 bg-emerald-50/50"><CardHeader><div className="flex items-center gap-3"><CheckCircle2 className="h-8 w-8 text-emerald-600" /><div><CardTitle>Visit booked</CardTitle><CardDescription>Appointment {confirmed.appointmentId} is linked to patient {confirmed.patientId}.</CardDescription></div></div></CardHeader><CardContent className="flex flex-wrap gap-3"><Button onClick={() => navigate("/appointments")}>Open appointments</Button><Button variant="outline" onClick={() => { setConfirmed(null); setSelectedPatientId(""); setRegisteredPatient(null); setQuery(""); }}>Create another visit</Button></CardContent></Card>;
+    return <Card className="max-w-3xl border-emerald-200 bg-emerald-50/50"><CardHeader><div className="flex items-center gap-3"><CheckCircle2 className="h-8 w-8 text-emerald-600" /><div><CardTitle>Visit booked</CardTitle><CardDescription>Appointment {confirmed.appointmentId} is linked to patient {confirmed.patientId}. Open appointments, check the patient in, then Generate OP & Print.</CardDescription></div></div></CardHeader><CardContent className="flex flex-wrap gap-3"><Button onClick={() => navigate("/appointments")}>Open appointments</Button><Button variant="outline" onClick={() => { setConfirmed(null); setSelectedPatientId(""); setRegisteredPatient(null); setQuery(""); }}>Create another visit</Button></CardContent></Card>;
   }
 
   return <div className="mx-auto max-w-5xl space-y-6">

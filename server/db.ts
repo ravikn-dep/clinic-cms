@@ -359,10 +359,15 @@ export async function getConsultationPrintData(consultationId: string) {
     signatureKey: users.signatureKey,
   }).from(consultations)
     .innerJoin(patients, eq(consultations.patientId, patients.patientId))
-    .innerJoin(users, eq(consultations.consultantId, users.id))
-    .where(and(eq(consultations.consultationId, consultationId), eq(users.role, "consultant")))
+    .leftJoin(users, eq(consultations.consultantId, users.id))
+    .where(eq(consultations.consultationId, consultationId))
     .limit(1);
-  return result[0] ?? null;
+  const printData = result[0];
+  if (!printData || !printData.consultantId) return null;
+  return {
+    ...printData,
+    consultantName: printData.consultantName ?? `Consultant ${printData.consultantId}`,
+  };
 }
 
 export async function updateConsultation(consultationId: string, updates: Partial<typeof consultations.$inferInsert>) {

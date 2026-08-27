@@ -97,6 +97,16 @@ describe("Phase 4 Step 1 consultant OP foundation", () => {
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({ actionType: "CONSULTATION_OP_PRINT_VIEWED", userId: "21" }));
   });
 
+  it("uses a stable consultant fallback when legacy print data has no display name", async () => {
+    vi.spyOn(db, "getConsultationPrintData").mockResolvedValue({
+      consultationId: "CON-LEGACY", consultantId: 21, consultantName: null, firstName: "Legacy", lastName: "Patient",
+      patientId: "PAT-LEGACY", contactNumber: "9999999999", consultationDate: "2026-08-24T10:00:00.000Z",
+      consultantLogoKey: null, signatureKey: null,
+    } as any);
+    vi.spyOn(db, "createAuditLog").mockResolvedValue(undefined);
+    await expect(appRouter.createCaller(ctx("admin")).consultations.getBrandedPrintData({ consultationId: "CON-LEGACY" })).resolves.toMatchObject({ consultantName: "Consultant 21" });
+  });
+
   it("renders consultant identity on the left and Max Diagnostics identity on the right while safely omitting absent images", () => {
     const html = generateConsultationOPHTML({
       consultationId: "CON-1", consultationDate: "2026-08-24T10:00:00.000Z", patientId: "PAT-1", firstName: "Shared", lastName: "Patient",

@@ -363,8 +363,10 @@ export default function Appointments() {
                       <div className="flex flex-col items-end gap-2">
                         {getStatusBadge(apt.status)}
                         {apt.status === "Scheduled" && (
-                          <div className="flex gap-2">
-								<Button size="sm" onClick={() => checkInMutation.mutate({ appointmentId: apt.appointmentId })} disabled={checkInMutation.isPending}>Check In</Button>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-xs text-slate-500">Check in to enable OP generation</span>
+                            <div className="flex gap-2">
+									<Button size="sm" onClick={() => checkInMutation.mutate({ appointmentId: apt.appointmentId })} disabled={checkInMutation.isPending}>Check In</Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -381,6 +383,7 @@ export default function Appointments() {
                             >
                               Cancel
                             </Button>
+                            </div>
                           </div>
                         )}
 						{apt.status === "Checked-in" && (

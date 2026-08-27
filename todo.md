@@ -1150,3 +1150,19 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Trace the contact-number field, normalization, and register-patient submission path.
 - [x] Apply the smallest safe Indian mobile-number normalization and user-facing validation correction.
 - [x] Add regression coverage and run New Visit-focused tests, type-check, full suite, build, diff, and Preview validation.
+
+## Attachment 56 Review and Application
+- [x] Read and summarize attachment 56.
+- [x] Verify attachment 56 claims and requested scope against the current Clinic CMS.
+- [x] Apply only safe, explicitly authorized changes from attachment 56.
+- [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.
+
+## Appointment Consultation Print Data Failure
+- [x] Trace the Generate OP and branded print-data lookup path, including consultant/patient joins and current appointment state.
+- [x] Apply the smallest safe correction without weakening consultant authorization or paper-first lifecycle rules.
+- [x] Add regression coverage and run focused appointment/OP tests, full suite, type-check, build, diff, and Preview validation.
+
+## New Visit to Generate OP No-Response Flow
+- [x] Trace test-patient registration, appointment confirmation, redirect, and Generate OP interaction from current logs and source.
+- [x] Apply the smallest safe response/navigation/loading-state correction without changing paper-first business rules.
+- [x] Add regression coverage and run focused workflow tests, full suite, type-check, build, diff, and Preview validation.
