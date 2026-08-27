@@ -1139,3 +1139,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Verify attachment 55 claims and requested scope against the current Clinic CMS.
 - [x] Apply only safe, explicitly authorized changes from attachment 55.
 - [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.
+
+## Attachment 52 Approved Workflow Re-execution
+- [x] Re-read attachment 52 and inspect the current workflow ledger/state.
+- [x] Map each approved attachment 52 step to completed, pending, or blocked status.
+- [x] Execute only genuinely pending approved steps; do not repeat completed changes.
+- [x] Validate the executed steps, update documentation if required, and save a checkpoint.
