@@ -30,6 +30,7 @@ import { storeConsultantImage } from "./consultantAssets";
 import { FIXED_CLINIC_BRANDING } from "../shared/clinicBranding";
 import { normalizeIndianMobile } from "./external/validation";
 import { hasStrongDuplicate, rankPatientCandidates } from "./visitWorkflow";
+import { isReadyForBilling } from "./paperFirstWorkflow";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -1449,6 +1450,41 @@ export const appRouter = router({
           actorId: String(ctx.user.id),
         });
         return { ...result, patientId: consultation.patientId, consultationId: consultation.consultationId, appointmentId: appointment.appointmentId };
+      }),
+
+    getEncounterCandidatesByDate: protectedProcedure
+      .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must use YYYY-MM-DD") }))
+      .query(async ({ input, ctx }) => {
+        const rows = await db.getBillingCandidatesByDate(input.date);
+        return rows
+          .filter(({ appointment }) => ctx.user.role !== "consultant" || appointment.consultantId === ctx.user.id)
+          .map(({ appointment, patient, consultation, bill, consultant }) => {
+            const readyForBilling = Boolean(consultation && isReadyForBilling(consultation.isFinalized, Boolean(bill)));
+            const status = bill
+              ? "Billed"
+              : readyForBilling
+                ? "Ready for Billing"
+                : appointment.status === "Completed"
+                  ? "Completed"
+                  : appointment.status;
+            return {
+              appointmentId: appointment.appointmentId,
+              appointmentDate: appointment.appointmentDate,
+              appointmentTime: appointment.appointmentTime,
+              appointmentStatus: appointment.status,
+              patientId: appointment.patientId,
+              patientName: patient ? `${patient.firstName} ${patient.lastName}` : "Unknown Patient",
+              age: patient?.age ?? null,
+              gender: patient?.gender ?? null,
+              consultationId: consultation?.consultationId ?? null,
+              consultantId: appointment.consultantId,
+              consultantName: consultant?.name ?? `Consultant ${appointment.consultantId}`,
+              isFinalized: consultation?.isFinalized ?? null,
+              billId: bill?.billId ?? null,
+              displayStatus: status,
+              canRaiseBill: readyForBilling,
+            };
+          });
       }),
 
     getAll: protectedProcedure.query(async () => {

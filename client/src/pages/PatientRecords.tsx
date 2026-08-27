@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import { useCanAccessFeature } from "@/hooks/useFeatureAccess";
 import { downloadCsvFile } from "@/lib/downloadCsv";
 import { CalendarDays, Copy, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound, FileCheck, DollarSign } from "lucide-react";
 import { toast } from "sonner";
@@ -34,6 +35,7 @@ export default function PatientRecords() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const canAccessBilling = useCanAccessFeature("billing");
   const [, setLocation] = useLocation();
 
   const patientsQuery = trpc.patients.getAll.useQuery();
@@ -88,6 +90,13 @@ export default function PatientRecords() {
   const consultations = consultationsQuery.data || [];
   const bills = billsQuery.data || [];
   const visitChains = visitChainQuery.data || [];
+  const eligibleBillingVisits = useMemo(
+    () => visitChains.filter((chain) => Boolean(chain.consultation?.isFinalized && !chain.bill && chain.consultation?.appointmentId)),
+    [visitChains],
+  );
+  const openEncounterBilling = (consultationId: string, patientId: string) => {
+    setLocation(`/billing?consultationId=${encodeURIComponent(consultationId)}&patientId=${encodeURIComponent(patientId)}`);
+  };
 
   const storedFiles = selectedPatient ? [
     { label: "QR Code", url: selectedPatient.qrcodeImageUrl, key: selectedPatient.qrcodeImageKey, artifactType: "qr_code" as const, patientId: selectedPatient.patientId, recordId: selectedPatient.patientId, icon: FileText },
@@ -266,6 +275,35 @@ export default function PatientRecords() {
                     </div>
                     <Badge variant="outline">Registered {formatDate(selectedPatient.createdAt)}</Badge>
                   </div>
+                  {canAccessBilling && (
+                    <div className="mt-4 flex flex-col gap-2 rounded-lg border border-teal-100 bg-teal-50/60 p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-teal-950">Billing actions</p>
+                        <p className="text-xs text-teal-700">
+                          {eligibleBillingVisits.length === 0
+                            ? "No visits ready for billing."
+                            : eligibleBillingVisits.length === 1
+                              ? "One finalized visit is ready."
+                              : `${eligibleBillingVisits.length} finalized visits are ready; choose one.`}
+                        </p>
+                      </div>
+                      {eligibleBillingVisits.length === 1 && eligibleBillingVisits[0]?.consultation?.consultationId && (
+                        <Button type="button" size="sm" className="gap-1 bg-teal-600 text-white hover:bg-teal-700" onClick={() => openEncounterBilling(eligibleBillingVisits[0].consultation!.consultationId, selectedPatient.patientId)}>
+                          <DollarSign className="h-3.5 w-3.5" /> Raise Bill
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  {canAccessBilling && eligibleBillingVisits.length > 1 && (
+                    <div className="mt-2 grid gap-2 rounded-lg border border-teal-100 bg-white p-3 sm:grid-cols-2">
+                      {eligibleBillingVisits.map((chain) => (
+                        <Button key={chain.consultation!.consultationId} type="button" variant="outline" className="justify-between border-teal-200 text-left text-teal-900 hover:bg-teal-50" onClick={() => openEncounterBilling(chain.consultation!.consultationId, selectedPatient.patientId)}>
+                          <span>{formatDate(chain.appointment.appointmentDate)} · {chain.appointment.appointmentTime}</span>
+                          <span className="text-xs text-muted-foreground">Raise Bill</span>
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                   <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                     <div><span className="text-muted-foreground">Phone:</span> {selectedPatient.contactNumber}</div>
                     <div><span className="text-muted-foreground">Email:</span> {selectedPatient.email || "—"}</div>
@@ -326,13 +364,18 @@ export default function PatientRecords() {
                               size="sm"
                               className="h-auto gap-1 px-2 py-1 text-xs"
                               onClick={() => {
-                                setLocation(`/billing?consultationId=${consultation.consultationId}&patientId=${selectedPatientId}`);
+                                const chain = visitChains.find((candidate) => candidate.consultation?.consultationId === consultation.consultationId);
+                                if (chain?.bill) {
+                                  setLocation(`/billing?consultationId=${encodeURIComponent(consultation.consultationId)}&patientId=${encodeURIComponent(selectedPatientId || "")}`);
+                                  return;
+                                }
+                                openEncounterBilling(consultation.consultationId, selectedPatientId || "");
                               }}
-                              disabled={!consultation.isFinalized}
-                              title={consultation.isFinalized ? "Generate Bill for this consultation" : "Mark the consultation ready for billing first"}
+                              disabled={!canAccessBilling || !consultation.isFinalized}
+                              title={!canAccessBilling ? "Billing access is not enabled" : consultation.isFinalized ? "Generate Bill for this consultation" : "Mark the consultation ready for billing first"}
                             >
                               <DollarSign className="h-3.5 w-3.5" />
-                              Generate Bill
+                              {visitChains.find((candidate) => candidate.consultation?.consultationId === consultation.consultationId)?.bill ? "View Bill" : "Raise Bill"}
                             </Button>
                             {!consultation.isFinalized && (user?.role === "consultant" || isAdmin) && (
                               <Button

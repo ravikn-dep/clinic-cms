@@ -1076,3 +1076,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Implement the smallest secure UX/API correction that distinguishes OAuth-only users from local-password users without weakening authentication.
 - [x] Add regression coverage for OAuth-only rejection guidance and local-password change behavior.
 - [x] Validate type-check, focused auth tests, full suite, build, Preview behavior, and save a checkpoint.
+
+## Attached Report Review and Application
+- [x] Read and summarize the newly attached report or instructions.
+- [x] Verify its claims against the current repository, database-safe boundaries, and existing implementation.
+- [x] Apply only explicitly supported and safe changes from the attachment.
+- [x] Run required tests, type-check, build, and diff validation; document any blocked or unapplied items.

@@ -663,6 +663,18 @@ Payment status may remain:
 
 without reopening the completed clinical visit.
 
+### 16.6 Visit-Date Billing Selection
+
+**Status: `IMPLEMENTED_VALIDATED`**
+
+The Billing page provides a read-only, clinic-local date selector that lists appointment-authoritative visits for the selected day. The normal encounter workflow is:
+
+```text
+Selected clinic date → eligible finalized visit → Raise Bill
+```
+
+The server derives patient, consultant, consultation, appointment, billing state, and eligibility from existing relationships. Only a finalized consultation without an existing encounter bill exposes `Raise Bill`; scheduled, unfinished, completed, or already-billed visits remain non-actionable or show their current state. Generic/manual billing remains available and the canonical encounter billing procedure remains responsible for authorization, patient-substitution protection, idempotency, and visit closure.
+
 ---
 
 ## 17. Generic / Manual Billing
@@ -726,7 +738,13 @@ Patient Records should be able to resolve:
 - bill;
 - completed state.
 
-### 19.2 Future Actions
+### 19.2 Current Contextual Actions
+
+**Status: `IMPLEMENTED_VALIDATED`**
+
+The patient identity preview surfaces billing context near the patient identity when the user has billing access. One eligible finalized unbilled encounter opens Billing directly; multiple eligible encounters require explicit encounter selection; and zero eligible encounters displays an explanatory non-actionable state. Visit-level actions remain state-aware, including `Raise Bill` only for eligible encounters and `View Bill` for billed encounters. These actions do not create appointments, consultations, bills, or procurement records from Patient Records.
+
+### 19.3 Future Actions
 
 Approved direction:
 
@@ -2004,6 +2022,7 @@ Historical TODO claims were not automatically treated as current product truth w
 |---|---|---|---|---|
 | 1.0.0 | 2026-08-26 | Initial canonical reconstruction after Phase 4 Step 3; reconciles current source, stable milestones, retired workflows, and approved future direction. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
 | 1.0.1 | 2026-08-26 | Records the validated dashboard/navigation refinement: grouped role-aware navigation, New Visit as the principal front-desk entry point, appointment-authoritative Home queue, and no new analytics subsystem. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
+| 1.0.2 | 2026-08-27 | Records the validated Billing visit-date selection and Patient Records contextual-action refinement; preserves encounter billing safeguards, paper-first lifecycle boundaries, RBAC, and no-schema-change procurement isolation. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
 
 ---
 

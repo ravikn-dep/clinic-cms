@@ -2324,3 +2324,24 @@ export async function getPatientVisitChain(patientId: string) {
   }
   return chains;
 }
+
+export async function getBillingCandidatesByDate(appointmentDate: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+
+  return database
+    .select({
+      appointment: appointments,
+      patient: patients,
+      consultation: consultations,
+      bill: bills,
+      consultant: users,
+    })
+    .from(appointments)
+    .leftJoin(patients, eq(appointments.patientId, patients.patientId))
+    .leftJoin(consultations, eq(appointments.appointmentId, consultations.appointmentId))
+    .leftJoin(bills, eq(consultations.consultationId, bills.consultationId))
+    .leftJoin(users, eq(appointments.consultantId, users.id))
+    .where(eq(appointments.appointmentDate, appointmentDate))
+    .orderBy(appointments.appointmentTime, appointments.createdAt);
+}

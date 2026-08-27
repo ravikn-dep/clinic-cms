@@ -48,6 +48,7 @@ const initialBillForm: BillFormState = {
 };
 
 const parseCurrency = (value: unknown) => Number.parseFloat(String(value ?? "0")) || 0;
+const clinicToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
 
 type PatientDetails = {
   patientId: string;
@@ -82,6 +83,7 @@ export default function Billing() {
   const isAdmin = user?.role === "admin";
   const utils = trpc.useUtils();
   const [location] = useLocation();
+  const [selectedBillingDate, setSelectedBillingDate] = useState(() => clinicToday());
 
   // Handle query parameters from Patient Records "Generate Bill" button
   useEffect(() => {
@@ -135,6 +137,10 @@ export default function Billing() {
   const billsQuery = trpc.bills.getAll.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
+  const billingCandidatesQuery = trpc.bills.getEncounterCandidatesByDate.useQuery(
+    { date: selectedBillingDate },
+    { enabled: showNewBill, refetchOnWindowFocus: false },
+  );
 
   const createBill = trpc.bills.create.useMutation({
     onSuccess: (bill) => {
@@ -282,6 +288,14 @@ export default function Billing() {
       discountAmount: parseCurrency(form.discountAmount).toString(),
       taxAmount: parseCurrency(form.taxAmount).toString(),
     });
+  };
+
+  const selectEncounter = (candidate: NonNullable<typeof billingCandidatesQuery.data>[number]) => {
+    const consultationId = candidate.consultationId;
+    if (!candidate.canRaiseBill || !consultationId) return;
+    setForm((current) => ({ ...current, patientId: candidate.patientId, consultationId }));
+    setPatientDetails(null);
+    setConsultationNotes(null);
   };
 
   const setField = (field: keyof BillFormState, value: string | BillItem[]) => {
@@ -486,6 +500,45 @@ export default function Billing() {
             <CardDescription className="text-teal-700 mt-1">Generate a bill for consultation, procedure, or medicine charges.</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-6 rounded-xl border border-teal-100 bg-teal-50/60 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="font-semibold text-teal-950">Select a visit to bill</p>
+                  <p className="text-sm text-teal-700">Choose the clinic visit date, then raise a bill only for a finalized encounter.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant={selectedBillingDate === clinicToday() ? "default" : "outline"} onClick={() => setSelectedBillingDate(clinicToday())}>Today</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => { const date = new Date(); date.setDate(date.getDate() - 1); setSelectedBillingDate(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(date)); }}>Yesterday</Button>
+                  <Input aria-label="Billing visit date" type="date" value={selectedBillingDate} onChange={(event) => setSelectedBillingDate(event.target.value)} className="w-[150px] bg-white" />
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                {billingCandidatesQuery.isLoading ? (
+                  <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading visits...</div>
+                ) : billingCandidatesQuery.isError ? (
+                  <div className="flex items-center gap-2 py-3 text-sm text-destructive"><AlertCircle className="h-4 w-4" /> Unable to load visits for this date.</div>
+                ) : billingCandidatesQuery.data?.length === 0 ? (
+                  <p className="py-3 text-sm text-muted-foreground">No visits recorded for this date.</p>
+                ) : (
+                  billingCandidatesQuery.data?.map((candidate) => (
+                    <div key={candidate.appointmentId} className="flex flex-col gap-3 rounded-lg border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 text-sm">
+                        <p className="font-semibold text-teal-950">{candidate.patientName} <span className="font-mono text-xs font-normal text-muted-foreground">{candidate.patientId}</span></p>
+                        <p className="text-xs text-muted-foreground">{candidate.appointmentTime} · {candidate.consultantName} · {candidate.age ?? "Age not recorded"}{candidate.gender ? ` · ${candidate.gender}` : ""}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={candidate.canRaiseBill ? "default" : "outline"}>{candidate.displayStatus}</Badge>
+                        {candidate.canRaiseBill ? (
+                          <Button type="button" size="sm" className="gap-1 bg-teal-600 text-white hover:bg-teal-700" onClick={() => selectEncounter(candidate)}><Plus className="h-3.5 w-3.5" /> Raise Bill</Button>
+                        ) : candidate.billId ? (
+                          <span className="text-xs text-muted-foreground">View in billing history</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
             <form className="space-y-6" onSubmit={handleCreateBill}>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
