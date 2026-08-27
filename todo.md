@@ -1062,3 +1062,6 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Preserve paper-first visit closure, future digital consultation fields, procurement/inventory boundaries, User Management hardening, and no-ThreeUI boundary.
 - [x] Update only affected PRD sections after implementation and add focused UI/navigation regression tests.
 - [x] Run check, focused tests, full tests, build, diff hygiene, and commit locally without push, PR, merge, tag, deployment, or production action.
+
+## Main-side PRD Publication Review
+- [x] Preserve the canonical PRD and reconciliation evidence already reviewed through PR #15.

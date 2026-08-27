@@ -84,3 +84,6 @@ The supplied PRD was copied, reconciled, and reviewed for terminology, status co
 [8]: `USER_MANAGEMENT_CLEANUP_AND_ADMIN_PASSWORD_REPORT.md` — merged User Management hardening evidence
 [9]: `PHASE_3_STEP_8_GOVERNED_PROCUREMENT_REPORT.md` — governed procurement and inventory evidence
 [10]: `git tag` and protected merge history — stable milestone evidence
+
+## Publication review
+The canonical PRD documentation was previously reviewed through PR #15. The dashboard/navigation implementation remains a separate validated feature delta.

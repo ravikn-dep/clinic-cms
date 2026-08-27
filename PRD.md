@@ -2028,3 +2028,6 @@ Future AI, voice, WhatsApp, website, digital consultation, pharmacy dispensing, 
 ---
 
 **End of CMS-PRD-001 v1.0.0**
+
+## Publication review
+Documentation branch established through PR #15 for protected canonical review; dashboard refinement is preserved as a separate feature delta for PR #16.
