@@ -342,6 +342,33 @@ export async function getConsultationsByPatientAndConsultant(patientId: string, 
   )).orderBy(desc(consultations.consultationDate));
 }
 
+const CONSULTANT_AVAILABILITY_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+
+function formatAvailabilityTime(value: string): string {
+  const [hoursText, minutesText] = value.split(":");
+  const hours = Number(hoursText);
+  const minutes = Number(minutesText);
+  if (!Number.isInteger(hours) || !Number.isInteger(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return value;
+  const suffix = hours >= 12 ? "PM" : "AM";
+  const displayHours = hours % 12 || 12;
+  return `${displayHours}:${String(minutes).padStart(2, "0")} ${suffix}`;
+}
+
+export function formatConsultantAvailability(rows: Array<{ dayOfWeek: number; startTime: string; endTime: string }>): string | null {
+  if (!rows.length) return null;
+  const grouped = new Map<string, string[]>();
+  for (const row of rows) {
+    const day = CONSULTANT_AVAILABILITY_DAYS[row.dayOfWeek] ?? `Day ${row.dayOfWeek}`;
+    const range = `${formatAvailabilityTime(row.startTime)}–${formatAvailabilityTime(row.endTime)}`;
+    const existing = grouped.get(day) || [];
+    existing.push(range);
+    grouped.set(day, existing);
+  }
+  return Array.from(grouped.entries())
+    .map(([day, ranges]) => `${day.slice(0, 3)}: ${ranges.join(" & ")}`)
+    .join(" · ");
+}
+
 export async function getConsultationPrintData(consultationId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -359,6 +386,7 @@ export async function getConsultationPrintData(consultationId: string) {
     age: patients.age,
     gender: patients.gender,
     contactNumber: patients.contactNumber,
+    address: patients.address,
     consultantName: users.name,
     qualifications: users.qualifications,
     specialization: users.specialization,
@@ -368,6 +396,7 @@ export async function getConsultationPrintData(consultationId: string) {
     prescriptionHeaderText: users.prescriptionHeaderText,
     consultantLogoKey: users.consultantLogoKey,
     signatureKey: users.signatureKey,
+    consultantLocation: users.consultantLocation,
   }).from(consultations)
     .innerJoin(patients, eq(consultations.patientId, patients.patientId))
     .leftJoin(users, eq(consultations.consultantId, users.id))
@@ -375,9 +404,18 @@ export async function getConsultationPrintData(consultationId: string) {
     .limit(1);
   const printData = result[0];
   if (!printData || !printData.consultantId) return null;
+  const availabilityRows = await db.select({
+    dayOfWeek: consultantAvailability.dayOfWeek,
+    startTime: consultantAvailability.startTime,
+    endTime: consultantAvailability.endTime,
+  }).from(consultantAvailability).where(and(
+    eq(consultantAvailability.consultantId, printData.consultantId),
+    eq(consultantAvailability.isActive, 1),
+  )).orderBy(consultantAvailability.dayOfWeek, consultantAvailability.startTime);
   return {
     ...printData,
     consultantName: printData.consultantName ?? `Consultant ${printData.consultantId}`,
+    consultantTimings: formatConsultantAvailability(availabilityRows),
   };
 }
 

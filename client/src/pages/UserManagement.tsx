@@ -26,13 +26,14 @@ type FormData = {
   specialization: string;
   designation: string;
   prescriptionHeaderText: string;
+  consultantLocation: string;
   isActive: boolean;
 };
 
 const emptyForm = (): FormData => ({
   name: "", password: "", email: "", phone: "", department: "", role: "consultant",
   stateCounsilSection: "", registrationNumber: "", qualifications: "", specialization: "",
-  designation: "", prescriptionHeaderText: "", isActive: true,
+  designation: "", prescriptionHeaderText: "", consultantLocation: "", isActive: true,
 });
 
 async function readImageFile(file: File) {
@@ -99,7 +100,7 @@ export default function UserManagement() {
       name: staffUser.name || "", password: "", email: staffUser.email || "", phone: staffUser.phone || "", department: staffUser.department || "",
       role: staffUser.role, stateCounsilSection: staffUser.stateCounsilSection || "", registrationNumber: staffUser.registrationNumber || "",
       qualifications: staffUser.qualifications || "", specialization: staffUser.specialization || "", designation: staffUser.designation || "",
-      prescriptionHeaderText: staffUser.prescriptionHeaderText || "", isActive: Boolean(staffUser.isActive),
+      prescriptionHeaderText: staffUser.prescriptionHeaderText || "", consultantLocation: staffUser.consultantLocation || "", isActive: Boolean(staffUser.isActive),
     });
     setShowForm(true);
   };
@@ -137,6 +138,7 @@ export default function UserManagement() {
         <Field label="Registration Council"><Input value={formData.stateCounsilSection} onChange={(event) => setFormData({ ...formData, stateCounsilSection: event.target.value })} /></Field>
         <Field label="Registration Number"><Input value={formData.registrationNumber} onChange={(event) => setFormData({ ...formData, registrationNumber: event.target.value })} /></Field>
         <Field label="Prescription Header Text"><Input value={formData.prescriptionHeaderText} onChange={(event) => setFormData({ ...formData, prescriptionHeaderText: event.target.value })} /></Field>
+        <Field label="OP Location"><Input value={formData.consultantLocation} onChange={(event) => setFormData({ ...formData, consultantLocation: event.target.value })} placeholder="e.g. Punjagutta, Hyderabad" maxLength={500} /></Field>
       </div>
       {editingUser && <>
         <div className="grid gap-3 md:grid-cols-2"><AssetControl label="Upload / Replace Consultant Logo" onFile={(file) => handleAsset("logo", file)} disabled={uploadAsset.isPending} /><AssetControl label="Upload / Replace Digital Signature" onFile={(file) => handleAsset("signature", file)} disabled={uploadAsset.isPending} /></div>

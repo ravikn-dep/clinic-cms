@@ -1152,7 +1152,7 @@ export const appRouter = router({
           actionType: "CONSULTATION_OP_PRINT_VIEWED",
           tableName: "consultations",
           recordId: input.consultationId,
-          newValue: JSON.stringify({ consultantId: printData.consultantId, hasLogo: Boolean(consultantLogo), hasSignature: Boolean(signature) }),
+          newValue: JSON.stringify({ consultantId: printData.consultantId, hasLogo: Boolean(consultantLogo), hasSignature: Boolean(signature), hasLocation: Boolean(printData.consultantLocation), hasTimings: Boolean(printData.consultantTimings) }),
           timestamp: new Date().toISOString(),
         });
         return {
@@ -2189,6 +2189,7 @@ export const appRouter = router({
         stateCounsilSection: z.string().max(100).optional(),
         registrationNumber: z.string().max(100).optional(),
         prescriptionHeaderText: z.string().max(2_000).optional(),
+        consultantLocation: z.string().max(500).optional(),
         isActive: z.boolean().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -2266,6 +2267,7 @@ export const appRouter = router({
         specialization: z.string().max(255).optional(),
         designation: z.string().max(255).optional(),
         prescriptionHeaderText: z.string().max(2_000).optional(),
+        consultantLocation: z.string().max(500).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
@@ -2295,6 +2297,7 @@ export const appRouter = router({
             specialization: input.specialization,
             designation: input.designation,
             prescriptionHeaderText: input.prescriptionHeaderText,
+            consultantLocation: input.consultantLocation,
           };
 
           await db.createStaffUser(userData);
@@ -2347,6 +2350,7 @@ export const appRouter = router({
           specialization: u.specialization,
           designation: u.designation,
           prescriptionHeaderText: u.prescriptionHeaderText,
+          consultantLocation: u.consultantLocation,
           consultantLogoUrl: u.consultantLogoKey ? (await storageGet(u.consultantLogoKey)).url : null,
           signatureUrl: u.signatureKey ? (await storageGet(u.signatureKey)).url : null,
           createdAt: u.createdAt,
@@ -2371,6 +2375,7 @@ export const appRouter = router({
         specialization: z.string().max(255).optional(),
         designation: z.string().max(255).optional(),
         prescriptionHeaderText: z.string().max(2_000).optional(),
+        consultantLocation: z.string().max(500).optional(),
         isActive: z.boolean().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -2393,6 +2398,7 @@ export const appRouter = router({
           if (input.specialization !== undefined) updates.specialization = input.specialization;
           if (input.designation !== undefined) updates.designation = input.designation;
           if (input.prescriptionHeaderText !== undefined) updates.prescriptionHeaderText = input.prescriptionHeaderText;
+          if (input.consultantLocation !== undefined) updates.consultantLocation = input.consultantLocation;
           if (input.isActive !== undefined) updates.isActive = input.isActive;
 
           await db.updateStaffUser(input.userId, updates);

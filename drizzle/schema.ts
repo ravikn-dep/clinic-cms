@@ -435,6 +435,7 @@ export const rolePermissions = mysqlTable("rolePermissions", {
 		prescriptionHeaderText: text(),
 		consultantLogoKey: text(),
 		signatureKey: text(),
+		consultantLocation: text(),
 	},
 (table) => [
 	index("users_userId_unique").on(table.userId),

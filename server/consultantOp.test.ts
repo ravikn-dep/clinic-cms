@@ -88,11 +88,12 @@ describe("Phase 4 Step 1 consultant OP foundation", () => {
       consultationId: "CON-1", consultantId: 21, consultantName: "Dr Consultant", firstName: "Shared", lastName: "Patient", patientId: "PAT-1",
       contactNumber: "9999999999", consultationDate: "2026-08-24T10:00:00.000Z", qualifications: "MBBS", specialization: "Orthopedics",
       registrationNumber: "REG-001", registrationCouncil: "Medical Council", clinicalHistory: "History", presentComplaints: "Pain",
-      advisedInvestigations: "X-ray", treatmentPlan: "Rest", consultantLogoKey: null, signatureKey: null,
+      advisedInvestigations: "X-ray", treatmentPlan: "Rest", consultantLogoKey: null, signatureKey: null, consultantLocation: "Banjara Hills, Hyderabad", consultantTimings: "Mon: 5:30 PM–8:30 PM",
     } as any);
     const audit = vi.spyOn(db, "createAuditLog").mockResolvedValue(undefined);
     const payload = await appRouter.createCaller(ctx("consultant", 21)).consultations.getBrandedPrintData({ consultationId: "CON-1" });
     expect(payload.facility).toMatchObject({ name: "MAX DIAGNOSTICS", location: "Punjagutta" });
+    expect(payload).toMatchObject({ consultantLocation: "Banjara Hills, Hyderabad", consultantTimings: "Mon: 5:30 PM–8:30 PM" });
     expect(JSON.stringify(payload)).not.toContain("consultantLogoKey");
     expect(audit).toHaveBeenCalledWith(expect.objectContaining({ actionType: "CONSULTATION_OP_PRINT_VIEWED", userId: "21" }));
   });
@@ -107,14 +108,14 @@ describe("Phase 4 Step 1 consultant OP foundation", () => {
     await expect(appRouter.createCaller(ctx("admin")).consultations.getBrandedPrintData({ consultationId: "CON-LEGACY" })).resolves.toMatchObject({ consultantName: "Consultant 21" });
   });
 
-  it("renders consultant identity on the left and Max Diagnostics identity on the right while safely omitting absent images", () => {
+  it("renders the single master OP layout with consultant branding and safely omits absent images", () => {
     const html = generateConsultationOPHTML({
       consultationId: "CON-1", consultationDate: "2026-08-24T10:00:00.000Z", patientId: "PAT-1", firstName: "Shared", lastName: "Patient",
       age: 35, gender: "Female", contactNumber: "9999999999", consultantName: "Dr Consultant", qualifications: "MBBS",
-      specialization: "Orthopedics", registrationNumber: "REG-001", facility: { name: "MAX DIAGNOSTICS", location: "Punjagutta" },
+      specialization: "Orthopedics", registrationNumber: "REG-001", consultantLocation: "Punjagutta, Hyderabad", consultantTimings: "Mon: 5:30 PM–8:30 PM", facility: { name: "MAX DIAGNOSTICS", location: "Punjagutta" },
     });
-    expect(html.indexOf('identity consultant')).toBeLessThan(html.indexOf('identity facility'));
-    expect(html).toContain("Dr Consultant"); expect(html).toContain("MAX DIAGNOSTICS"); expect(html).toContain("Punjagutta");
+    expect(html).toContain("Dr Consultant"); expect(html).toContain("Punjagutta, Hyderabad");
+    expect(html).toContain("Clinical Notes"); expect(html).toContain("OP valid only upto 4 weeks or one visit within.");
     expect(html).not.toContain('src="undefined"'); expect(html).not.toContain('src="null"');
   });
 
