@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Edit2, ImageUp, KeyRound, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getUserManagementErrorMessage } from "@shared/userManagementErrors";
+import { requireConsultantAssetUrl } from "@shared/consultantAssetResponse";
 
 type FormData = {
   name: string;
@@ -68,9 +69,7 @@ export default function UserManagement() {
   const updateUser = trpc.rbac.updateStaffUser.useMutation({ onSuccess: saveSuccess, onError: showMutationError });
   const deleteUser = trpc.rbac.deleteStaffUser.useMutation({ onSuccess: () => { utils.rbac.listStaffUsers.invalidate(); toast.success("User removed."); }, onError: showMutationError });
   const uploadAsset = trpc.consultants.uploadAsset.useMutation({
-    onSuccess: (result, variables) => {
-      const previewField = variables.assetType === "logo" ? "consultantLogoUrl" : "signatureUrl";
-      setEditingUser((current: any) => current ? { ...current, [previewField]: result.asset.url } : current);
+    onSuccess: (_result, variables) => {
       utils.rbac.listStaffUsers.invalidate();
       toast.success(`${variables.assetType === "logo" ? "Logo" : "Signature"} stored securely.`);
     },
@@ -107,7 +106,10 @@ export default function UserManagement() {
   const handleAsset = async (assetType: "logo" | "signature", file?: File) => {
     if (!editingUser?.id || !file) return;
     try {
-      await uploadAsset.mutateAsync({ consultantId: editingUser.id, assetType, dataUrl: await readImageFile(file) });
+      const result = await uploadAsset.mutateAsync({ consultantId: editingUser.id, assetType, dataUrl: await readImageFile(file) });
+      const previewField = assetType === "logo" ? "consultantLogoUrl" : "signatureUrl";
+      const assetUrl = requireConsultantAssetUrl(result);
+      setEditingUser((current: any) => current ? { ...current, [previewField]: assetUrl } : current);
     } catch (error) {
       toast.error(getUserManagementErrorMessage(error instanceof Error ? error.message : "Unable to upload consultant image."));
     }

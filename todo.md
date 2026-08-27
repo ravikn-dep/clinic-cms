@@ -1127,3 +1127,15 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Verify attachment 53 claims and requested scope against the current Clinic CMS.
 - [x] Apply only safe, explicitly authorized changes from attachment 53.
 - [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.
+
+## Attachment 54 Review and Application
+- [x] Read and summarize attachment 54.
+- [x] Verify attachment 54 claims and requested scope against the current Clinic CMS.
+- [x] Apply only safe, explicitly authorized changes from attachment 54.
+- [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.
+
+## Attachment 55 Review and Application
+- [x] Read and summarize attachment 55.
+- [x] Verify attachment 55 claims and requested scope against the current Clinic CMS.
+- [x] Apply only safe, explicitly authorized changes from attachment 55.
+- [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.
