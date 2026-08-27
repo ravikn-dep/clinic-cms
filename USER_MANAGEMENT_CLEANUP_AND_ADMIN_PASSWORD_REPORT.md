@@ -1,149 +1,94 @@
-# User Management Cleanup and Admin Password Report
+# User Management Cleanup and Admin Password Management Report
 
-**Status:** Implementation present; development schema reconciled; full-suite completion gate blocked.
+## Executive summary
 
-**Scope:** Development-only verification and repair. No production database, deployment, push, merge, tag, PR, or new User Management functionality was performed. The pre-ThreeUI stable UI was restored before this work and no ThreeUI files or imports remain in the active checkout.
+This branch audits and hardens the existing User Management and hybrid authentication layer for the Clinic Management System. The implementation preserves the existing role model of **admin**, **consultant**, and **staff**, retains the unified dashboard with role/feature gating, and does not modify clinical, procurement, Goods Receipt, inventory, or billing behavior.
 
-## Executive result
+The connected development database was previously classified as operational-looking and historically populated. Because hard-deleting users would destroy attribution or risk breaking historical references, no connected-data deletion or stale-user cleanup was performed. The safe policy implemented here is to preserve referenced identities and use deactivation as the operational alternative to deletion.
 
-The original User Management hardening remains implemented in the isolated `feature/user-management-cleanup` worktree, with focused security coverage observed at **10/10 tests passed** in the current test file. The connected development database had drifted behind the canonical appointment schema. The exact canonical forward changes from migrations 0021–0025 were applied to the development database only, in dependency order, without editing historical migration files.
+## Files changed
 
-The development schema repair succeeded and preserved business-row counts. `pnpm check`, the available focused authentication/RBAC tests, and `pnpm build` passed. The full Vitest suite did not complete: it stalled in the existing `server/featureAccess.test.ts` database transaction path while overwriting staff/consultant permissions. Because the attachment requires a green full suite, the final classification is **BLOCKED**, not `USER_MANAGEMENT_CLEANUP_IMPLEMENTED_LOCAL_VALIDATED`.
-
-## 1. Schema drift root cause
-
-The active restored stable checkout was based on the pre-0025 application state. Its local migration directory ended at `0020_glorious_thor.sql`, while the canonical GitHub ref `remotes/github/main` contains the Phase 4 Step 2 migration in commit `e0d7101`:
-
-> `drizzle/0025_windy_blue_blade.sql` adds the checked-in status value, `appointments.appointmentSource`, `consultations.appointmentId`, and the unique consultation-to-appointment protection.
-
-The development database already contained `appointments.checkedInAt` and `appointments.checkedInBy`, but it was missing the 0025 additions. Before repair, the appointment status enum was:
-
-```text
-enum('Scheduled','Completed','Cancelled','No-show','Rescheduled')
-```
-
-`appointments.appointmentSource`, `consultations.appointmentId`, and the `consultations_appointmentId_unique` index were absent. The database also lacked the canonical 0021–0024 catalog, vendor, extraction-review, posting-lock, and consultant-profile additions.
-
-## 2. Migration/reconciliation performed
-
-The following exact canonical forward migrations were retrieved from the repository’s `remotes/github/main` ref and applied to the connected **development database only**:
-
-| Migration | Canonical source | Action |
+| File | Change | Purpose |
 |---|---|---|
-| 0021 | `drizzle/0021_*.sql` from `remotes/github/main` | Created `purchaseOrderExtractionReviews` and its required indexes. |
-| 0022 | `drizzle/0022_motionless_quicksilver.sql` | Created `catalogItems` and `catalogItemAliases`; added catalog review/item linkage and indexes. |
-| 0023 | `drizzle/0023_previous_lady_ursula.sql` | Added consultant profile and branding fields to `users`. |
-| 0024 | `drizzle/0024_soft_aqueduct.sql` | Created `procurementPostingLocks`; added vendor/catalog linkage and uniqueness/index protections. |
-| 0025 | `drizzle/0025_windy_blue_blade.sql` | Added `Checked-in`, `appointmentSource`, `consultations.appointmentId`, and its unique index. |
+| `server/db.ts` | Modified | Adds reference-summary and active-admin-count helpers; makes local credential authentication reject inactive accounts and support username/email/user ID lookup; preserves server-side password-hash storage. |
+| `server/routers.ts` | Modified | Enforces admin-only creation, update, reset, and deletion controls; validates identifiers and minimum password length; hashes reset/create passwords server-side; prevents historical-reference deletion and last-active-admin deletion; keeps credential-login failures generic. |
+| `server/_core/sdk.ts` | Modified | Rejects inactive users when resolving authenticated sessions, preventing an inactive account from continuing through the OAuth/session path. |
+| `client/src/pages/UserManagement.tsx` | Modified | Adds initial-password entry during account creation, admin Reset Password flow, role-aware controls, and client validation aligned with the eight-character server policy. |
+| `client/src/pages/ChangePassword.tsx` | Modified | Aligns self-service password-change validation with the eight-character minimum and existing protected workflow. |
+| `server/userManagement.test.ts` | Added | Focused regression tests for administrator creation, role escalation, duplicate identifiers, bcrypt hashing, password secrecy, inactive login rejection, safe deletion, last-admin protection, and zero business-data mutation. |
+| `todo.md` | Modified | Records the completed hardening and focused validation work while preserving cleanup and full-environment validation items that remain pending. |
+| `USER_MANAGEMENT_CLEANUP_AND_ADMIN_PASSWORD_REPORT.md` | Added | This report. |
 
-No historical migration file was edited. No duplicate migration file was created. No fallback query, SQL-error suppression, `|| true`, production connection, or destructive data operation was used.
+No schema or migration file was changed. No database migration was generated or applied.
 
-The development migration ledger contained a single baseline marker rather than a complete 0000–0025 forward history. Therefore, the repair used the exact canonical SQL statements in forward dependency order against the already-operational development schema. The active application source was not rewritten merely to hide the drift.
+## Authentication design
 
-## 3. Post-repair schema evidence
+The application continues to use two authentication paths. Manus OAuth remains the administrator-facing path, while local credentials support consultant and staff accounts. The server compares submitted credentials against the stored bcrypt hash and returns a non-sensitive user profile. Password values and password hashes are not returned by the User Management procedures.
 
-The post-repair development queries returned the following evidence:
+Local authentication now resolves a user by normalized username, email, or staff/consultant user ID, and requires the account to be active. Inactive accounts fail with the same generic invalid-credential response rather than disclosing whether an account exists or whether it is inactive. The session-resolution path also rejects inactive users, so deactivation takes effect on subsequent authenticated requests.
 
-| Invariant | Result |
+The minimum password length is **8 characters** for account creation, administrator resets, and self-service changes. Password hashing remains server-side. The reset and create procedures return only a success result and user identifier; they do not return a temporary password, QR login secret, password hash, or other plaintext credential.
+
+## Authorization and lifecycle controls
+
+| Operation | Authorization | Integrity rule |
+|---|---|---|
+| Create consultant/staff | `adminProcedure` | Only consultant/staff roles are accepted; username/email uniqueness is checked server-side; password is required and hashed before persistence. |
+| Edit consultant/staff | `adminProcedure` | Client input cannot escalate a user to admin; identifier and role constraints are validated by the router. |
+| Reset password | `adminProcedure` | Target must exist; password is hashed server-side; audit record contains only the target identifier and no secret. Existing sessions are not globally invalidated by this change. |
+| Self-service password change | Protected authenticated procedure | Existing current-password verification is retained; minimum length is eight characters. |
+| Activate/deactivate | `adminProcedure` | Existing role-aware lifecycle path is retained; inactive status is enforced at credential login and session resolution. |
+| Delete user | `adminProcedure` | Historical/operational references block hard deletion; the last active administrator cannot be deleted. Deactivation is the safe alternative. |
+| Dashboard features | Existing server-side RBAC and feature permissions | Consultant and staff users continue using the same unified dashboard surface with feature access controlled by role and admin-configured permissions. |
+
+## Historical attribution and deletion policy
+
+`getUserReferenceSummary` checks the user against appointment/checked-in attribution, consultations, consultant availability, notifications, audit logs, purchase-order approval, Goods Receipt receipt attribution, stock movements, purchase-order history, vendor creation, bill-template creation, and child-user creation. A non-zero aggregate blocks deletion and instructs the administrator to deactivate the account instead.
+
+This is intentionally a preservation-first policy. The connected development database was not treated as disposable, so no bulk deletion was attempted and no historical identity was rewritten. The remaining cleanup task is to classify records only after an explicitly disposable non-production database is supplied.
+
+## Audit and mutation boundaries
+
+User creation, profile updates, password resets, activation changes, and permitted deletion continue to produce audit records through the existing audit-log mechanism. Password-reset audit data identifies the target user but does not contain the submitted password or generated hash.
+
+The User Management changes do not add or invoke any patient, appointment, consultation, purchase-order, Goods Receipt, stock-movement, inventory, or billing mutation. The focused tests explicitly spy on representative clinical, procurement, receipt, and inventory mutation helpers and verify that password-management operations do not call them.
+
+No idempotency behavior was changed. Existing business-operation idempotency remains outside this user-lifecycle change.
+
+## Validation results
+
+| Check | Result |
 |---|---|
-| `appointments.appointmentSource` | Present; `enum('MANUAL','WALK_IN','PHONE')`, `NOT NULL`, default `MANUAL`. |
-| Checked-in lifecycle | Present; `appointments.status` now includes `Checked-in`. Existing `checkedInAt` and `checkedInBy` remain present. |
-| `consultations.appointmentId` | Present as `varchar(50)`. |
-| One-consultation-per-appointment protection | `consultations_appointmentId_unique` present and unique. |
-| `purchaseOrderExtractionReviews` | Present. |
-| `catalogItems` | Present. |
-| `catalogItemAliases` | Present. |
-| `procurementPostingLocks` | Present. |
-| Catalog/batch/expiry uniqueness | `inventory_catalog_batch_expiry_unique` present. The metadata query returned three index rows because the composite index has three ordered columns. |
-| Purchase-order vendor index | `purchaseOrders_vendorId_idx` present. |
+| `pnpm check` | **PASS** — zero TypeScript errors. |
+| Focused user/RBAC/auth tests | **PASS** — 22/22 tests across `server/userManagement.test.ts`, `server/rbac.test.ts`, and `server/auth.logout.test.ts`. |
+| `pnpm build` | **PASS** — Vite frontend and bundled server completed successfully. The build emitted only the existing large-chunk warning. |
+| `git diff --check` | **PASS** — no whitespace errors. |
+| Full `pnpm test --run` | **BLOCKED by connected development-schema drift** — 250/272 tests passed; 22 failures occurred in `server/appointments.test.ts` and `server/visitDb.test.ts`. |
 
-## 4. Business-data zero-mutation evidence
+The full-suite failures are not caused by the User Management changes. They fail while selecting the existing `appointments.appointmentSource` column, with the development database reporting `Unknown column 'appointmentSource'`/`Unknown column 'appointmentsource'`. This is a pre-existing schema-alignment problem in the connected development environment and must be reconciled through the normal forward-migration/fresh-schema process before claiming a green full suite. No migration was applied in this task.
 
-Counts were captured before and after the development-only schema repair. The values were unchanged:
+## Browser acceptance
 
-| Table | Before | After | Difference |
-|---|---:|---:|---:|
-| `patients` | 201 | 201 | 0 |
-| `appointments` | 3,224 | 3,224 | 0 |
-| `consultations` | 0 | 0 | 0 |
-| `purchaseOrders` | 3 | 3 | 0 |
-| `goodsReceipts` | 0 | 0 | 0 |
-| `inventory` | 3 | 3 | 0 |
-| `stockMovements` | 0 | 0 | 0 |
-| `users` | 5,113 | 5,113 | 0 |
+Interactive acceptance was not used as the source of truth for this security task. The dashboard/session environment has previously been inaccessible for the synthetic acceptance account, and the task requirement is to avoid changing real role permissions or production data merely to make that account display tabs. Evidence therefore relies on the passing focused server/router tests, static type check, build, and diff hygiene. No production database, production credentials, deployment, or external service was accessed.
 
-The schema repair performed no inserts, updates, or deletes against business records. User password-management tests also assert that patient, procurement, receipt, inventory, and stock-movement helpers are not invoked by password operations.
+## Known limitations and deferred work
 
-## 5. Development user classification
+The branch does not classify or delete users from the connected database because that database is not demonstrably disposable. A future cleanup run should use an isolated disposable database, produce a complete reference classification, retain at least one active administrator, and obtain explicit approval before any destructive operation.
 
-The connected development `users` table is operational-looking and contains **5,113 active records**. Aggregate inspection returned 3,061 active `user` records, 2,049 active `admin` records, one active `consultant`, and two active `staff` records. No inactive users were present in the aggregate result, and no individual record met a defensible safe-deletion criterion.
+Global session invalidation is not performed during password reset; the existing local session model remains in place. If an immediate revocation requirement is added later, it should be implemented as a separate, explicitly scoped session-version or token-revocation change with its own migration and tests.
 
-No password hashes were selected, printed, or included in this report.
+The complete test suite remains blocked until the development database is reconciled with the current appointment schema. This report intentionally does not hide that failure, suppress it, remove the failing query, or add fallback values.
 
-| Scope | User ID / login-name detail | Role | Active | Reference summary | Classification | Recommended action |
-|---|---|---|---:|---|---|---|
-| Development users, aggregate inspection | Individual identities were intentionally not dumped because no stale/inactive candidate was identified. | `user` | 3,061 | Operational population; no inactive candidates in aggregate result. | KEEP | No action. |
-| Development users, aggregate inspection | Individual identities were intentionally not dumped because no stale/inactive candidate was identified. | `admin` | 2,049 | Operational administrator population; active-admin guard remains satisfied. | KEEP | Preserve all; do not reduce administrator count based on aggregate age alone. |
-| Development users, aggregate inspection | One active consultant; identity details not exposed in this report. | `consultant` | 1 | Active consultant population; no stale candidate identified. | KEEP | Preserve and validate through normal RBAC workflow. |
-| Development users, aggregate inspection | Two active staff records; identities not exposed in this report. | `staff` | 2 | Active staff population; no inactive candidate identified. | KEEP | Preserve and validate through normal RBAC workflow. |
+## Environment-variable names
 
-**Exact users deleted:** None.
+No environment variables were added or changed. Existing platform-provided names remain applicable, including `DATABASE_URL`, `JWT_SECRET`, `OAUTH_SERVER_URL`, `VITE_OAUTH_PORTAL_URL`, `OWNER_OPEN_ID`, `OWNER_NAME`, `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY`, `VITE_FRONTEND_FORGE_API_URL`, and `VITE_FRONTEND_FORGE_API_KEY`. No secret values are included in this report.
 
-**Exact users deactivated:** None.
+## Rollback procedure
 
-**Reason:** The database contains meaningful operational data, all observed users are active, and no record was safely classifiable as `SAFE_TO_DELETE`. Referenced historical users must not be hard-deleted; no user status was changed.
+Before checkpointing or handing off the branch, inspect the saved project version in the Management UI. To restore the prior stable implementation, use the project version history/rollback action or the corresponding checkpoint identifier; do not use a destructive Git reset. Database state is not reverted by a code rollback, and this task made no database changes.
 
-**Active administrators preserved:** Yes. The post-repair aggregate query returned **2,049 active administrators**.
+## Final classification
 
-## 6. Admin password-management acceptance
+**USER_MANAGEMENT_HARDENING_IMPLEMENTED_WITH_FULL_SUITE_BLOCKED_BY_PRE_EXISTING_SCHEMA_DRIFT**
 
-The isolated `feature/user-management-cleanup` worktree contains the focused `server/userManagement.test.ts`. Its current observed result was **10/10 tests passed**:
-
-| Acceptance/security control | Evidence |
-|---|---|
-| Admin can create a consultant/staff-style account | Test exercises admin-only creation path. |
-| Password is server-hashed | Test verifies the password helper receives a hash and the response contains no secret. |
-| Duplicate identity protection | Duplicate email creation is rejected. |
-| Admin reset | Test verifies the target password helper receives a bcrypt-compatible hash and not plaintext. |
-| Inactive-login rejection | Alternate credential login rejects inactive users. |
-| Non-admin reset denial | Reset is rejected before the password-update helper is touched. |
-| Referenced-user deletion safety | Historical references block destructive deletion. |
-| Last-active-admin protection | Deleting the last active administrator is rejected. |
-| Unreferenced non-admin deletion path | Test permits only the safe, unreferenced path and audits it. |
-| Zero business mutation | Password/reset paths do not invoke clinical, procurement, receipt, or inventory mutations. |
-
-The current restored stable checkout does not contain that isolated worktree’s `server/userManagement.test.ts`; this is documented rather than silently counted as part of the active checkout’s full-suite result.
-
-## 7. Consultant regression status
-
-The available active-checkout RBAC and consultant regression coverage passed where executed. The schema repair did not change consultant identities, appointment rows, consultation rows, OP data, billing, or branding records. A complete end-to-end consultant acceptance pass was not claimed because the full suite did not finish and no synthetic consultant mutation was performed against the operational development population.
-
-## 8. Validation results
-
-| Command | Result |
-|---|---|
-| `pnpm check` | PASS; zero TypeScript errors. |
-| `pnpm test --run server/rbac.test.ts` | PASS; 11/11 tests. |
-| `pnpm test --run server/auth.logout.test.ts` | PASS; 1/1 test. |
-| `pnpm test --run server/auth.login.test.ts` | PASS; 1/1 test. |
-| `pnpm test --run server/userManagement.test.ts` in isolated User Management worktree | PASS; 10/10 tests. |
-| `pnpm test --run server/featureAccess.test.ts` | BLOCKED; reproduced a database-backed stall while overwriting permissions. |
-| `pnpm test --run` | BLOCKED; the full run stalled in `server/featureAccess.test.ts` and was terminated after the bounded retry. No green full-suite count is claimed. |
-| `pnpm build` | PASS; Vite and server bundle completed. A pre-existing large-chunk warning remains. |
-| `git diff --check` | PASS for the active source diff before the report-only ledger additions. |
-
-The earlier inherited figure of 250/272 was not reused as current evidence because it came from a different worktree/state before this repair. The attachment’s required final classification is therefore not satisfied.
-
-A narrow validation-only attempt batched the permission inserts inside the existing transaction. It did not resolve the reproduced stall and was reverted; the final application source retains the stable pre-existing implementation. No ineffective workaround or semantic RBAC change remains in the delivered checkpoint.
-
-## 9. Final classification
-
-> **BLOCKED — full Vitest suite is not green.**
-
-The development schema repair is complete and business-row counts are unchanged. User cleanup performed no deletions or deactivations. The remaining blocker is the existing database-backed `featureAccess` test stall, plus the fact that the active restored stable checkout does not contain the isolated User Management test file. No publication or production action was taken.
-
-## 10. Feature-access stall diagnostics
-
-The isolated `server/featureAccess.test.ts` reproduces the same stall without the full suite. The stall occurs during the second `beforeEach` permission reset after the staff-permission test, rather than as an assertion failure. The development `rolePermissions` table has the expected `unique_role_feature (role, featureKey)` constraint, `idx_role`, and `permissionId` primary key. `SHOW FULL PROCESSLIST` showed no competing active session when inspected. Because the batching experiment did not remove the stall, it was reverted and no RBAC semantics were changed. A database transaction/lock lifecycle investigation remains necessary before the full suite can be called green.
-
-The attachment-32 report therefore intentionally remains a blocker report rather than claiming a successful full validation.
+The focused security and integrity behavior is implemented and validated. The task is not classified as fully complete because the connected development environment prevents a green full test suite and the database is not disposable for stale-user deletion.

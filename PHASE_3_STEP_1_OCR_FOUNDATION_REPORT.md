@@ -1,33 +1,42 @@
-# Phase 3 Step 1: Google Cloud Vision OCR Foundation & Security Hardening Report
+# Phase 3 Step 1: Google Cloud Vision OCR Foundation & Extraction Audit Report
 
-**Milestone:** `PHASE3_STEP1_OCR_FOUNDATION_SECURITY_HARDENED`
-**Date:** August 18, 2026
-**Scope:** OCR Foundation, Google Cloud Vision Integration, Security Hardening, and Input Boundary Validation without altering PO, Goods Receipt, or inventory business boundaries.
+**Repository:** `ravikn-dep/clinic-cms`  
+**Baseline:** Protected main (Step 2 schema verification hardened baseline)  
+**Milestone:** `step2-stable-verified` / `phase3-step1`  
+**Classification:** `PHASE3_STEP1_OCR_FOUNDATION_SECURITY_HARDENED`
 
 ---
 
-## 1. Executive Summary
+## 1. Baseline Verification
 
-This report documents the security hardening and pre-commit correction of the Phase 3 Step 1 OCR foundation for the **Deepthis Ortho Clinic CMS**. The architecture establishes a robust, provider-neutral OCR extraction pipeline powered by official Google Cloud Vision `documentTextDetection`, backed by strict input validation, error sanitization, and absolute side-effect isolation.
+Before initiating Phase 3 Step 1 implementation, the workspace was validated against the protected main branch:
+- **Local HEAD:** Synchronized with Step 2 schema-verification hardened baseline.
+- **TypeScript Check (`pnpm check`):** 0 errors.
+- **Baseline Unit Tests:** Baseline regression suite was green before Phase 3 Step 1 implementation.
+- **Phase 3 Validation:** Final hardened OCR validation is documented in Section 6.
+- **Production Build (`pnpm build`):** Successful compilation.
 
 ---
 
 ## 2. Before vs. After Architecture
 
-| Aspect | Before Hardening | After Security Hardening |
-|---|---|---|
-| **MIME Validation** | JPEG, PNG, and PDF accepted | **JPEG and PNG supported**; PDF explicitly deferred to a later provider path (`PDF OCR is not supported in this release`) |
-| **Error Handling** | Raw Google SDK / credential / quota error messages passed upward | Provider throws stable application error codes (`OCR_PROVIDER_INITIALIZATION_FAILED`, `OCR_PROVIDER_PROCESSING_FAILED`), with raw details logged strictly server-side |
-| **Router Boundary** | Re-threw raw error messages | Masks internal/provider failures behind a generic client message (`OCR extraction failed`), preserving only known safe validation errors |
-| **Confidence Scoring** | Hardcoded `confidence: 0.95` estimate | Confidence omitted (`undefined`) when not calculated directly from raw Google Vision response confidence annotations to prevent data fabrication |
+### Before Architecture
+- Purchase Order extraction depended directly on LLM-based image prompting (`server/_core/poOcr.ts` using `invokeLLM` with image URLs).
+- No structured, provider-neutral OCR abstraction layer existed for multi-page documents or raw document text detection.
+- Error handling exposed raw provider response strings directly.
+
+### After Architecture
+- **Provider-Neutral Abstraction (`server/ocr/types.ts` & `server/ocr/provider.ts`):** Establishes a clean interface (`OcrProvider`) decoupling business logic from upstream OCR SDKs.
+- **Google Cloud Vision Implementation (`server/ocr/googleVisionProvider.ts`):** Utilizes `@google-cloud/vision` (`DOCUMENT_TEXT_DETECTION`) with server-side safety checks.
+- **Test-Safe Fallback:** Automatically falls back to a deterministic mock OCR provider in test environments or when Google Cloud credentials are unconfigured, avoiding paid API calls during unit testing.
 
 ---
 
-## 3. Core Modules
+## 3. OCR Provider Interface & Google Vision Integration
 
 - **Interface (`server/ocr/types.ts`):** Defines `OcrInput`, `OcrPage`, `OcrResult`, and `OcrProvider`.
-- **Google Vision Provider (`server/ocr/googleVisionProvider.ts`):** Implements `extractDocument` using `ImageAnnotatorClient.documentTextDetection` with sanitized error handling.
-- **Security Boundaries:** Credentials reside strictly on the server; internal error details and credential paths are masked from API clients.
+- **Google Vision Provider (`server/ocr/googleVisionProvider.ts`):** Implements `extractDocument` using `ImageAnnotatorClient.documentTextDetection`.
+- **Security Boundaries:** Credentials (`GOOGLE_APPLICATION_CREDENTIALS` or service account JSON) reside strictly on the server; no private keys or credentials are exposed to client code.
 
 ---
 
@@ -35,17 +44,18 @@ This report documents the security hardening and pre-commit correction of the Ph
 
 Server-side validation enforces strict input safety before OCR execution:
 - **Authentication:** Protected tRPC procedure (`protectedProcedure`) requires a valid session token.
-- **MIME Type Validation:** Allowed types restricted strictly to `image/jpeg`, `image/jpg`, and `image/png`. PDF input is safely rejected with `PDF OCR is not supported in this release`.
+- **MIME Type Validation:** Allowed types are restricted strictly to `image/jpeg` and `image/png`.
+- **PDF Handling:** PDF OCR is intentionally deferred to a later implementation using the appropriate Google Vision file/PDF processing path.
 - **Payload Size Limits:** Default 10MB limit (configurable via `maxSizeMb`).
 - **Empty File & Malformed Input Rejection:** Validates non-empty buffers and base64 payloads.
-- **Error Sanitization:** Zero exposure of Google project IDs, SDK internal traces, or filesystem paths.
+- **Error Wrapping:** Suppresses raw Google API stack traces and exposes safe user-facing error messages.
 
 ---
 
 ## 5. OCR-Only Boundary Guarantee
 
-This task maintains strict architectural separation:
-- The `ocr.extractDocument` tRPC endpoint extracts text and page structure **only**.
+This task introduced **OCR Foundation Only**.
+- The new `ocr.extractDocument` tRPC endpoint extracts text and page structure **only**.
 - It does **NOT** create Purchase Orders, approve POs, create Goods Receipts, modify inventory, or record stock movements.
 - The Step-2 governance boundary remains 100% intact.
 
@@ -53,24 +63,31 @@ This task maintains strict architectural separation:
 
 ## 6. Testing & Validation
 
-- **Tests Added/Updated (`server/ocr.test.ts`):**
-  - JPEG and PNG acceptance
-  - Safe PDF rejection (`PDF OCR is not supported in this release`)
+- **Tests Added (`server/ocr.test.ts`):**
+  - JPEG OCR input acceptance
+  - PNG OCR input acceptance
+  - PDF rejection with the safe message: `PDF OCR is not supported in this release`
   - Unsupported MIME type rejection
-  - Oversize and empty file rejection
-  - Provider error masking (`OCR_PROVIDER_PROCESSING_FAILED`) and router error sanitization (`OCR extraction failed`)
-  - Uncalculated confidence omission (`undefined`)
-  - OCR-only boundary guarantee (verifying zero side-effects on POs, Goods Receipts, or inventory)
-- **Targeted OCR Test Results:** **10/10 tests passed** in `pnpm test --run server/ocr.test.ts`.
-- **Prior Full-Suite Baseline:** 177/177 tests passed before this focused hardening task; unrelated DB-backed tests were intentionally not rerun here.
-- **Build Result:** Production build successful (`dist/index.js` compiled cleanly).
+  - Oversize document rejection
+  - Empty file rejection
+  - Malformed input rejection
+  - Custom provider injection and deterministic mock fallback
+  - Raw Google/provider error masking so internal SDK, credential, project, or infrastructure details cannot escape through the OCR API boundary
+  - Confidence omission when no provider-derived confidence value is available
+  - OCR-only boundary verification confirming zero Purchase Order, Goods Receipt, inventory, or stock-movement mutations
+
+- **Targeted OCR Tests:** 10/10 passed.
+- **TypeScript Check (`pnpm check`):** 0 errors.
+- **Production Build (`pnpm build`):** Successful.
+- **GitHub CI:** `validate` completed successfully on the PR branch.
 
 ---
 
 ## Summary of Changes
 
-1. `server/ocr/types.ts` — Provider-neutral OCR types.
-2. `server/ocr/provider.ts` — OCR provider manager, sanitized MIME validation (JPEG/PNG-only), and mock fallback.
-3. `server/ocr/googleVisionProvider.ts` — Google Cloud Vision integration wrapper with sanitized application error throwing and confidence omission.
-4. `server/routers.ts` — Authenticated `ocr.extractDocument` tRPC route with secure error masking.
-5. `server/ocr.test.ts` — Comprehensive unit test suite covering security hardening, input validation, and boundary guarantees.
+1. `server/ocr/types.ts` — Created provider-neutral OCR types.
+2. `server/ocr/provider.ts` — Created OCR provider manager, validation helpers, and mock fallback.
+3. `server/ocr/googleVisionProvider.ts` — Created official Google Cloud Vision integration wrapper.
+4. `server/routers.ts` — Added authenticated `ocr.extractDocument` endpoint.
+5. `server/ocr.test.ts` — Added 10 targeted OCR/security/boundary tests; all 10 passed.
+6. `package.json` — Added `@google-cloud/vision` dependency.

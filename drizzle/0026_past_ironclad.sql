@@ -1,0 +1,1 @@
+ALTER TABLE `bills` ADD CONSTRAINT `bills_consultationId_unique` UNIQUE(`consultationId`);

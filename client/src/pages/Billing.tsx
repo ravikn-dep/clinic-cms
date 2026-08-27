@@ -63,7 +63,9 @@ type PatientDetails = {
 type ConsultationNotes = {
   consultationId: string;
   patientId: string;
+  appointmentId: string | null;
   consultantId: number | null;
+  isFinalized: number | null;
   consultationDate: string;
   clinicalHistory: string | null;
   presentComplaints: string | null;
@@ -121,8 +123,10 @@ export default function Billing() {
   }, [patientDetailsQuery.data, patientDetailsQuery.isError]);
 
   useEffect(() => {
-    if (consultationNotesQuery.data) {
-      setConsultationNotes(consultationNotesQuery.data);
+    const consultationData = consultationNotesQuery.data;
+    if (consultationData) {
+      setConsultationNotes(consultationData);
+      setForm((current) => ({ ...current, patientId: consultationData.patientId }));
     } else if (consultationNotesQuery.isError) {
       setConsultationNotes(null);
     }
@@ -142,6 +146,17 @@ export default function Billing() {
     onError: (error) => {
       toast.error(error.message || "Unable to create invoice.");
     },
+  });
+
+  const createEncounterBill = trpc.bills.createEncounter.useMutation({
+    onSuccess: (result) => {
+      toast.success(`Encounter bill ${result.bill.billId} created and visit closed.`);
+      setForm(initialBillForm);
+      setShowNewBill(false);
+      void utils.bills.getAll.invalidate();
+      void utils.consultations.getByPatientId.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Unable to create encounter bill."),
   });
 
   const generateReceipt = trpc.bills.generateReceipt.useMutation({
@@ -216,7 +231,15 @@ export default function Billing() {
   const handleCreateBill = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!form.patientId.trim()) {
+    if (form.consultationId.trim() && (!consultationNotes || !consultationNotes.appointmentId)) {
+      toast.error("This consultation is not linked to an appointment.");
+      return;
+    }
+    if (form.consultationId.trim() && consultationNotes && consultationNotes.isFinalized !== 1) {
+      toast.error("Mark the consultation ready for billing before generating an encounter bill.");
+      return;
+    }
+    if (!form.patientId.trim() && !form.consultationId.trim()) {
       toast.error("Patient ID is required.");
       return;
     }
@@ -236,15 +259,26 @@ export default function Billing() {
       }
     }
 
+    const items = form.items.map(item => ({
+      itemType: item.itemType,
+      description: item.description.trim(),
+      quantity: Number.parseInt(item.quantity, 10),
+      unitPrice: parseCurrency(item.unitPrice).toString(),
+    }));
+    if (form.consultationId.trim() && consultationNotes?.appointmentId) {
+      createEncounterBill.mutate({
+        consultationId: consultationNotes.consultationId,
+        appointmentId: consultationNotes.appointmentId,
+        items,
+        discountAmount: parseCurrency(form.discountAmount).toString(),
+        taxAmount: parseCurrency(form.taxAmount).toString(),
+      });
+      return;
+    }
     createBill.mutate({
       patientId: form.patientId.trim(),
-      consultationId: form.consultationId.trim() || undefined,
-      items: form.items.map(item => ({
-        itemType: item.itemType,
-        description: item.description.trim(),
-        quantity: Number.parseInt(item.quantity, 10),
-        unitPrice: parseCurrency(item.unitPrice).toString(),
-      })),
+      consultationId: undefined,
+      items,
       discountAmount: parseCurrency(form.discountAmount).toString(),
       taxAmount: parseCurrency(form.taxAmount).toString(),
     });

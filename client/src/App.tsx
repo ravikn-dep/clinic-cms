@@ -26,6 +26,8 @@ import FeatureAccessControl from "./pages/FeatureAccessControl";
 import OPFormCustomization from "./pages/OPFormCustomization";
 import Appointments from "./pages/Appointments";
 import Analytics from "./pages/Analytics";
+import CatalogManagement from "./pages/CatalogManagement";
+import NewVisit from "./pages/NewVisit";
 import NotFound from "./pages/NotFound";
 import { useCredentialAuth } from "./_core/hooks/useCredentialAuth";
 import { Button } from "./components/ui/button";
@@ -62,6 +64,7 @@ function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+			<Route path={"/new-visit"}>{() => <ProtectedRoute feature="appointments"><NewVisit /></ProtectedRoute>}</Route>
       <Route path={"/register-patient"} component={PatientRegistration} />
       <Route path={"/patients"}>{() => <ProtectedRoute feature="patient_records"><PatientRecords /></ProtectedRoute>}</Route>
       <Route path={"/scribe"}>{() => <ProtectedRoute feature="ambient_scribe"><AmbientScribe /></ProtectedRoute>}</Route>
@@ -77,6 +80,7 @@ function Router() {
       <Route path={"/notifications"}>{() => <ProtectedRoute feature="notifications"><Notifications /></ProtectedRoute>}</Route>
       <Route path={"/appointments"}>{() => <ProtectedRoute feature="appointments"><Appointments /></ProtectedRoute>}</Route>
       <Route path={"/analytics"}>{() => <AdminOnly><Analytics /></AdminOnly>}</Route>
+      <Route path={"/catalog-management"}>{() => <AdminOnly><CatalogManagement /></AdminOnly>}</Route>
       <Route path={"/password-management"}>{() => <ProtectedRoute><PasswordManagement /></ProtectedRoute>}</Route>
       <Route path={"/change-password"}>{() => <ProtectedRoute><ChangePassword /></ProtectedRoute>}</Route>
       <Route path={"/404"} component={NotFound} />

@@ -1,7 +1,0 @@
-# Attachment 33 Review Summary
-
-Attachment 33 is a validation-blocker investigation only. It confirms that development schema reconciliation through canonical migrations 0021–0025, unchanged business counts, focused User Management/RBAC/auth checks, `pnpm check`, `pnpm build`, and diff hygiene were already passing. It identifies the remaining blocker as a database-backed stall in `server/featureAccess.test.ts` during permission reset.
-
-The required sequence is to reproduce the isolated test with a bounded timeout, map its full Vitest lifecycle and every called database helper, inspect read-only MySQL lock diagnostics during the stall, compare the test path with production helpers, and make only a demonstrated minimal lifecycle repair. The attachment prohibits adding User Management features, changing RBAC semantics, deleting or deactivating users, weakening assertions, using `--forceExit`, using `|| true`, suppressing errors, or changing production.
-
-The completion gate requires three normal passing isolated runs, focused User Management/RBAC/auth/feature-access tests, a green full suite, build, and diff checks. It also requires resolving the source-fidelity question between the isolated User Management worktree and the active stable checkout. If the full suite remains blocked, the report must state the exact demonstrated blocker and stop without push, PR, merge, tag, deployment, or production action.

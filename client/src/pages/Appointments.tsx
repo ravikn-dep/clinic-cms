@@ -8,10 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus } from "lucide-react";
+import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus, Stethoscope } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { toast } from "sonner";
+import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
 
 export default function Appointments() {
   const { user } = useAuth();
@@ -21,11 +22,13 @@ export default function Appointments() {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
   const [bookingData, setBookingData] = useState({
     patientId: "",
-    consultantId: 1,
+    consultantId: 0,
     appointmentDate: format(new Date(), "yyyy-MM-dd"),
     appointmentTime: "10:00",
     notes: "",
   });
+  const activeConsultantsQuery = trpc.consultants.getAll.useQuery();
+  const effectiveBookingConsultantId = user?.role === "consultant" ? user.id : bookingData.consultantId;
 
   // Fetch appointments
   const appointmentsQuery = trpc.appointments.list.useQuery({
@@ -36,9 +39,9 @@ export default function Appointments() {
 
   // Fetch available slots
   const availableSlotsQuery = trpc.appointments.getAvailableSlots.useQuery({
-    consultantId: bookingData.consultantId,
+    consultantId: effectiveBookingConsultantId,
     date: bookingData.appointmentDate,
-  });
+  }, { enabled: effectiveBookingConsultantId > 0 });
 
   // Create appointment mutation
   const createMutation = trpc.appointments.create.useMutation({
@@ -47,7 +50,7 @@ export default function Appointments() {
       setIsBookingOpen(false);
       setBookingData({
         patientId: "",
-        consultantId: 1,
+        consultantId: 0,
         appointmentDate: format(new Date(), "yyyy-MM-dd"),
         appointmentTime: "10:00",
         notes: "",
@@ -92,6 +95,43 @@ export default function Appointments() {
     },
   });
 
+  const brandedPrint = trpc.consultations.getBrandedPrintData.useMutation();
+
+  const printConsultationOP = async (consultationId: string) => {
+    try {
+      const printData = await brandedPrint.mutateAsync({ consultationId });
+      const printWindow = window.open("", "", "width=800,height=600");
+      if (!printWindow) {
+        toast.error("Unable to open print window. Please check your browser settings.");
+        return;
+      }
+      printWindow.document.write(generateConsultationOPHTML(printData));
+      printWindow.document.close();
+      printWindow.focus();
+      printWindow.print();
+      toast.success("Consultant-branded OP prepared for printing.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to prepare the consultation OP.");
+    }
+  };
+
+  const checkInMutation = trpc.visits.checkIn.useMutation({
+    onSuccess: () => {
+      toast.success("Patient checked in");
+      appointmentsQuery.refetch();
+    },
+    onError: (error) => toast.error(error.message || "Failed to check in patient"),
+  });
+
+  const startConsultationMutation = trpc.visits.generateOp.useMutation({
+    onSuccess: (result) => {
+      toast.success(result.created ? "Consultation started" : "Existing consultation reopened");
+      appointmentsQuery.refetch();
+      void printConsultationOP(result.consultation.consultationId);
+    },
+    onError: (error) => toast.error(error.message || "Failed to start consultation"),
+  });
+
   // Filter appointments by date if in list view
   const filteredAppointments = useMemo(() => {
     if (!appointmentsQuery.data) return [];
@@ -115,6 +155,7 @@ export default function Appointments() {
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { color: string; icon: any }> = {
       "Scheduled": { color: "bg-blue-100 text-blue-800", icon: Clock },
+			"Checked-in": { color: "bg-violet-100 text-violet-800", icon: CheckCircle },
       "Completed": { color: "bg-green-100 text-green-800", icon: CheckCircle },
       "Cancelled": { color: "bg-gray-100 text-gray-800", icon: XCircle },
       "No-show": { color: "bg-red-100 text-red-800", icon: AlertCircle },
@@ -140,7 +181,7 @@ export default function Appointments() {
 
     await createMutation.mutateAsync({
       patientId: bookingData.patientId,
-      consultantId: bookingData.consultantId,
+      consultantId: effectiveBookingConsultantId,
       appointmentDate: bookingData.appointmentDate,
       appointmentTime: bookingData.appointmentTime,
       notes: bookingData.notes,
@@ -179,16 +220,18 @@ export default function Appointments() {
 
               <div>
                 <Label htmlFor="consultantId">Consultant</Label>
-                <Select value={String(bookingData.consultantId)} onValueChange={(v) => setBookingData({ ...bookingData, consultantId: parseInt(v) })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Consultant 1</SelectItem>
-                    <SelectItem value="2">Consultant 2</SelectItem>
-                    <SelectItem value="3">Consultant 3</SelectItem>
-                  </SelectContent>
-                </Select>
+                {user?.role === "consultant" ? (
+                  <div className="rounded-md border bg-slate-50 px-3 py-2 text-sm text-slate-700">Your consultant account will be assigned automatically.</div>
+                ) : (
+                  <Select value={bookingData.consultantId ? String(bookingData.consultantId) : undefined} onValueChange={(value) => setBookingData({ ...bookingData, consultantId: parseInt(value, 10) })}>
+                    <SelectTrigger><SelectValue placeholder="Select an active consultant" /></SelectTrigger>
+                    <SelectContent>
+                      {activeConsultantsQuery.data?.map((consultant) => (
+                        <SelectItem key={consultant.id} value={String(consultant.id)}>{consultant.name || consultant.userId}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
 
               <div>
@@ -272,6 +315,7 @@ export default function Appointments() {
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="Scheduled">Scheduled</SelectItem>
+            <SelectItem value="Checked-in">Checked-in</SelectItem>
             <SelectItem value="Completed">Completed</SelectItem>
             <SelectItem value="Cancelled">Cancelled</SelectItem>
             <SelectItem value="No-show">No-show</SelectItem>
@@ -320,14 +364,7 @@ export default function Appointments() {
                         {getStatusBadge(apt.status)}
                         {apt.status === "Scheduled" && (
                           <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => completeMutation.mutate({ appointmentId: apt.appointmentId })}
-                              disabled={completeMutation.isPending}
-                            >
-                              Complete
-                            </Button>
+								<Button size="sm" onClick={() => checkInMutation.mutate({ appointmentId: apt.appointmentId })} disabled={checkInMutation.isPending}>Check In</Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -346,6 +383,11 @@ export default function Appointments() {
                             </Button>
                           </div>
                         )}
+						{apt.status === "Checked-in" && (
+							<div className="flex gap-2">
+									<Button size="sm" onClick={() => startConsultationMutation.mutate({ appointmentId: apt.appointmentId })} disabled={startConsultationMutation.isPending || brandedPrint.isPending}><Stethoscope className="mr-1 h-4 w-4" />Generate OP & Print</Button>
+							</div>
+						)}
                       </div>
                     </div>
                   </CardContent>

@@ -1,7 +1,7 @@
 # Phase 3 Step 2: Deterministic PO / GST Invoice Parser & Arithmetic Reconciliation Report
 
 **Milestone:** `PHASE3_STEP2_DETERMINISTIC_PARSER_READY`
-**Date:** August 18, 2026
+**Date:** August 21, 2026
 **Scope:** Deterministic OCR text parser, Indian GST / PO field extraction, arithmetic reconciliation model with currency tolerance, confidence scoring, tRPC parser endpoint, and zero-mutation boundary validation.
 
 ---
@@ -57,3 +57,33 @@ This report documents the implementation of Phase 3 Step 2 for the **Deepthis Or
   - Zero business mutation boundary guarantee
 - **Targeted Test Results:** **6/6 tests passed successfully**.
 - **Build Result:** Production build successful (`dist/index.js` compiled cleanly).
+
+---
+
+## 7. Step 1 Fidelity Restoration Discovered During Canonicalization
+
+During canonicalization of Phase 3 Step 2, the merged canonical `main` branch was found to contain incomplete Phase 3 Step 1 OCR hardening despite the previously approved documentation.
+
+The following previously approved Step 1 protections were restored as part of this candidate:
+
+- PDF OCR is explicitly deferred and rejected safely.
+- JPEG/PNG remain the supported OCR MIME types.
+- Raw Google/provider errors are sanitized behind stable application errors.
+- Hard-coded OCR confidence values were removed when not provider-derived.
+- OCR router responses mask internal/provider errors.
+- The hardened OCR security test suite was restored.
+
+This restoration did not introduce new OCR functionality; it re-established the already approved Phase 3 Step 1 security boundary.
+
+---
+
+## 8. Validation Record
+
+- `pnpm check`: PASS, 0 TypeScript errors.
+- Targeted OCR hardening tests: 10/10 PASS.
+- Targeted deterministic parser tests: 6/6 PASS.
+- Production build: PASS.
+- Full local suite: 146 passed, 28 failed, 11 skipped.
+- The observed full-suite failures were confined to environment-dependent database-backed tests and an unconfigured external HMAC-key test; the OCR and parser targeted suites were green.
+
+---

@@ -112,12 +112,17 @@ CREATE TABLE `purchaseOrderItems` (
 	`poItemId` varchar(50) NOT NULL,
 	`purchaseOrderId` varchar(50) NOT NULL,
 	`itemName` varchar(255) NOT NULL,
+	`catalogItemId` varchar(50),
 	`quantity` int DEFAULT 1,
 	`unitPrice` decimal(10,2) NOT NULL,
 	`subtotal` decimal(10,2) NOT NULL,
 	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT `purchaseOrderItems_poItemId` PRIMARY KEY(`poItemId`)
 );
+
+CREATE INDEX `purchaseOrderItems_catalogItem_idx`
+ON `purchaseOrderItems` (`catalogItemId`);
+
 CREATE TABLE `purchaseOrders` (
 	`purchaseOrderId` varchar(50) NOT NULL,
 	`vendorName` varchar(255) NOT NULL,
@@ -280,7 +285,7 @@ CREATE INDEX `unique_role_feature` ON `rolePermissions` (`role`,`featureKey`);
 CREATE INDEX `idx_role` ON `rolePermissions` (`role`);
 CREATE INDEX `users_userId_unique` ON `users` (`userId`);
 CREATE INDEX `users_username_unique` ON `users` (`username`);
-ALTER TABLE `purchaseOrders` DROP COLUMN `vendorGSTNumber`;
+ALTER TABLE `purchaseOrders` CHANGE COLUMN `vendorGSTNumber` `vendorGstNumber` varchar(50);
 ALTER TABLE `users` DROP COLUMN `qrcodeLoginUrl`;
 ALTER TABLE `users` DROP COLUMN `qrcodeLoginKey`;
 CREATE TABLE IF NOT EXISTS `appointmentBookingLocks` (
@@ -362,6 +367,65 @@ CREATE TABLE `purchaseOrderHistory` (
 );
 CREATE INDEX `purchaseOrderHistory_purchaseOrder_createdAt_idx` ON `purchaseOrderHistory` (`purchaseOrderId`,`createdAt`);
 ALTER TABLE `purchaseOrderHistory` MODIFY COLUMN `createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP;
+CREATE TABLE `purchaseOrderExtractionReviews` (
+	`reviewId` varchar(50) NOT NULL,
+	`purchaseOrderId` varchar(50) NOT NULL,
+	`reviewSubmissionId` varchar(100) NOT NULL,
+	`extractionProvider` varchar(64) NOT NULL,
+	`documentType` varchar(32) NOT NULL,
+	`reviewStatus` enum('CONFIRMED') NOT NULL DEFAULT 'CONFIRMED',
+	`reviewerUserId` varchar(100) NOT NULL,
+	`reviewerName` varchar(255),
+	`reviewedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`extractedHeaderJson` text NOT NULL,
+	`extractedItemsJson` text NOT NULL,
+	`extractedTotalsJson` text NOT NULL,
+	`reconciliationJson` text NOT NULL,
+	`warningsJson` text NOT NULL,
+	`correctedFieldsJson` text NOT NULL,
+	`finalReviewedValuesJson` text NOT NULL,
+	`catalogResolutionsJson` text,
+	CONSTRAINT `purchaseOrderExtractionReviews_reviewId` PRIMARY KEY(`reviewId`),
+	CONSTRAINT `purchaseOrderExtractionReviews_reviewId_unique` UNIQUE(`reviewId`),
+	CONSTRAINT `purchaseOrderExtractionReviews_purchaseOrder_unique` UNIQUE(`purchaseOrderId`),
+	CONSTRAINT `purchaseOrderExtractionReviews_submission_unique` UNIQUE(`reviewSubmissionId`)
+);
+CREATE INDEX `purchaseOrderExtractionReviews_reviewer_createdAt_idx` ON `purchaseOrderExtractionReviews` (`reviewerUserId`,`createdAt`);
+CREATE TABLE `catalogItems` (
+	`catalogItemId` varchar(50) NOT NULL,
+	`canonicalName` varchar(255) NOT NULL,
+	`normalizedName` varchar(255) NOT NULL,
+	`genericName` varchar(255),
+	`brandName` varchar(255),
+	`strength` varchar(100),
+	`dosageForm` varchar(100),
+	`manufacturer` varchar(255),
+	`hsnCode` varchar(32),
+	`gstRate` decimal(5,2),
+	`active` tinyint NOT NULL DEFAULT 1,
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	`updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `catalogItems_catalogItemId` PRIMARY KEY(`catalogItemId`),
+	CONSTRAINT `catalogItems_catalogItemId_unique` UNIQUE(`catalogItemId`),
+	CONSTRAINT `catalogItems_normalizedName_unique` UNIQUE(`normalizedName`)
+);
+CREATE INDEX `catalogItems_active_normalizedName_idx` ON `catalogItems` (`active`,`normalizedName`);
+CREATE TABLE `catalogItemAliases` (
+	`aliasId` varchar(50) NOT NULL,
+	`catalogItemId` varchar(50) NOT NULL,
+	`vendorId` varchar(50) NOT NULL DEFAULT '',
+	`aliasText` varchar(255) NOT NULL,
+	`normalizedAlias` varchar(255) NOT NULL,
+	`source` varchar(50) NOT NULL,
+	`active` tinyint NOT NULL DEFAULT 1,
+	`createdBy` varchar(100),
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT `catalogItemAliases_aliasId` PRIMARY KEY(`aliasId`),
+	CONSTRAINT `catalogItemAliases_aliasId_unique` UNIQUE(`aliasId`),
+	CONSTRAINT `catalogItemAliases_vendor_alias_unique` UNIQUE(`vendorId`,`normalizedAlias`)
+);
+CREATE INDEX `catalogItemAliases_catalogItem_active_idx` ON `catalogItemAliases` (`catalogItemId`,`active`);
 CREATE TABLE `externalRequestReplays` (
 	`replayId` varchar(64) NOT NULL,
 	`serviceKeyId` varchar(100) NOT NULL,
@@ -423,3 +487,30 @@ CREATE INDEX `goodsReceiptItems_poItemId_idx` ON `goodsReceiptItems` (`poItemId`
 CREATE INDEX `goodsReceipts_purchaseOrderId_idx` ON `goodsReceipts` (`purchaseOrderId`);
 CREATE INDEX `stockMovements_goodsReceiptId_idx` ON `stockMovements` (`goodsReceiptId`);
 CREATE INDEX `stockMovements_purchaseOrderId_idx` ON `stockMovements` (`purchaseOrderId`);
+ALTER TABLE `users` ADD `qualifications` varchar(255);
+ALTER TABLE `users` ADD `specialization` varchar(255);
+ALTER TABLE `users` ADD `designation` varchar(255);
+ALTER TABLE `users` ADD `prescriptionHeaderText` text;
+ALTER TABLE `users` ADD `consultantLogoKey` text;
+ALTER TABLE `users` ADD `signatureKey` text;
+CREATE TABLE `procurementPostingLocks` (
+	`purchaseOrderId` varchar(50) NOT NULL,
+	`updatedAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `procurementPostingLocks_purchaseOrderId` PRIMARY KEY(`purchaseOrderId`)
+);
+ALTER TABLE `inventory` ADD `catalogItemId` varchar(50);
+ALTER TABLE `purchaseOrders` ADD `vendorId` varchar(50);
+ALTER TABLE `stockMovements` ADD `catalogItemId` varchar(50);
+ALTER TABLE `vendors` ADD `normalizedVendorName` varchar(255);
+ALTER TABLE `vendors` ADD `normalizedGstNumber` varchar(50);
+ALTER TABLE `vendors` ADD `bankDetails` text;
+ALTER TABLE `inventory` ADD CONSTRAINT `inventory_catalog_batch_expiry_unique` UNIQUE(`catalogItemId`,`batchNumber`,`expiryDate`);
+CREATE INDEX `purchaseOrders_vendorId_idx` ON `purchaseOrders` (`vendorId`);
+CREATE INDEX `vendors_active_normalizedVendorName_idx` ON `vendors` (`isActive`,`normalizedVendorName`);
+CREATE INDEX `vendors_normalizedGstNumber_idx` ON `vendors` (`normalizedGstNumber`);
+ALTER TABLE `appointments` MODIFY COLUMN `status` enum('Scheduled','Checked-in','Completed','Cancelled','No-show','Rescheduled') DEFAULT 'Scheduled';
+ALTER TABLE `appointments` ADD `appointmentSource` enum('MANUAL','WALK_IN','PHONE') DEFAULT 'MANUAL' NOT NULL;
+ALTER TABLE `consultations` ADD `appointmentId` varchar(50);
+ALTER TABLE `consultations` ADD CONSTRAINT `consultations_appointmentId_unique` UNIQUE(`appointmentId`);
+
+ALTER TABLE `bills` ADD CONSTRAINT `bills_consultationId_unique` UNIQUE(`consultationId`);

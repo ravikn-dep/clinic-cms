@@ -841,9 +841,9 @@
 
 # Step 1 Approval and GitHub Governance
 
-- [x] Publish the Step 1 CI workflow to GitHub main so the required branch-protection check can execute remotely
-- [x] Configure and verify main branch protection requiring `CI Validation / validate`
-- [x] Record that no external production database was connected or modified
+- [ ] Publish the Step 1 CI workflow to GitHub main so the required branch-protection check can execute remotely
+- [ ] Configure and verify main branch protection requiring `CI Validation / validate`
+- [ ] Record that no external production database was connected or modified
 
 - [x] Configure and verify main branch protection requiring `CI Validation / validate`
 - [x] Record that no external production database was connected or modified
@@ -852,23 +852,23 @@ This section records the user-authorized GitHub governance action; the migration
 
 > Note: The first item remains pending until `.github/workflows/ci.yml` is present on GitHub main and a remote CI run is observed.
 
-- [x] Update GitHub CI to provision an ephemeral MySQL service, apply repository migrations only in CI, and rerun the required validation check
+- [ ] Update GitHub CI to provision an ephemeral MySQL service, apply repository migrations only in CI, and rerun the required validation check
 
 > This is an ephemeral CI-only database; no production database connection or migration is authorized in this task.
 
 ## Step 2 Purchase Order to Goods Receipt Remediation
-- [x] Enforce server-side PO creation as Pending Approval and ignore client-supplied approvalStatus values.
-- [x] Remove inventory mutation and fabricated batch/expiry data from PO creation.
-- [x] Verify PO approval changes only PO state and audit/history records.
-- [x] Add goods receipt schema for receipt identity, lines, partial receipts, and stock movements.
-- [x] Add authenticated goods receipt operation requiring an Approved PO, positive quantity, batch, and valid expiry.
-- [x] Add duplicate receipt protection and database uniqueness enforcement.
-- [x] Preserve separate inventory rows for distinct batches and reject over-receipt.
-- [x] Add minimal Receive Stock UI with ordered, received, remaining, quantity, batch, expiry, and confirmation.
-- [x] Rewrite unsafe PO auto-inventory tests and add goods receipt lifecycle and RBAC tests.
-- [x] Generate and validate a forward-only migration without changing historical migrations or production data.
-- [x] Run pnpm check, pnpm test --run, pnpm build, and ephemeral MySQL migration validation.
-- [x] Produce STEP_2_REPORT.md and classify SAFE_TO_PROCEED_TO_STEP_3 or BLOCKED.
+- [ ] Enforce server-side PO creation as Pending Approval and ignore client-supplied approvalStatus values.
+- [ ] Remove inventory mutation and fabricated batch/expiry data from PO creation.
+- [ ] Verify PO approval changes only PO state and audit/history records.
+- [ ] Add goods receipt schema for receipt identity, lines, partial receipts, and stock movements.
+- [ ] Add authenticated goods receipt operation requiring an Approved PO, positive quantity, batch, and valid expiry.
+- [ ] Add duplicate receipt protection and database uniqueness enforcement.
+- [ ] Preserve separate inventory rows for distinct batches and reject over-receipt.
+- [ ] Add minimal Receive Stock UI with ordered, received, remaining, quantity, batch, expiry, and confirmation.
+- [ ] Rewrite unsafe PO auto-inventory tests and add goods receipt lifecycle and RBAC tests.
+- [ ] Generate and validate a forward-only migration without changing historical migrations or production data.
+- [ ] Run pnpm check, pnpm test --run, pnpm build, and ephemeral MySQL migration validation.
+- [ ] Produce STEP_2_REPORT.md and classify SAFE_TO_PROCEED_TO_STEP_3 or BLOCKED.
 
 ## Step 3 Receive Stock Modal UX Enhancements
 - [x] Outline Step 3 remediation roadmap and UI verification criteria
@@ -903,188 +903,170 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Publish verification-only changes through fix/schema-baseline-verification-hardening and a protected PR to main.
 - [x] Verify the required CI validate check and report STEP2_SCHEMA_VERIFICATION_HARDENED only after it passes.
 
-## Login Database Query Error Remediation (2026-08-18)
-- [x] Investigate user lookup query failure `select ... from users where users.email = ?`
-- [x] Inspect server/db.ts connection helper and pool health / reconnect behavior
-- [x] Add unit test covering user lookup by email with robust connection handling
-- [x] Validate pnpm check, test suite (169+ tests), and production build
+## Phase 3 Step 3 Corrective Scan PO Review & Safe Structured Prefill
+- [x] Replace the legacy Scan PO frontend path with canonical OCR followed by deterministic parser review.
+- [x] Preserve qualitative confidence, field source text, warnings, reconciliation, and editable review values.
+- [x] Keep OCR and parser operations free of PO, goods receipt, inventory, and stock movement mutations.
+- [x] Preserve explicit protected PO submission and Pending Approval semantics.
+- [x] Add focused Step 3 regression tests for review mapping, provenance, warning behavior, safety boundaries, and explicit submission.
 
-## Inventory Low-Stock Query Error Remediation (2026-08-18)
-- [x] Investigate low-stock inventory query `select ... from inventory where inventory.quantityAvailable <= inventory.reorderLevel`
-- [x] Fix connection pool / lazy database client reconnection handling in server/db.ts
-- [x] Validate pnpm check, 169+ tests, and production build
+## Attachment Processing (pasted_content_18.txt)
+- [x] Read and summarize the attachment requirements.
+- [x] Verify requirements against canonical GitHub and pull-request state.
+- [x] Apply source-backed canonical finalization evidence without functional changes.
+- [x] Validate and deliver the four-part result.
 
-## Phase 3 Step 1 — Google Cloud Vision OCR Foundation (2026-08-18)
-- [x] Verify clean baseline, type check, tests (177/177), and build
-- [x] Audit existing scan-PO pipeline and document BEFORE architecture
-- [x] Implement provider-neutral OCR interface (server/ocr/types.ts, server/ocr/provider.ts)
-- [x] Implement Google Cloud Vision provider and mock wrapper (server/ocr/googleVisionProvider.ts)
-- [x] Add secure server-side input validation (MIME types, size limits, error wrapping)
-- [x] Add tRPC OCR-only endpoint in server/routers.ts without business mutation
-- [x] Add unit tests for OCR provider, validation, and boundary guarantees
-- [x] Deliver PHASE_3_STEP_1_OCR_FOUNDATION_REPORT.md
-- [x] Push branch feature/phase3-po-ocr and open protected pull request
+## Phase 3 Step 4 PO OCR / Parser Review Evidence & Audit Persistence
+- [x] Audit existing review, correction audit, history, schema, transaction, and RBAC boundaries.
+- [x] Add an immutable, PO-linked reviewed-extraction evidence model with a forward-only migration and deterministic baseline support.
+- [x] Persist evidence only with explicit Pending Approval PO submission using a consistent transaction boundary.
+- [x] Provide authenticated read-only evidence retrieval and a concise post-creation confirmation.
+- [x] Add Step 4 focused tests for safety, immutability, provenance, replay protection, and access control.
+- [x] Validate TypeScript, targeted and full tests, and production build locally; fresh-schema verification is required in protected CI.
+- [x] Commit, publish, open a protected PR, and verify GitHub CI without merging or deploying.
 
-## Phase 3 Step 1 Bundle Export (2026-08-18)
-- [x] Identify exact validated Phase 3 Step 1 commit and confirm ancestry relative to 09ec0d9d0e6c1738f466562362f84603d134650d
-- [x] Verify clean validation on target commit (pnpm check, pnpm test --run 177/177, pnpm build)
-- [x] Create export branch export/phase3-phase1-ocr
-- [x] Create and verify self-contained Git bundle CLINIC_CMS_PHASE3_STEP1_OCR.bundle
-- [x] Produce PHASE3_STEP1_GIT_HISTORY_REPORT.md
+## Phase 3 Step 5 Supplier Catalog Matching & Safe Item Resolution
+- [x] Audit inventory, vendor, PO, Goods Receipt, and existing item lookup data models for a safe catalog source of truth.
+- [x] Add the smallest additive catalog and optional alias model required for deterministic matching.
+- [x] Implement deterministic normalization and ranked, read-only matching suggestions with clinical conflict safeguards.
+- [x] Add explicit human-only match acceptance and immutable evidence preservation without PO, GR, or inventory automation.
+- [x] Add targeted Step 5 matching, safety, provenance, and RBAC tests.
+- [x] Validate targeted and full regression and production build locally; fresh-schema bootstrap verification is required in protected CI.
+- [x] Commit, publish, open a protected PR, and verify CI without merging or deploying.
 
-## Phase 3 Step 1 OCR Security Hardening (2026-08-18)
-- [x] Sanitize Google Cloud Vision provider errors to throw stable application codes (OCR_PROVIDER_INITIALIZATION_FAILED, OCR_PROVIDER_PROCESSING_FAILED) and log raw details server-side
-- [x] Sanitize router response to return generic client error ("OCR extraction failed") on internal failures without exposing raw SDK strings
-- [x] Restrict MIME validation to image/jpeg and image/png; safely reject application/pdf with "PDF OCR is not supported in this release"
-- [x] Remove hardcoded confidence: 0.95 and omit/return undefined when uncalculated
-- [x] Add unit tests proving JPEG/PNG acceptance, safe PDF rejection, unsupported MIME rejection, raw error masking, and zero PO/GR/inventory mutations
-- [x] Run pnpm check, pnpm test --run server/ocr.test.ts, and pnpm build
-- [x] Update PHASE_3_STEP_1_OCR_FOUNDATION_REPORT.md stating JPEG/PNG supported in Step 1 and PDF deferred
-
-## Attachment Processing (pasted_content_14.txt)
-- [x] Read and summarize pasted_content_14.txt
-- [x] Verify claims against repository state
-- [x] Apply safe supported changes with tests
-- [x] Validate and deliver four-part report
-
-## Phase 3 Step 2 Bundle Export
-- [x] Identify exact validated parser commit and confirm ancestry relative to canonical base 53ba7eccd59233b62c6ec0873b0f14dbc3832053
-- [x] Validate exact target commit with pnpm check, pnpm test --run server/poParsing.test.ts (6/6), and pnpm build
-- [x] Create temporary export branch export/phase3-step2-parser
-- [x] Create and verify self-contained Git bundle CLINIC_CMS_PHASE3_STEP2_PARSER.bundle
-- [x] Produce PHASE3_STEP2_GIT_HISTORY_REPORT.md
-
-## Phase 3 Step 3 Attachment Processing (pasted_content_15.txt)
-- [x] Read and summarize pasted_content_15.txt
-- [x] Verify claims against repository state
-- [x] Apply safe supported changes with tests
-- [x] Validate and deliver four-part report
-
-## Phase 3 Step 3 Scan PO Review & Safe Structured Prefill
-- [x] Read and summarize pasted_content_15.txt
-- [x] Verify claims against repository state
-- [x] Apply safe supported changes with tests
-- [x] Validate and deliver four-part report
-
-## Attachment Processing (pasted_content_16.txt and pasted_content_17.txt)
-- [ ] Read and summarize both attachments
-- [ ] Verify requirements against Git history and repository state
-- [ ] Apply only safe, supported requirements with appropriate tests
-- [ ] Validate and deliver four-part report
-
-## Phase 3 Step 6 Implementation-Fidelity Recovery
-- [ ] Locate the actual Step 6 source workspace and prove its ancestry and complete source delta against canonical `8999ba7`.
-- [ ] Restore all verified Step 6 source files to `feature/phase3-pdf-ocr` in a real implementation commit.
-- [ ] Re-run the requested focused and full validation from the committed implementation state.
-- [ ] Push normally to GitHub and provide exact Git delta and per-file log evidence without creating a new PR.
+## Phase 3 Step 6 Safe PDF / Multi-Page Document OCR Ingestion
+- [x] Audit current OCR contracts, limits, provider capabilities, page model, parser integration, and safe error boundary.
+- [x] Extend the provider-neutral OCR contract for bounded page-aware PDF results without PO business behavior.
+- [x] Implement Google Vision PDF file OCR using a verified SDK method with safe server-owned resource handling.
+- [x] Add centralized authoritative image/PDF limits, PDF validation, multi-page ordering, bounded polling if required, and error sanitization.
+- [x] Extend Scan PO upload and review UX for PDFs without bypassing human review, catalog confirmation, or Pending Approval submission.
+- [x] Preserve safe PDF provenance in immutable review evidence without raw OCR text, cloud credentials, or provider internals.
+- [x] Add focused Step 6 PDF, multi-page, boundary, RBAC, and parser-integration tests.
+- [x] Validate targeted tests, full regression, build, fresh-schema bootstrap if schema changes, and protected CI.
+- [ ] Commit, publish, open a protected PR, and verify CI without merging or deploying.
 
 ## Phase 3 Step 7 Governed Catalog Administration
-- [ ] Verify a clean worktree rooted exactly at canonical baseline `20d1dca9e0a8adca06a5bc46f85057f151388154` on `feature/phase3-catalog-admin`.
-- [ ] Audit existing catalog, alias, matching, RBAC, audit-log, PO-reference, and evidence boundaries with file-and-line evidence.
-- [ ] Implement minimal admin-only catalog item and alias administration with server-derived normalization, duplicate safety, soft deactivation, and durable audit events.
-- [ ] Add a practical feature-gated Catalog Management administration surface without changing PO review, historical references, Goods Receipts, or inventory.
-- [ ] Add focused Step 7 authority, alias, audit, matching, historical-integrity, and zero-mutation regression tests.
-- [ ] Run required local validation, fresh-schema validation only if schema changes, and create a source-backed Step 7 report.
-- [ ] Commit, push normally, open a protected PR, verify green CI, and stop without merging, tagging, deploying, or modifying production.
+- [x] Audit current catalog, alias, matching, RBAC, audit-log, PO-reference, and evidence boundaries with file-and-line evidence.
+- [x] Implement minimal admin-only catalog item and alias administration with server-derived normalization, duplicate safety, soft deactivation, and durable audit events.
+- [x] Add a practical feature-gated Catalog Management administration surface without changing PO review, historical references, Goods Receipts, or inventory.
+- [x] Add focused Step 7 authority, alias, audit, matching, historical-integrity, and zero-mutation regression tests.
+- [x] Run required local validation, fresh-schema validation only if schema changes, and create a source-backed Step 7 report.
+- [x] Commit, push normally, open a protected PR, verify green CI, and stop without merging, tagging, deploying, or modifying production.
 
 ## Phase 4 Step 1 Consultant-Specific OP Foundation
-- [ ] Verify a clean worktree rooted exactly at canonical baseline `535a0d0` on `feature/phase4-consultant-op-foundation`.
-- [ ] Audit the user, appointment, consultation, OP, branding, storage, print, dashboard, RBAC, and existing Settings → Users architecture with file-and-line evidence.
-- [ ] Reuse existing user/appointment/consultation structures where sufficient and document any minimal forward-only schema decision.
-- [ ] Extend Settings → Users with admin-governed consultant details, secure logo/signature uploads, active-state controls, and server-derived audit events.
-- [ ] Implement server-authoritative active-consultant appointment and consultation attribution without changing shared patients, billing, pharmacy, PO, GR, inventory, or stock boundaries.
-- [ ] Implement a stable printable consultant-left/facility-right single-clinic OP document that degrades safely when optional images are absent.
-- [ ] Add focused Phase 4 Step 1 authority, upload, appointment, consultation, OP, print, audit, and zero-mutation tests plus required Phase 3 regressions.
-- [ ] Run local validation, fresh-schema bootstrap validation if schema changes, and create the source-backed Phase 4 Step 1 report.
+- [x] Audit the user, appointment, consultation, OP, branding, storage, print, dashboard, RBAC, and existing Settings → Users architecture with file-and-line evidence.
+- [x] Reuse existing user/appointment/consultation structures where sufficient and document any minimal forward-only schema decision.
+- [x] Extend Settings → Users with admin-governed consultant details, secure logo/signature uploads, active-state controls, and server-derived audit events.
+- [x] Implement server-authoritative active-consultant appointment and consultation attribution without changing shared patients, billing, pharmacy, PO, GR, inventory, or stock boundaries.
+- [x] Implement a stable printable consultant-left/facility-right single-clinic OP document that degrades safely when optional images are absent.
+- [x] Add focused Phase 4 Step 1 authority, upload, appointment, consultation, OP, print, audit, and zero-mutation tests plus required Phase 3 regressions.
+- [x] Run local validation, fresh-schema bootstrap validation if schema changes, and create the source-backed Phase 4 Step 1 report.
 - [ ] Commit, push normally, open a protected PR, verify green CI, and stop without merging, tagging, deploying, or modifying production.
 
-## Phase 4 Step 1 Publication and Protected-CI Verification Only
-- [ ] Verify the existing Phase 4 source implementation, baseline delta, commit ancestry, staged-state exclusions, and local/remote feature-branch synchronization.
-- [ ] Verify the existing protected PR and required CI Validation / validate result; report exact Git, validation, and no-merge evidence without source changes.
-
-## Safe Git Branch-Synchronization Inspection
-- [ ] Inspect the requested main/origin state without running a destructive hard reset or discarding validated feature-branch work.
-- [ ] Report the current branch, remotes, status, and recent history with safe non-destructive synchronization options.
-
-## Publication-Ready Canonical Synchronization
-- [ ] Audit open Phase 3 and Phase 4 pull requests, required CI status, ancestry, mergeability, and safe dependency order.
-- [ ] Merge only validated, eligible pull requests into protected GitHub main through the normal workflow; do not deploy or modify production.
-- [ ] Verify canonical main contains the synchronized source, migrations, reports, and green required validation evidence for publication readiness.
-
-## Development Database receivedQuantity Schema Repair
-- [x] Compare the connected development database against the active Drizzle schema, deterministic baseline, and existing forward migration that introduced `purchaseOrderItems.receivedQuantity`.
-- [x] Apply only the existing lawful migration path to the connected development database; do not create a duplicate migration or touch production.
-- [ ] Verify the repaired column definition, metrics query behavior, Scan PO OCR separation, zero PO/inventory mutation before explicit submission, and check/test/build validation. The metrics and non-mutation checks are complete; the interactive Scan PO request is blocked upstream by a gateway 403 and needs separate upload-path investigation.
-- [x] Restart the active development server after the development-only schema repair and verify that the authenticated Purchase Order metrics route no longer returns HTTP 500.
-
-## Phase 3 OCR Development Upload-Transport Investigation
-- [ ] Capture and compare tiny JPEG, normal JPEG, PNG, and tiny PDF upload requests without exposing credentials, cookies, patient data, or uploaded files.
-- [ ] Prove the exact last transport boundary reached and audit the existing Scan PO/base64/tRPC ingress path without altering OCR, parser, catalog, PO, receipt, inventory, or production.
-- [ ] Create a dedicated canonical repair branch only if a source change is required; preserve all OCR validation, authentication, limits, safe errors, review flow, and zero-mutation boundaries.
-- [ ] Add focused transport security and zero-mutation regression tests only if a repair is required, then run the required validation and interactive small-document test.
-- [ ] Publish only a necessary scoped repair without merging, deploying, tagging, force pushing, or touching production.
-
 ## Phase 3 Step 8 Governed End-to-End Procurement and Inventory Posting
-- [ ] Audit canonical vendor, PO, Goods Receipt, inventory, stock-movement, catalog, OCR evidence, audit, RBAC, transaction, constraint, and UI architecture before changes.
-- [ ] Reuse or minimally extend vendor master governance with server normalization, duplicate protection, active state, and admin-only lifecycle actions.
-- [ ] Integrate deterministic vendor resolution and review-field provenance without automatic vendor creation, overwrite, PO creation, or inventory mutation.
-- [ ] Complete server-authorized PO approval/rejection with actor, timestamp, audit evidence, lifecycle guards, and zero inventory mutation.
-- [ ] Complete approved-PO Goods Receipt review and one-time atomic posting with partial receipt, batch/expiry validation, over-receipt prevention, idempotency, PO reconciliation, immutable stock movement, and audit evidence.
-- [ ] Implement only the necessary state-aware Purchase Orders and receipt UI affordances, confirmation, provenance, and authorization boundaries.
-- [ ] Add focused vendor, approval, receipt, transaction, duplicate-post, RBAC, audit, catalog-identity, and zero-pre-posting-mutation tests.
-- [ ] Generate and validate any forward-only schema migration and deterministic fresh-schema baseline update required by the approved implementation.
-- [ ] Run check, focused and full tests, build, diff checks, fresh MySQL bootstrap/schema validation, and protected CI on a dedicated canonical feature branch.
-- [ ] Produce the Phase 3 Step 8 report and stop without production changes, deployment, automatic merge, tag, or force push.
+- [x] Audit canonical vendor, PO, Goods Receipt, inventory, stock-movement, catalog, OCR evidence, audit, RBAC, transaction, constraint, and UI architecture before changes.
+- [x] Reuse and minimally extend Vendor Master governance with server normalization, duplicate protection, active state, admin-only lifecycle actions, and an in-context admin management surface.
+- [x] Integrate explicit Vendor Master links and deterministic read-only resolution without automatic vendor creation, OCR overwrite, PO creation, or inventory mutation.
+- [x] Complete server-authorized PO approval/rejection with actor, timestamp, transactional audit/history evidence, lifecycle guards, and zero inventory mutation.
+- [x] Complete approved-PO Goods Receipt posting with serialized per-PO transaction locking, catalog identity, partial receipt, batch/expiry validation, over-receipt prevention, idempotency, inventory reconciliation, immutable stock movement, and audit evidence.
+- [x] Implement state-aware Purchase Orders and receipt UI affordances, confirmation, provenance, Vendor Master selection, and role boundaries.
+- [x] Add focused vendor, PO, catalog-identity, RBAC, receipt-state, duplicate-protection, audit-snapshot, and zero-pre-posting-mutation tests.
+- [x] Generate and validate forward-only migration 0024 and update the deterministic fresh-schema baseline and strict assertions.
+- [x] Run type check, focused and full tests, production build, diff check, clean fresh MySQL baseline bootstrap, and clean fresh MySQL forward-migration validation.
+- [x] Commit, push normally, open a protected PR, verify green protected CI, and stop without merging, tagging, deploying, or modifying production.
+- [x] Produce the Phase 3 Step 8 report and stop without production changes, deployment, automatic merge, tag, or force push.
 
-## Development Purchase Orders Goods-Receipt Query Repair
-- [x] Diagnose and repair the development Purchase Orders goods-receipt query failure for an existing purchase-order reference, without changing PO/GR/inventory behavior or production data.
+## Phase 3 Step 8 Publication and Disposable Acceptance Verification
+- [x] Reconcile the requested branch name with the existing canonical Step 8 feature branch and open protected PR without renaming or duplicating published source history.
+- [x] Capture source-fidelity evidence from the canonical baseline through the current Step 8 branch for Vendor Master, PO lifecycle, Goods Receipt, inventory, stock movement, migration, baseline, and tests.
+- [x] Provision a disposable non-production MySQL database from the current Step 8 baseline and confirm schema readiness without using or repairing the stale managed development database.
+- [x] Establish a disposable authenticated acceptance environment using only synthetic data, or document the precise authentication/environment blocker without claiming interactive success.
+- [x] Execute and record the Vendor Master, Pending Approval PO, approval zero-stock boundary, partial receipt, duplicate retry, remaining receipt, and over-receipt acceptance sequence with exact inventory reconciliation values.
+- [x] Recheck protected CI and publish final evidence without merge, tag, force push, deployment, or production database access.
+- [x] Correct the demonstrated deterministic-baseline omission of `purchaseOrders.vendorGstNumber`, then repeat disposable bootstrap and acceptance validation.
 
-## Attachment 32: Read, Verify, Summarize, Apply
-- [x] Read and extract the actionable requirements from `pasted_content_32.txt`.
-- [x] Summarize the attachment and compare its requirements with the restored stable project.
-- [x] Apply only the verified, safe, in-scope attachment changes without reintroducing ThreeUI UI.
-- [x] Validate the applied changes and record the results.
-- [x] Investigate and, only if justified, narrowly fix the reproducible feature-access permission overwrite transaction stall blocking the full validation suite; preserve RBAC semantics and do not add functionality. The stall was intermittent; three bounded isolated runs and the coherent full suite passed, so no speculative repair was retained.
+## Phase 3 Step 8 Final Publication and Protected CI Verification
+- [x] Verify the actual existing canonical Step 8 feature branch, source delta, clean working tree, and documented branch-name divergence without creating duplicate history.
+- [x] Rerun final type check, focused Step 8 tests, full suite, build, and diff hygiene on the final source tree.
+- [x] Rerun strict fresh empty MySQL bootstrap and canonical pre-Step-8 baseline plus migration 0024 validation without any production or managed-development database access.
+- [x] Confirm latest protected CI, open PR state, local/remote synchronization, and final source-backed evidence without merge, tag, deployment, force push, or new functionality.
 
-## User Management Record Classification Audit
-- [x] Verify the User Management page page-size/pagination and compare its displayed pages with the development users table.
-- [x] Classify development user records by role, login method, active state, local-auth fields, and attribution without exposing password hashes.
-- [x] Determine whether non-admin records are genuine local-auth users, OAuth users, or system/artifact records; do not delete or mutate any records.
-- [x] Report the evidence and any safe next-step recommendation to the user.
+## Phase 4 Step 2 Unified Consultant Visit, Patient Match/Register, and OP Workflow
+- [x] Audit canonical consultant, patient, appointment, consultation, OP, RBAC, audit, search, duplicate-protection, and UI architecture with file-and-line evidence.
+- [x] Reuse existing relationships and add only the smallest forward-only appointment/consultation linkage, source, lifecycle, and idempotency schema support proven necessary.
+- [x] Implement deterministic server-side patient candidate search, explicit selection, in-flow registration reuse, and duplicate conflict handling without automatic merge or demographic overwrite.
+- [x] Implement authoritative active-consultant selection, explicit appointment creation, controlled appointment source, and consultant-scoped access for staff/admin/consultant roles.
+- [x] Implement audited check-in and idempotent appointment-context consultation/OP start without client-supplied consultant identity or duplicate consultations.
+- [x] Add a unified Visit/Appointment UI route and state-aware appointment actions while preserving existing Patient Registration, Appointments, OP rendering, procurement, and inventory behavior.
+- [x] Add focused patient-match, duplicate, consultant/RBAC, appointment-state, check-in, consultation-idempotency, audit, source, and zero-mutation regression tests.
+- [x] Generate and validate any required forward-only migration, deterministic bootstrap update, strict schema assertions, and fresh MySQL validation.
+- [ ] Run check, focused and full tests, build, diff checks, disposable browser acceptance, and protected CI on this dedicated branch without merge, tag, deployment, or production access.
+- [x] Produce the Phase 4 Step 2 report with source evidence, validation results, workflow trace, and preserved boundaries.
+- [x] Correct the authorized all-appointments list path so staff/admin can see explicitly booked workflow appointments for check-in and consultation acceptance, without altering consultant scope or procurement/inventory behavior.
+- [x] Preserve the newly registered in-flow patient as the explicit selection until candidate-query results refresh, so the booking UI accurately represents the guarded server selection state.
+- [x] Complete local type check, focused and full tests, build, diff check, fresh bootstrap, forward-migration verification, and disposable synthetic browser acceptance without production or publication actions.
+- [x] Verify source fidelity, stage only validated Phase 4 Step 2 files, commit, push the authorized feature branch, open a PR to main, and verify required protected CI without merge, deployment, tag, force push, or production action.
 
-## Attachment 33: Read, Verify, Summarize, Apply
-- [x] Read and extract the actionable requirements from `pasted_content_33.txt`.
-- [x] Summarize the attachment and compare its requirements with the restored stable project.
-- [x] Apply only verified safe, in-scope attachment changes without reintroducing ThreeUI or touching production.
-- [x] Validate the applied changes and record the results.
+## User Management Cleanup and Admin Password Management
+- [x] Audit users schema, authentication, password hashing, roles, active state, consultant fields, permissions, references, and connected database classification before changing data.
+- [ ] Classify all development users as safe-to-delete or historically referenced; preserve referenced identities and retain at least one usable admin.
+- [x] Perform only approved disposable-development stale-user cleanup; no connected-data deletion was performed because the database is operational-looking and contains substantial clinical/history data; cleanup remains deferred pending an explicitly disposable database.
+- [x] Implement or harden admin-only user creation, role assignment, activation/deactivation, consultant profile editing, and server-side uniqueness validation.
+- [x] Implement admin-only password reset using the existing server-side bcrypt mechanism without plaintext/hash exposure, audit leakage, or global session invalidation.
+- [x] Preserve self-service password change and document the must-change-password and session-invalidation decisions.
+- [x] Add focused authentication, RBAC, historical-attribution, password-secrecy, inactive-user, last-admin, consultant-integrity, deletion, and zero-business-mutation tests.
+- [ ] Run check, focused auth/user and Phase 3/4 regression tests, full tests, build, diff checks, and fresh migration validation only if schema changes. Focused checks and build pass; full suite is blocked by pre-existing development-schema drift (`appointments.appointmentSource`).
+- [ ] Complete synthetic non-production interactive acceptance; report written to `USER_MANAGEMENT_CLEANUP_AND_ADMIN_PASSWORD_REPORT.md`, but browser acceptance remains deferred because the synthetic dashboard session is inaccessible.
+- [ ] Commit, push, open a protected PR, verify CI, and stop without merge, tag, deployment, force push, or production database access.
 
-## Attachment 34: Read, Verify, Summarize, Apply
-- [x] Read and extract the actionable requirements from `pasted_content_34.txt`.
-- [x] Summarize the attachment and compare its requirements with the restored stable project.
-- [x] Apply only verified safe, in-scope attachment changes without reintroducing ThreeUI or touching production.
-- [x] Validate the applied changes and record the results.
+> Historical engineering ledger entries inherited from earlier milestones remain unchanged; this section tracks only the current user-management cleanup branch.
 
-## Attachment 35: Read, Verify, Summarize, Apply
-- [x] Read and extract the actionable requirements from `pasted_content_35.txt`.
-- [x] Summarize the attachment and compare its requirements with the restored stable project.
-- [x] Apply only verified safe, in-scope attachment changes without reintroducing ThreeUI or touching production.
-- [x] Validate the applied changes and record the results.
+## Attachment 38: Paper-First OP → Billing → Visit Closure V2
+- [x] Implement appointment-linked Generate OP for checked-in visits with retry idempotency.
+- [x] Keep printed OP paper-first with consultant branding, clinic branding, and blank handwriting sections.
+- [x] Add consultant/admin completion authority and auditable completion semantics without closing the visit.
+- [x] Add consultation-derived one-bill-per-encounter billing and close the appointment only after bill linkage succeeds.
+- [x] Add minimal visit-chain access in Patient Records and preserve future digital consultation fields.
+- [x] Add schema migration, baseline, bootstrap assertion, and focused tests without procurement/inventory mutation.
+- [ ] Run focused/full validation, build, diff hygiene, and fresh-database checks. (Focused/full validation, build, and diff hygiene passed; isolated MySQL unavailable.)
+- [x] Commit locally and stop without push, PR, merge, tag, deployment, or production access.
 
-## Attachment 36: Read, Verify, Summarize, Apply
-- [x] Read and extract the actionable requirements from `pasted_content_36.txt`.
-- [x] Summarize the attachment and compare its requirements with the current stable project.
-- [ ] Apply only verified safe, in-scope attachment changes without reintroducing ThreeUI or touching production; blocked because the exact validated Step 3 source was not recovered after the sandbox reset.
-- [ ] Validate the applied changes and record the results; blocked pending source recovery.
+## Attachment 39: Canonical Product Requirements Document
+- [ ] Audit canonical repository source, reports, tags, and milestones for product truth.
+- [ ] Reconcile implemented, planned, deferred, retired, blocked, and out-of-scope product decisions.
+- [ ] Create root `PRD.md` with requirement IDs, module inventory, workflows, RBAC, safety boundaries, roadmap, traceability, and governance.
+- [ ] Create `PRD_INITIAL_RECONCILIATION_REPORT.md` documenting evidence, ambiguities, and omissions.
+- [ ] Validate documentation scope with manual source reconciliation and `git diff --check`; do not modify runtime, schema, RBAC, data, or deployment.
 
-## Attachment 36: Paper-First OP Publication and Protected CI
-- [x] Read and extract the publication requirements from `pasted_content_36.txt`.
-- [x] Summarize the publication requirements and compare them with the restored canonical project state.
-- [ ] Verify the validated Step 3 source, ancestry, scope, migration, and business-boundary evidence.
-- [ ] Publish only the validated Step 3 implementation to the requested feature branch and open a protected PR without merging or deploying.
-- [ ] Run and verify protected CI on the exact PR head, then record the final publication result.
+## Attachment 40: Phase 4 Step 3 Release Gates
+- [ ] Verify exact implementation commit, canonical ancestry, clean feature tree, and expected changed files.
+- [ ] Validate deterministic baseline and migration 0026 on isolated databases only; do not use operational development or production data.
+- [ ] Validate synthetic paper-first lifecycle, billing idempotency/concurrency, Patient Records linkage, and zero procurement/inventory mutation.
+- [ ] Re-run final local focused/regression/full tests, check, build, and diff hygiene.
+- [ ] Push the feature branch normally and open the requested non-merged PR to `main`.
+- [ ] Wait for protected `CI Validation / validate`; report exact evidence and stop without merging.
+- [x] Correct demonstrated baseline defect: the fail-closed SQL splitter skipped the final bills uniqueness statement because it shared a chunk beginning with a comment.
 
-## Attachment 37: Read, Verify, Summarize, Apply
-- [x] Read and extract the actionable requirements from `pasted_content_37.txt`.
-- [x] Summarize the attachment and compare its requirements with the current stable project and GitHub state.
-- [x] Apply only verified safe, in-scope attachment actions without reintroducing ThreeUI or touching production; created a recovery report only and no source code.
-- [x] Validate the applied actions and record the results; exact Step 3 source was not recoverable.
+## Attachment 41: Dashboard and Navigation Refinement
+- [ ] Audit current navigation, dashboard cards, shortcuts, duplicate entry points, and role/feature visibility against `PRD.md`.
+- [ ] Refine primary navigation into unified clinic workflow, pharmacy/inventory, and admin/management groupings without deleting underlying capabilities.
+- [ ] Make New Visit / Appointment the dominant front-desk entry point and preserve standalone registration only as a secondary reachable route.
+- [ ] Refine Home into an operational dashboard using authoritative read-only data only; do not add an analytics subsystem.
+- [ ] Preserve paper-first lifecycle, future digital consultation fields, procurement/inventory behavior, User Management hardening, and no-ThreeUI boundary.
+- [ ] Add/update focused UI/navigation tests and update affected PRD sections.
+- [ ] Run check, focused tests, full tests, build, diff hygiene, and commit locally without push or PR.
+
+## Attachment 46: Dashboard and Navigation Refinement
+- [x] Read the complete PRD and Attachment 46 and audit current navigation, routes, dashboard cards, shortcuts, duplicate entry points, and RBAC visibility.
+- [x] Implement the minimal unified workflow navigation and operational dashboard refinement without changing business logic or adding analytics infrastructure.
+- [x] Preserve paper-first visit closure, future digital consultation fields, procurement/inventory boundaries, User Management hardening, and no-ThreeUI boundary.
+- [x] Update only affected PRD sections after implementation and add focused UI/navigation regression tests.
+- [x] Run check, focused tests, full tests, build, diff hygiene, and commit locally without push, PR, merge, tag, deployment, or production action.
+
+## Main-side PRD Publication Review
+- [x] Preserve the canonical PRD and reconciliation evidence already reviewed through PR #15.
+
+## User Lookup Schema Drift Fix
+- [x] Trace the failing user lookup fields against current schema, migrations, Preview logs, and development database state.
+- [x] Apply the smallest safe development-only schema reconciliation or compatible fix; preserve authentication and RBAC semantics.
+- [x] Add or update regression coverage for consultant profile lookup and validate check, tests, build, and Preview response.

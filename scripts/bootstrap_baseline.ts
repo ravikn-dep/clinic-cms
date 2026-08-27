@@ -64,6 +64,35 @@ async function assertUniqueIndex(
   }
 }
 
+async function assertIndex(
+  connection: mysql.Connection,
+  table: string,
+  indexName: string,
+  expectedColumns: string[],
+): Promise<void> {
+  const [rows] = await connection.query(`SHOW INDEXES FROM \`${table}\``);
+
+  const matchingRows = (rows as IndexRow[])
+    .filter((row) => row.Key_name === indexName)
+    .sort((a, b) => a.Seq_in_index - b.Seq_in_index);
+
+  const actualColumns = matchingRows.map((row) => row.Column_name);
+
+  if (
+    actualColumns.length !== expectedColumns.length ||
+    actualColumns.some(
+      (column, index) => column !== expectedColumns[index],
+    )
+  ) {
+    await fail(
+      connection,
+      `Required index '${indexName}' on '${table}' mismatch. Expected (${expectedColumns.join(
+        ", ",
+      )}), found (${actualColumns.join(", ")}).`,
+    );
+  }
+}
+
 async function assertForeignKeys(
   connection: mysql.Connection,
   expectedForeignKeys: Array<{
@@ -157,16 +186,16 @@ async function bootstrap() {
 
   const requiredTables = [
     "users", "patients", "consultations", "inventory", "bills", "billItems", "billTemplates", "auditLogs", "notifications",
-    "purchaseOrders", "purchaseOrderItems", "purchaseOrderHistory", "goodsReceipts", "goodsReceiptItems", "stockMovements",
+    "purchaseOrders", "purchaseOrderItems", "purchaseOrderHistory", "purchaseOrderExtractionReviews", "catalogItems", "catalogItemAliases", "goodsReceipts", "goodsReceiptItems", "stockMovements",
     "appointments", "consultantAvailability", "notificationPreferences", "rolePermissions", "vendors", "appointmentBookingLocks",
-    "enquiries", "externalApiAuditLogs", "externalIdempotencyKeys", "externalRequestReplays",
+    "enquiries", "externalApiAuditLogs", "externalIdempotencyKeys", "externalRequestReplays", "procurementPostingLocks",
   ];
 
   for (const reqTable of requiredTables) {
     const found = tables.some(t => t.toLowerCase() === reqTable.toLowerCase());
     if (!found) await fail(connection, `Required table missing: ${reqTable}`);
   }
-  console.log("[Verification] All 25 required tables verified successfully.");
+  console.log("[Verification] All 29 required tables verified successfully.");
 
   const expectedPrimaryKeys: Array<[string, string[]]> = [
     ["users", ["id"]],
@@ -181,6 +210,9 @@ async function bootstrap() {
     ["purchaseOrders", ["purchaseOrderId"]],
     ["purchaseOrderItems", ["poItemId"]],
     ["purchaseOrderHistory", ["historyId"]],
+    ["purchaseOrderExtractionReviews", ["reviewId"]],
+    ["catalogItems", ["catalogItemId"]],
+    ["catalogItemAliases", ["aliasId"]],
     ["goodsReceipts", ["goodsReceiptId"]],
     ["goodsReceiptItems", ["goodsReceiptItemId"]],
     ["stockMovements", ["movementId"]],
@@ -194,12 +226,13 @@ async function bootstrap() {
     ["externalApiAuditLogs", ["auditId"]],
     ["externalIdempotencyKeys", ["idempotencyId"]],
     ["externalRequestReplays", ["replayId"]],
+	["procurementPostingLocks", ["purchaseOrderId"]],
   ];
 
   for (const [table, columns] of expectedPrimaryKeys) {
     await assertPrimaryKey(connection, table, columns);
   }
-  console.log("[Verification] Exact PRIMARY KEY columns verified on all 25 tables.");
+  console.log("[Verification] Exact PRIMARY KEY columns verified on all 29 tables.");
 
   const [usersCols] = await connection.query("SHOW COLUMNS FROM `users` WHERE Field = 'id'");
   const usersIdCol = (usersCols as any[])[0];
@@ -210,10 +243,33 @@ async function bootstrap() {
   }
   console.log("[Verification] users.id PRIMARY KEY + AUTO_INCREMENT verified.");
 
+  const consultantProfileColumns = [
+    "qualifications",
+    "specialization",
+    "designation",
+    "prescriptionHeaderText",
+    "consultantLogoKey",
+    "signatureKey",
+  ];
+  for (const column of consultantProfileColumns) {
+    const [columnRows] = await connection.query("SHOW COLUMNS FROM `users` WHERE Field = ?", [column]);
+    if ((columnRows as any[]).length === 0) {
+      await fail(connection, `users.${column} consultant profile column missing.`);
+    }
+  }
+  console.log("[Verification] Consultant profile columns verified on users.");
+
+	for (const [table, column] of [["vendors", "normalizedVendorName"], ["vendors", "normalizedGstNumber"], ["vendors", "bankDetails"], ["purchaseOrders", "vendorId"], ["inventory", "catalogItemId"], ["stockMovements", "catalogItemId"], ["appointments", "appointmentSource"], ["consultations", "appointmentId"]]) {
+		const [columnRows] = await connection.query(`SHOW COLUMNS FROM \`${table}\` WHERE Field = ?`, [column]);
+		if ((columnRows as any[]).length === 0) await fail(connection, `${table}.${column} procurement column missing.`);
+	}
+	console.log("[Verification] Step 8 Vendor Master and catalog posting columns verified.");
+
   const requiredUniqueIndexes: Array<[string, string, string[]]> = [
     ["users", "users_openId_unique", ["openId"]],
     ["appointments", "appointments_appointmentId_unique", ["appointmentId"]],
     ["inventory", "inventory_item_batch_expiry_unique", ["itemName", "batchNumber", "expiryDate"]],
+	["inventory", "inventory_catalog_batch_expiry_unique", ["catalogItemId", "batchNumber", "expiryDate"]],
     ["patients", "patients_patientId_unique", ["patientId"]],
     ["goodsReceipts", "goodsReceipts_goodsReceiptId_unique", ["goodsReceiptId"]],
     ["goodsReceiptItems", "goodsReceiptItems_goodsReceiptItemId_unique", ["goodsReceiptItemId"]],
@@ -221,18 +277,45 @@ async function bootstrap() {
     ["stockMovements", "stockMovements_movementId_unique", ["movementId"]],
     ["stockMovements", "stockMovements_receiptItem_unique", ["goodsReceiptItemId"]],
     ["purchaseOrderHistory", "purchaseOrderHistory_historyId_unique", ["historyId"]],
+    ["purchaseOrderExtractionReviews", "purchaseOrderExtractionReviews_reviewId_unique", ["reviewId"]],
+    ["purchaseOrderExtractionReviews", "purchaseOrderExtractionReviews_purchaseOrder_unique", ["purchaseOrderId"]],
+    ["purchaseOrderExtractionReviews", "purchaseOrderExtractionReviews_submission_unique", ["reviewSubmissionId"]],
+    ["catalogItems", "catalogItems_catalogItemId_unique", ["catalogItemId"]],
+    ["catalogItems", "catalogItems_normalizedName_unique", ["normalizedName"]],
+    ["catalogItemAliases", "catalogItemAliases_aliasId_unique", ["aliasId"]],
+    ["catalogItemAliases", "catalogItemAliases_vendor_alias_unique", ["vendorId", "normalizedAlias"]],
     ["enquiries", "enquiries_enquiryId_unique", ["enquiryId"]],
     ["externalApiAuditLogs", "externalApiAuditLogs_auditId_unique", ["auditId"]],
     ["externalIdempotencyKeys", "externalIdempotency_operation_key_unique", ["operation", "idempotencyKey"]],
     ["externalIdempotencyKeys", "externalIdempotency_idempotencyId_unique", ["idempotencyId"]],
     ["appointmentBookingLocks", "appointmentBookingLocks_consultant_date_unique", ["consultantId", "appointmentDate"]],
-    ["externalRequestReplays", "externalRequestReplays_key_request_unique", ["serviceKeyId", "requestId"]],
+	["externalRequestReplays", "externalRequestReplays_key_request_unique", ["serviceKeyId", "requestId"]],
+	    ["consultations", "consultations_appointmentId_unique", ["appointmentId"]],
+    ["bills", "bills_consultationId_unique", ["consultationId"]],
+
   ];
 
   for (const [table, indexName, columns] of requiredUniqueIndexes) {
     await assertUniqueIndex(connection, table, indexName, columns);
   }
   console.log("[Verification] All schema-defined UNIQUE constraints and duplicate-protection indexes verified.");
+
+  const requiredIndexes: Array<[string, string, string[]]> = [
+    [
+      "purchaseOrderItems",
+      "purchaseOrderItems_catalogItem_idx",
+      ["catalogItemId"],
+    ],
+	["purchaseOrders", "purchaseOrders_vendorId_idx", ["vendorId"]],
+	["vendors", "vendors_active_normalizedVendorName_idx", ["isActive", "normalizedVendorName"]],
+	["vendors", "vendors_normalizedGstNumber_idx", ["normalizedGstNumber"]],
+  ];
+
+  for (const [table, indexName, columns] of requiredIndexes) {
+    await assertIndex(connection, table, indexName, columns);
+  }
+
+  console.log("[Verification] Required non-unique indexes verified.");
 
   const expectedForeignKeys: Array<{
     constraintName: string;
@@ -251,7 +334,7 @@ async function bootstrap() {
   }
   console.log("[Verification] purchaseOrderItems.receivedQuantity verified.");
 
-  const specificEntities = ["goodsReceipts", "goodsReceiptItems", "stockMovements", "externalRequestReplays"];
+  const specificEntities = ["goodsReceipts", "goodsReceiptItems", "stockMovements", "externalRequestReplays", "purchaseOrderExtractionReviews", "catalogItems", "catalogItemAliases", "procurementPostingLocks"];
   for (const entity of specificEntities) {
     await connection.query(`SELECT COUNT(*) as cnt FROM \`${entity}\``);
     console.log(`[Verification] Entity table '${entity}' is accessible and queryable.`);

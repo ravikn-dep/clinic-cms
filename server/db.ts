@@ -1,33 +1,28 @@
 import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays } from "../drizzle/schema";
+import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, catalogItems, catalogItemAliases, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays, procurementPostingLocks } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 import { nanoid } from "nanoid";
 import { normalizeIndianMobile } from "./external/validation";
+import { normalizeGstNumber, normalizeVendorName, receiptStateForLines, type VendorMasterRecord } from "./procurement";
+import { canCheckInAppointment, canStartAppointmentConsultation } from "./visitWorkflow";
 
 const SALT_ROUNDS = 10;
 type InsertUser = typeof users.$inferInsert;
 
 let _db: ReturnType<typeof drizzle> | null = null;
-let _pool: mysql.Pool | null = null;
 
-// Lazily create a managed pool so idle or dropped MySQL connections are replaced automatically.
+// Lazily create a pool so a transient serverless/network disconnect does not
+// leave the process holding one permanently closed connection.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _pool = mysql.createPool({
-        uri: process.env.DATABASE_URL,
-        waitForConnections: true,
-        connectionLimit: 10,
-        enableKeepAlive: true,
-        keepAliveInitialDelay: 0,
-      });
-      _db = drizzle(_pool as any);
+      const pool = mysql.createPool(process.env.DATABASE_URL);
+      _db = drizzle(pool as any);
     } catch (error) {
-      console.warn("[Database] Failed to create connection pool:", error);
-      _pool = null;
+      console.warn("[Database] Failed to initialize pool:", error);
       _db = null;
     }
   }
@@ -166,12 +161,18 @@ export async function searchPatients(query: string) {
   )).limit(50);
 
   const lowerQuery = trimmedQuery.toLocaleLowerCase("en-IN");
-  return results.filter((patient) => {
+	return results.filter((patient) => {
     const fullName = `${patient.firstName} ${patient.lastName}`.toLocaleLowerCase("en-IN");
     return patient.patientId.toLocaleLowerCase("en-IN").includes(lowerQuery)
       || fullName.includes(lowerQuery)
       || (mobile !== null && patient.normalizedContactNumber === mobile);
-  });
+	});
+}
+
+export async function getPatientsByNormalizedContactNumber(normalizedContactNumber: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(patients).where(eq(patients.normalizedContactNumber, normalizedContactNumber)).limit(10);
 }
 
 // ============ EXTERNAL INTEGRATION QUERIES ============
@@ -265,8 +266,35 @@ export async function getActiveConsultants() {
     userId: users.userId,
     name: users.name,
     department: users.department,
+		qualifications: users.qualifications,
+		specialization: users.specialization,
     registrationNumber: users.registrationNumber,
   }).from(users).where(and(eq(users.role, "consultant"), eq(users.isActive, 1)));
+}
+
+export async function getConsultantProfileById(consultantId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(users).where(and(eq(users.id, consultantId), eq(users.role, "consultant"))).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getActiveConsultantById(consultantId: number) {
+  const consultant = await getConsultantProfileById(consultantId);
+  return consultant?.isActive ? consultant : null;
+}
+
+export async function updateConsultantProfileById(
+  consultantId: number,
+  updates: Partial<Pick<typeof users.$inferInsert,
+    "name" | "email" | "phone" | "department" | "stateCounsilSection" | "registrationNumber" |
+    "qualifications" | "specialization" | "designation" | "prescriptionHeaderText" |
+    "consultantLogoKey" | "signatureKey" | "isActive"
+  >>,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(users).set(updates).where(and(eq(users.id, consultantId), eq(users.role, "consultant")));
 }
 
 // ============ CONSULTATION QUERIES ============
@@ -292,6 +320,49 @@ export async function getConsultationsByPatientId(patientId: string) {
   if (!db) throw new Error("Database not available");
   
   return db.select().from(consultations).where(eq(consultations.patientId, patientId)).orderBy(desc(consultations.consultationDate));
+}
+
+export async function getConsultationsByPatientAndConsultant(patientId: string, consultantId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(consultations).where(and(
+    eq(consultations.patientId, patientId),
+    eq(consultations.consultantId, consultantId),
+  )).orderBy(desc(consultations.consultationDate));
+}
+
+export async function getConsultationPrintData(consultationId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select({
+    consultationId: consultations.consultationId,
+    consultationDate: consultations.consultationDate,
+    consultantId: consultations.consultantId,
+    clinicalHistory: consultations.clinicalHistory,
+    presentComplaints: consultations.presentComplaints,
+    advisedInvestigations: consultations.advisedInvestigations,
+    treatmentPlan: consultations.treatmentPlan,
+    patientId: patients.patientId,
+    firstName: patients.firstName,
+    lastName: patients.lastName,
+    age: patients.age,
+    gender: patients.gender,
+    contactNumber: patients.contactNumber,
+    consultantName: users.name,
+    qualifications: users.qualifications,
+    specialization: users.specialization,
+    designation: users.designation,
+    registrationCouncil: users.stateCounsilSection,
+    registrationNumber: users.registrationNumber,
+    prescriptionHeaderText: users.prescriptionHeaderText,
+    consultantLogoKey: users.consultantLogoKey,
+    signatureKey: users.signatureKey,
+  }).from(consultations)
+    .innerJoin(patients, eq(consultations.patientId, patients.patientId))
+    .innerJoin(users, eq(consultations.consultantId, users.id))
+    .where(and(eq(consultations.consultationId, consultationId), eq(users.role, "consultant")))
+    .limit(1);
+  return result[0] ?? null;
 }
 
 export async function updateConsultation(consultationId: string, updates: Partial<typeof consultations.$inferInsert>) {
@@ -324,6 +395,20 @@ export async function getAllPurchaseOrders() {
   if (!db) throw new Error("Database not available");
   
   return db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt));
+}
+
+/** Receipt state is derived from line quantities and never persisted as a second source of truth. */
+export async function getAllPurchaseOrdersWithReceiptState() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [orders, items] = await Promise.all([
+    db.select().from(purchaseOrders).orderBy(desc(purchaseOrders.createdAt)),
+    db.select().from(purchaseOrderItems),
+  ]);
+  return orders.map((order) => ({
+    ...order,
+    receiptStatus: receiptStateForLines(items.filter((item) => item.purchaseOrderId === order.purchaseOrderId)),
+  }));
 }
 
 export async function getPurchaseOrderMetrics() {
@@ -382,6 +467,58 @@ export async function createPurchaseOrderWithItems(
   return poData;
 }
 
+export type ReviewedExtractionPersistence = {
+  review: typeof purchaseOrderExtractionReviews.$inferInsert;
+  auditLog: typeof auditLogs.$inferInsert;
+  history: typeof purchaseOrderHistory.$inferInsert;
+};
+
+/**
+ * The only Step 4 write boundary: PO, items, immutable review evidence, and
+ * their audit/history records commit together or roll back together.
+ */
+export async function createPurchaseOrderWithItemsAndExtractionReview(
+  poData: typeof purchaseOrders.$inferInsert,
+  items: Array<typeof purchaseOrderItems.$inferInsert>,
+  persistence: ReviewedExtractionPersistence,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.transaction(async (transaction) => {
+    await transaction.insert(purchaseOrders).values(poData);
+    if (items.length > 0) {
+      await transaction.insert(purchaseOrderItems).values(items);
+    }
+    await transaction.insert(purchaseOrderExtractionReviews).values(persistence.review);
+    await transaction.insert(auditLogs).values(persistence.auditLog);
+    await transaction.insert(purchaseOrderHistory).values(persistence.history);
+  });
+  return { purchaseOrder: poData, review: persistence.review };
+}
+
+export async function getPurchaseOrderExtractionReview(purchaseOrderId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const records = await db.select()
+    .from(purchaseOrderExtractionReviews)
+    .where(eq(purchaseOrderExtractionReviews.purchaseOrderId, purchaseOrderId))
+    .limit(1);
+  return records[0] ?? null;
+}
+
+export async function getPurchaseOrderExtractionReviewBySubmissionId(reviewSubmissionId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const records = await db.select()
+    .from(purchaseOrderExtractionReviews)
+    .where(eq(purchaseOrderExtractionReviews.reviewSubmissionId, reviewSubmissionId))
+    .limit(1);
+  return records[0] ?? null;
+}
+
 export async function getPurchaseOrderItems(purchaseOrderId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -421,24 +558,34 @@ export async function getPurchaseOrderReceiptSummary(purchaseOrderId: string) {
 }
 
 export type GoodsReceiptLineInput = {
-  poItemId: string;
-  receivedQuantity: number;
-  batchNumber: string;
-  expiryDate: string;
-  unitCost?: string;
+	poItemId: string;
+	receivedQuantity: number;
+	batchNumber: string;
+	expiryDate: string;
+	unitCost?: string;
 };
 
+async function lockPurchaseOrderForReceiptPosting(transaction: any, purchaseOrderId: string) {
+	await transaction.execute(sql`
+		INSERT INTO ${procurementPostingLocks} (${procurementPostingLocks.purchaseOrderId})
+		VALUES (${purchaseOrderId})
+		ON DUPLICATE KEY UPDATE ${procurementPostingLocks.updatedAt} = NOW()
+	`);
+}
+
 export async function createGoodsReceipt(input: {
-  goodsReceiptId: string;
-  purchaseOrderId: string;
-  receivedBy: string;
-  lines: GoodsReceiptLineInput[];
+	goodsReceiptId: string;
+	purchaseOrderId: string;
+	receivedBy: string;
+	receivedByName?: string | null;
+	lines: GoodsReceiptLineInput[];
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return db.transaction(async (transaction) => {
-    const existingReceipt = await transaction.select()
+	return db.transaction(async (transaction) => {
+		await lockPurchaseOrderForReceiptPosting(transaction, input.purchaseOrderId);
+		const existingReceipt = await transaction.select()
       .from(goodsReceipts)
       .where(eq(goodsReceipts.goodsReceiptId, input.goodsReceiptId))
       .limit(1);
@@ -470,10 +617,11 @@ export async function createGoodsReceipt(input: {
       status: "Posted",
     });
 
-    const postedLines: Array<{
-      goodsReceiptItemId: string;
-      poItemId: string;
-      itemName: string;
+		const postedLines: Array<{
+			goodsReceiptItemId: string;
+			poItemId: string;
+			catalogItemId: string;
+			itemName: string;
       receivedQuantity: number;
       batchNumber: string;
       expiryDate: string;
@@ -486,9 +634,12 @@ export async function createGoodsReceipt(input: {
       }
       seenItems.add(line.poItemId);
 
-      const poItem = poItemById.get(line.poItemId);
-      if (!poItem) throw new Error(`PO item ${line.poItemId} does not belong to this purchase order`);
-      const orderedQuantity = Number(poItem.quantity ?? 0);
+		const poItem = poItemById.get(line.poItemId);
+		if (!poItem) throw new Error(`PO item ${line.poItemId} does not belong to this purchase order`);
+		if (!poItem.catalogItemId) {
+			throw new Error(`A governed catalog identity is required before receiving ${poItem.itemName}`);
+		}
+		const orderedQuantity = Number(poItem.quantity ?? 0);
       const previouslyReceived = Number(poItem.receivedQuantity ?? 0);
       if (!Number.isInteger(line.receivedQuantity) || line.receivedQuantity <= 0) {
         throw new Error("Received quantity must be a positive whole number");
@@ -505,16 +656,29 @@ export async function createGoodsReceipt(input: {
         throw new Error(`Expiry date is invalid for ${poItem.itemName}`);
       }
 
-      const matchingInventory = await transaction.select()
-        .from(inventory)
-        .where(and(
-          eq(inventory.itemName, poItem.itemName),
-          eq(inventory.batchNumber, line.batchNumber.trim()),
-          eq(inventory.expiryDate, line.expiryDate),
-        ))
-        .limit(1);
-      const currentInventory = matchingInventory[0];
-      const previousQuantity = Number(currentInventory?.quantityAvailable ?? 0);
+		const matchingInventory = await transaction.select()
+			.from(inventory)
+			.where(and(
+				eq(inventory.catalogItemId, poItem.catalogItemId),
+				eq(inventory.batchNumber, line.batchNumber.trim()),
+				eq(inventory.expiryDate, line.expiryDate),
+			))
+			.limit(1);
+		const currentInventory = matchingInventory[0];
+		if (!currentInventory) {
+			const legacyInventory = await transaction.select()
+				.from(inventory)
+				.where(and(
+					eq(inventory.itemName, poItem.itemName),
+					eq(inventory.batchNumber, line.batchNumber.trim()),
+					eq(inventory.expiryDate, line.expiryDate),
+				))
+				.limit(1);
+			if (legacyInventory[0]) {
+				throw new Error(`Existing batch stock for ${poItem.itemName} requires explicit catalog reconciliation before posting`);
+			}
+		}
+		const previousQuantity = Number(currentInventory?.quantityAvailable ?? 0);
       const resultingQuantity = previousQuantity + line.receivedQuantity;
       const inventoryItemId = currentInventory?.itemId ?? nanoid(20);
       const unitPrice = line.unitCost ?? String(poItem.unitPrice ?? "0");
@@ -530,10 +694,11 @@ export async function createGoodsReceipt(input: {
           })
           .where(eq(inventory.itemId, currentInventory.itemId));
       } else {
-        await transaction.insert(inventory).values({
-          itemId: inventoryItemId,
-          itemName: poItem.itemName,
-          batchNumber: line.batchNumber.trim(),
+		await transaction.insert(inventory).values({
+			itemId: inventoryItemId,
+			itemName: poItem.itemName,
+			catalogItemId: poItem.catalogItemId,
+			batchNumber: line.batchNumber.trim(),
           expiryDate: line.expiryDate,
           quantityAvailable: line.receivedQuantity,
           unitPrice: unitPrice as any,
@@ -561,13 +726,14 @@ export async function createGoodsReceipt(input: {
         .set({ receivedQuantity: previouslyReceived + line.receivedQuantity })
         .where(eq(purchaseOrderItems.poItemId, line.poItemId));
 
-      await transaction.insert(stockMovements).values({
+		await transaction.insert(stockMovements).values({
         movementId: nanoid(20),
         goodsReceiptId: input.goodsReceiptId,
         goodsReceiptItemId,
         purchaseOrderId: input.purchaseOrderId,
-        inventoryItemId,
-        itemName: poItem.itemName,
+			inventoryItemId,
+			catalogItemId: poItem.catalogItemId,
+			itemName: poItem.itemName,
         batchNumber: line.batchNumber.trim(),
         quantityAdded: line.receivedQuantity,
         previousQuantity,
@@ -575,10 +741,11 @@ export async function createGoodsReceipt(input: {
         actorId: input.receivedBy,
       });
 
-      postedLines.push({
-        goodsReceiptItemId,
-        poItemId: line.poItemId,
-        itemName: poItem.itemName,
+		postedLines.push({
+			goodsReceiptItemId,
+			poItemId: line.poItemId,
+			catalogItemId: poItem.catalogItemId,
+			itemName: poItem.itemName,
         receivedQuantity: line.receivedQuantity,
         batchNumber: line.batchNumber.trim(),
         expiryDate: line.expiryDate,
@@ -586,22 +753,23 @@ export async function createGoodsReceipt(input: {
       });
     }
 
-    await transaction.insert(purchaseOrderHistory).values({
-      historyId: nanoid(20),
-      purchaseOrderId: input.purchaseOrderId,
-      eventType: "GOODS_RECEIPT_POSTED",
-      actorId: input.receivedBy,
-      eventSummary: `Goods receipt ${input.goodsReceiptId} posted for ${postedLines.length} item(s).`,
-      details: JSON.stringify({ goodsReceiptId: input.goodsReceiptId, lines: postedLines }),
-    });
+	await transaction.insert(purchaseOrderHistory).values({
+		historyId: nanoid(20),
+		purchaseOrderId: input.purchaseOrderId,
+		eventType: "GOODS_RECEIPT_POSTED",
+		actorId: input.receivedBy,
+		actorName: input.receivedByName ?? null,
+		eventSummary: `Goods receipt ${input.goodsReceiptId} posted for ${postedLines.length} item(s).`,
+		details: JSON.stringify({ goodsReceiptId: input.goodsReceiptId, lineCount: postedLines.length }),
+	});
 
     await transaction.insert(auditLogs).values({
       logId: nanoid(20),
       userId: input.receivedBy,
-      actionType: "CREATE",
+		actionType: "GOODS_RECEIPT_POSTED",
       tableName: "goodsReceipts",
       recordId: input.goodsReceiptId,
-      newValue: JSON.stringify({ purchaseOrderId: input.purchaseOrderId, lines: postedLines }),
+		newValue: JSON.stringify({ purchaseOrderId: input.purchaseOrderId, goodsReceiptId: input.goodsReceiptId, lineCount: postedLines.length, actorId: input.receivedBy }),
       timestamp: new Date().toISOString(),
     });
 
@@ -670,7 +838,65 @@ export async function rejectPurchaseOrder(poId: string, rejectionReason: string,
     rejectionReason,
     approvedBy,
     approvalTimestamp: new Date().toISOString(),
-  }).where(eq(purchaseOrders.purchaseOrderId, poId));
+	}).where(eq(purchaseOrders.purchaseOrderId, poId));
+}
+
+export type PurchaseOrderLifecycleActor = { actorId: string; actorName?: string | null };
+
+export async function approvePurchaseOrderWithAudit(purchaseOrderId: string, actor: PurchaseOrderLifecycleActor) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const approvedAt = new Date().toISOString();
+	return db.transaction(async (transaction) => {
+		await lockPurchaseOrderForReceiptPosting(transaction, purchaseOrderId);
+		const rows = await transaction.select().from(purchaseOrders).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId)).limit(1);
+		const po = rows[0];
+		if (!po) throw new Error("Purchase Order not found");
+		if (po.approvalStatus !== "Pending Approval") throw new Error(`Cannot approve a PO with status: ${po.approvalStatus}`);
+
+		await transaction.update(purchaseOrders).set({
+			approvalStatus: "Approved",
+			approvedBy: actor.actorName || actor.actorId,
+			approvalTimestamp: approvedAt,
+		}).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId));
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actor.actorId, actionType: "PURCHASE_ORDER_APPROVED", tableName: "purchaseOrders", recordId: purchaseOrderId,
+			oldValue: JSON.stringify({ approvalStatus: "Pending Approval" }),
+			newValue: JSON.stringify({ approvalStatus: "Approved", approvedAt }), timestamp: approvedAt,
+		});
+		await transaction.insert(purchaseOrderHistory).values({
+			historyId: nanoid(20), purchaseOrderId, eventType: "APPROVED", actorId: actor.actorId, actorName: actor.actorName ?? null,
+			eventSummary: "Purchase order approved.", details: JSON.stringify({ previousStatus: "Pending Approval", approvalStatus: "Approved" }), createdAt: approvedAt,
+		});
+		return po;
+	});
+}
+
+export async function rejectPurchaseOrderWithAudit(purchaseOrderId: string, rejectionReason: string, actor: PurchaseOrderLifecycleActor) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const rejectedAt = new Date().toISOString();
+	return db.transaction(async (transaction) => {
+		await lockPurchaseOrderForReceiptPosting(transaction, purchaseOrderId);
+		const rows = await transaction.select().from(purchaseOrders).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId)).limit(1);
+		const po = rows[0];
+		if (!po) throw new Error("Purchase Order not found");
+		if (po.approvalStatus !== "Pending Approval") throw new Error(`Cannot reject a PO with status: ${po.approvalStatus}`);
+
+		await transaction.update(purchaseOrders).set({
+			approvalStatus: "Rejected", rejectionReason, approvedBy: actor.actorName || actor.actorId, approvalTimestamp: rejectedAt,
+		}).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId));
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actor.actorId, actionType: "PURCHASE_ORDER_REJECTED", tableName: "purchaseOrders", recordId: purchaseOrderId,
+			oldValue: JSON.stringify({ approvalStatus: "Pending Approval" }),
+			newValue: JSON.stringify({ approvalStatus: "Rejected", rejectionReason, rejectedAt }), timestamp: rejectedAt,
+		});
+		await transaction.insert(purchaseOrderHistory).values({
+			historyId: nanoid(20), purchaseOrderId, eventType: "REJECTED", actorId: actor.actorId, actorName: actor.actorName ?? null,
+			eventSummary: "Purchase order rejected.", details: JSON.stringify({ previousStatus: "Pending Approval", approvalStatus: "Rejected", rejectionReason }), createdAt: rejectedAt,
+		});
+		return po;
+	});
 }
 
 // ============ INVENTORY QUERIES ============
@@ -711,6 +937,168 @@ export async function getInventoryByName(itemName: string) {
   
   const result = await db.select().from(inventory).where(eq(inventory.itemName, itemName)).limit(1);
   return result.length > 0 ? result[0] : null;
+}
+
+// ============ CURATED CATALOG QUERIES ============
+// Inventory is batch-centric; these helpers intentionally read only the
+// separately curated catalog identity and alias records used for suggestions.
+export async function getActiveCatalogItems() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(catalogItems).where(eq(catalogItems.active, 1));
+}
+
+export async function getActiveCatalogItemAliases() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.select().from(catalogItemAliases).where(eq(catalogItemAliases.active, 1));
+}
+
+type CatalogItemAdminInput = Omit<typeof catalogItems.$inferInsert, "catalogItemId" | "normalizedName" | "active" | "createdAt" | "updatedAt">;
+type CatalogItemAdminUpdate = Partial<Omit<CatalogItemAdminInput, "canonicalName">> & {
+  canonicalName?: string;
+  normalizedName?: string;
+};
+type CatalogAliasAdminInput = Omit<typeof catalogItemAliases.$inferInsert, "aliasId" | "normalizedAlias" | "active" | "createdAt">;
+type CatalogAuditEntry = typeof auditLogs.$inferInsert;
+
+/**
+ * Admin-facing catalog queries remain separate from the matching read path.
+ * The matcher deliberately continues to read only active records through the
+ * two helpers above.
+ */
+export async function listCatalogItemsForAdmin(options: { query?: string; includeInactive?: boolean } = {}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const query = options.query?.trim();
+  const conditions = [
+    options.includeInactive ? undefined : eq(catalogItems.active, 1),
+    query
+      ? or(
+        like(catalogItems.canonicalName, `%${query}%`),
+        like(catalogItems.genericName, `%${query}%`),
+        like(catalogItems.brandName, `%${query}%`),
+        like(catalogItems.manufacturer, `%${query}%`),
+      )
+      : undefined,
+  ].filter(Boolean);
+  const where = conditions.length === 0 ? undefined : conditions.length === 1 ? conditions[0] : and(...conditions as any);
+
+  return where
+    ? db.select().from(catalogItems).where(where as any).orderBy(desc(catalogItems.updatedAt), catalogItems.canonicalName)
+    : db.select().from(catalogItems).orderBy(desc(catalogItems.updatedAt), catalogItems.canonicalName);
+}
+
+export async function getCatalogItemById(catalogItemId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(catalogItems).where(eq(catalogItems.catalogItemId, catalogItemId)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function getCatalogItemByNormalizedName(normalizedName: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(catalogItems).where(eq(catalogItems.normalizedName, normalizedName)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function listCatalogAliasesForAdmin(catalogItemId: string, includeInactive = false) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const condition = includeInactive
+    ? eq(catalogItemAliases.catalogItemId, catalogItemId)
+    : and(eq(catalogItemAliases.catalogItemId, catalogItemId), eq(catalogItemAliases.active, 1));
+
+  return db
+    .select({
+      aliasId: catalogItemAliases.aliasId,
+      catalogItemId: catalogItemAliases.catalogItemId,
+      vendorId: catalogItemAliases.vendorId,
+      aliasText: catalogItemAliases.aliasText,
+      normalizedAlias: catalogItemAliases.normalizedAlias,
+      source: catalogItemAliases.source,
+      active: catalogItemAliases.active,
+      createdBy: catalogItemAliases.createdBy,
+      createdAt: catalogItemAliases.createdAt,
+      vendorName: vendors.name,
+    })
+    .from(catalogItemAliases)
+    .leftJoin(vendors, eq(catalogItemAliases.vendorId, vendors.vendorId))
+    .where(condition)
+    .orderBy(desc(catalogItemAliases.createdAt));
+}
+
+export async function getCatalogAliasByVendorAndNormalizedAlias(vendorId: string, normalizedAlias: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db
+    .select()
+    .from(catalogItemAliases)
+    .where(and(eq(catalogItemAliases.vendorId, vendorId), eq(catalogItemAliases.normalizedAlias, normalizedAlias)))
+    .limit(1);
+  return result[0] ?? null;
+}
+
+export async function getCatalogAliasById(aliasId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select().from(catalogItemAliases).where(eq(catalogItemAliases.aliasId, aliasId)).limit(1);
+  return result[0] ?? null;
+}
+
+export async function createCatalogItemWithAudit(
+  catalogItem: CatalogItemAdminInput & { catalogItemId: string; normalizedName: string },
+  audit: CatalogAuditEntry,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async (transaction) => {
+    await transaction.insert(catalogItems).values(catalogItem as any);
+    await transaction.insert(auditLogs).values(audit);
+  });
+  return catalogItem;
+}
+
+export async function updateCatalogItemWithAudit(catalogItemId: string, updates: CatalogItemAdminUpdate, audit: CatalogAuditEntry) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async (transaction) => {
+    await transaction.update(catalogItems).set(updates as any).where(eq(catalogItems.catalogItemId, catalogItemId));
+    await transaction.insert(auditLogs).values(audit);
+  });
+}
+
+export async function setCatalogItemActiveWithAudit(catalogItemId: string, active: boolean, audit: CatalogAuditEntry) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async (transaction) => {
+    await transaction.update(catalogItems).set({ active: active ? 1 : 0 }).where(eq(catalogItems.catalogItemId, catalogItemId));
+    await transaction.insert(auditLogs).values(audit);
+  });
+}
+
+export async function createCatalogAliasWithAudit(
+  alias: CatalogAliasAdminInput & { aliasId: string; normalizedAlias: string },
+  audit: CatalogAuditEntry,
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async (transaction) => {
+    await transaction.insert(catalogItemAliases).values(alias as any);
+    await transaction.insert(auditLogs).values(audit);
+  });
+  return alias;
+}
+
+export async function setCatalogAliasActiveWithAudit(aliasId: string, active: boolean, audit: CatalogAuditEntry) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.transaction(async (transaction) => {
+    await transaction.update(catalogItemAliases).set({ active: active ? 1 : 0 }).where(eq(catalogItemAliases.aliasId, aliasId));
+    await transaction.insert(auditLogs).values(audit);
+  });
 }
 
 export async function updateInventoryItem(itemId: string, updates: Partial<typeof inventory.$inferInsert>) {
@@ -833,6 +1221,37 @@ export async function getAllStaffUsers() {
   if (!db) throw new Error("Database not available");
   
   return db.select().from(users).where(inArray(users.role, ["consultant", "staff"])).orderBy(desc(users.createdAt));
+}
+
+export async function getUserReferenceSummary(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const actor = String(userId);
+  const [rows] = await db.execute(sql`
+    SELECT
+      (SELECT COUNT(*) FROM appointments WHERE consultantId = ${userId} OR checkedInBy = ${actor}) AS appointments,
+      (SELECT COUNT(*) FROM consultations WHERE consultantId = ${userId}) AS consultations,
+      (SELECT COUNT(*) FROM consultantAvailability WHERE consultantId = ${userId}) AS availability,
+      (SELECT COUNT(*) FROM notifications WHERE userId = ${userId}) AS notifications,
+      (SELECT COUNT(*) FROM auditLogs WHERE userId = ${actor}) AS auditLogs,
+      (SELECT COUNT(*) FROM purchaseOrders WHERE approvedBy = ${actor}) AS purchaseOrders,
+      (SELECT COUNT(*) FROM goodsReceipts WHERE receivedBy = ${actor}) AS goodsReceipts,
+      (SELECT COUNT(*) FROM stockMovements WHERE actorId = ${actor}) AS stockMovements,
+      (SELECT COUNT(*) FROM purchaseOrderHistory WHERE actorId = ${actor}) AS purchaseOrderHistory,
+      (SELECT COUNT(*) FROM vendors WHERE createdBy = ${userId}) AS vendors,
+      (SELECT COUNT(*) FROM billTemplates WHERE createdBy = ${userId}) AS billTemplates,
+      (SELECT COUNT(*) FROM users WHERE createdBy = ${userId} AND id <> ${userId}) AS childUsers
+  `);
+  const row = (rows as unknown as any[])[0] || {};
+  const counts = Object.fromEntries(Object.entries(row).map(([key, value]) => [key, Number(value || 0)]));
+  return { ...counts, total: Object.values(counts).reduce((sum, value) => sum + Number(value), 0) };
+}
+
+export async function getActiveAdminCount() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.select({ count: sql<number>`COUNT(*)` }).from(users).where(and(eq(users.role, "admin"), eq(users.isActive, 1)));
+  return Number(result[0]?.count || 0);
 }
 
 export async function getStaffUserById(userId: string) {
@@ -1204,7 +1623,75 @@ export async function createAppointmentSafely(data: {
     });
   });
 
-  return appointmentId;
+	return appointmentId;
+}
+
+export async function createVisitAppointmentWithAudit(data: {
+	patientId: string;
+	consultantId: number;
+	appointmentDate: string;
+	appointmentTime: string;
+	appointmentSource: "MANUAL" | "WALK_IN" | "PHONE";
+	notes?: string;
+	actorId: string;
+}) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const appointmentId = `APT-${nanoid(16).toUpperCase()}`;
+	await db.transaction(async (transaction) => {
+		await lockConsultantDate(transaction, data.consultantId, data.appointmentDate);
+		const existingAppointments = await getActiveAppointmentsForDate(transaction, data.consultantId, data.appointmentDate);
+		if (rowsHaveAppointmentConflict(existingAppointments, data.appointmentTime, 30)) throw new Error("Time slot already booked");
+		await transaction.insert(appointments).values({
+			appointmentId, patientId: data.patientId, consultantId: data.consultantId,
+			appointmentDate: data.appointmentDate, appointmentTime: data.appointmentTime,
+			duration: 30, notes: data.notes, appointmentSource: data.appointmentSource,
+			notificationMethod: "SMS", status: "Scheduled",
+		});
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: data.actorId, actionType: "APPOINTMENT_CREATED", tableName: "appointments", recordId: appointmentId,
+			newValue: JSON.stringify({ patientId: data.patientId, consultantId: data.consultantId, appointmentSource: data.appointmentSource }), timestamp: new Date().toISOString(),
+		});
+	});
+	return appointmentId;
+}
+
+export async function checkInAppointmentWithAudit(appointmentId: string, actorId: string) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	return db.transaction(async (transaction) => {
+		const appointment = (await transaction.select().from(appointments).where(eq(appointments.appointmentId, appointmentId)).limit(1))[0];
+		if (!appointment) throw new Error("Appointment not found");
+		if (!canCheckInAppointment(appointment.status)) throw new Error("Only booked appointments can be checked in");
+		const checkedInAt = new Date().toISOString();
+		await transaction.update(appointments).set({ status: "Checked-in", checkedInAt, checkedInBy: actorId, updatedAt: checkedInAt }).where(eq(appointments.appointmentId, appointmentId));
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actorId, actionType: "APPOINTMENT_CHECKED_IN", tableName: "appointments", recordId: appointmentId,
+			oldValue: JSON.stringify({ status: appointment.status }), newValue: JSON.stringify({ status: "Checked-in", checkedInAt }), timestamp: checkedInAt,
+		});
+		return { ...appointment, status: "Checked-in" as const, checkedInAt };
+	});
+}
+
+export async function startAppointmentConsultationWithAudit(appointmentId: string, actorId: string) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	return db.transaction(async (transaction) => {
+		const appointment = (await transaction.select().from(appointments).where(eq(appointments.appointmentId, appointmentId)).limit(1))[0];
+		if (!appointment) throw new Error("Appointment not found");
+		if (!canStartAppointmentConsultation(appointment.status)) throw new Error("Appointment must be checked in before starting consultation");
+		const existing = (await transaction.select().from(consultations).where(eq(consultations.appointmentId, appointmentId)).limit(1))[0];
+		if (existing) return { consultation: existing, created: false };
+		const consultationId = `CON-${nanoid(16).toUpperCase()}`;
+		const consultationDate = new Date().toISOString();
+		const consultation = { consultationId, appointmentId, patientId: appointment.patientId, consultantId: appointment.consultantId, consultationDate };
+		await transaction.insert(consultations).values(consultation);
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actorId, actionType: "CONSULTATION_STARTED", tableName: "consultations", recordId: consultationId,
+			newValue: JSON.stringify({ appointmentId, patientId: appointment.patientId, consultantId: appointment.consultantId }), timestamp: consultationDate,
+		});
+		return { consultation, created: true };
+	});
 }
 
 export async function getAppointmentById(appointmentId: string) {
@@ -1220,6 +1707,13 @@ export async function getAppointmentsByPatient(patientId: string) {
   if (!db) throw new Error("Database not available");
 
   return await db.select().from(appointments).where(eq(appointments.patientId, patientId));
+}
+
+export async function getAllAppointments() {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.select().from(appointments);
 }
 
 export async function getAppointmentsByConsultant(consultantId: number, date?: string) {
@@ -1440,8 +1934,11 @@ export async function authenticateUser(userIdOrEmail: string, password: string):
   if (user.length === 0) {
     user = await db.select().from(users).where(eq(users.userId, userIdOrEmail.toUpperCase())).limit(1);
   }
+  if (user.length === 0) {
+    user = await db.select().from(users).where(eq(users.username, userIdOrEmail.toLowerCase())).limit(1);
+  }
   
-  if (user.length === 0 || !user[0].passwordHash) {
+  if (user.length === 0 || user[0].isActive === 0 || !user[0].passwordHash) {
     return null;
   }
 
@@ -1572,7 +2069,7 @@ export async function updateUserPassword(userId: number, passwordHash: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.update(users).set({ passwordHash }).where(eq(users.id, userId));
+  await db.update(users).set({ passwordHash, updatedAt: new Date().toISOString() }).where(eq(users.id, userId));
 }
 
 export async function updateUserStatus(userId: number, isActive: boolean) {
@@ -1591,6 +2088,110 @@ export async function getAllDirectLoginUsers() {
 
 
 // ========== VENDOR MANAGEMENT ==========
+export type VendorMasterInput = {
+	name: string;
+	contactNumber?: string | null;
+	gstNumber?: string | null;
+	email?: string | null;
+	address?: string | null;
+	bankDetails?: string | null;
+};
+
+function vendorValues(input: VendorMasterInput) {
+	const name = input.name.trim();
+	const normalizedVendorName = normalizeVendorName(name);
+	if (!normalizedVendorName) throw new Error("Vendor name must contain searchable text");
+	return {
+		name,
+		normalizedVendorName,
+		contactNumber: input.contactNumber?.trim() || null,
+		gstNumber: input.gstNumber?.trim().toUpperCase() || null,
+		normalizedGstNumber: normalizeGstNumber(input.gstNumber),
+		email: input.email?.trim() || null,
+		address: input.address?.trim() || null,
+		bankDetails: input.bankDetails?.trim() || null,
+	};
+}
+
+export async function listVendorsForAdmin(includeInactive = false) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	return includeInactive
+		? db.select().from(vendors).orderBy(vendors.name)
+		: db.select().from(vendors).where(eq(vendors.isActive, 1)).orderBy(vendors.name);
+}
+
+export async function findActiveVendorCandidates(name: string, gstNumber?: string | null): Promise<VendorMasterRecord[]> {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const normalizedName = normalizeVendorName(name);
+	const normalizedGst = normalizeGstNumber(gstNumber);
+	if (!normalizedName && !normalizedGst) return [];
+	const rows = await db.select().from(vendors).where(eq(vendors.isActive, 1));
+	return rows.filter((vendor) => vendor.normalizedVendorName === normalizedName || (normalizedGst && vendor.normalizedGstNumber === normalizedGst)) as VendorMasterRecord[];
+}
+
+export async function createVendorWithAudit(input: VendorMasterInput, actorId: string) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const values = vendorValues(input);
+	const duplicate = await db.select().from(vendors).where(or(
+		eq(vendors.normalizedVendorName, values.normalizedVendorName),
+		...(values.normalizedGstNumber ? [eq(vendors.normalizedGstNumber, values.normalizedGstNumber)] : []),
+	)).limit(1);
+	if (duplicate[0]) throw new Error("A vendor with the same normalized name or GSTIN already exists");
+	const vendorId = `VENDOR-${nanoid(16).toUpperCase()}`;
+	const createdAt = new Date().toISOString();
+	const vendor = { vendorId, ...values, isActive: 1, createdBy: Number(actorId), createdAt, updatedAt: createdAt };
+	await db.transaction(async (transaction) => {
+		await transaction.insert(vendors).values(vendor);
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actorId, actionType: "VENDOR_CREATED", tableName: "vendors", recordId: vendorId,
+			newValue: JSON.stringify({ vendorId, name: values.name, normalizedVendorName: values.normalizedVendorName, normalizedGstNumber: values.normalizedGstNumber, isActive: true }), timestamp: createdAt,
+		});
+	});
+	return vendor;
+}
+
+export async function updateVendorWithAudit(vendorId: string, input: VendorMasterInput, actorId: string) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const current = await getVendorById(vendorId);
+	if (!current) throw new Error("Vendor not found");
+	const values = vendorValues(input);
+	const duplicate = await db.select().from(vendors).where(or(
+		eq(vendors.normalizedVendorName, values.normalizedVendorName),
+		...(values.normalizedGstNumber ? [eq(vendors.normalizedGstNumber, values.normalizedGstNumber)] : []),
+	)).limit(10);
+	if (duplicate.some((vendor) => vendor.vendorId !== vendorId)) throw new Error("A vendor with the same normalized name or GSTIN already exists");
+	const updatedAt = new Date().toISOString();
+	await db.transaction(async (transaction) => {
+		await transaction.update(vendors).set({ ...values, updatedAt }).where(eq(vendors.vendorId, vendorId));
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actorId, actionType: "VENDOR_UPDATED", tableName: "vendors", recordId: vendorId,
+			oldValue: JSON.stringify({ name: current.name, normalizedVendorName: current.normalizedVendorName, normalizedGstNumber: current.normalizedGstNumber, isActive: Boolean(current.isActive) }),
+			newValue: JSON.stringify({ name: values.name, normalizedVendorName: values.normalizedVendorName, normalizedGstNumber: values.normalizedGstNumber, isActive: Boolean(current.isActive) }), timestamp: updatedAt,
+		});
+	});
+	return { ...current, ...values, updatedAt };
+}
+
+export async function setVendorActiveWithAudit(vendorId: string, active: boolean, actorId: string) {
+	const db = await getDb();
+	if (!db) throw new Error("Database not available");
+	const current = await getVendorById(vendorId);
+	if (!current) throw new Error("Vendor not found");
+	if (Boolean(current.isActive) === active) return { ...current, isActive: active ? 1 : 0 };
+	const updatedAt = new Date().toISOString();
+	await db.transaction(async (transaction) => {
+		await transaction.update(vendors).set({ isActive: active ? 1 : 0, updatedAt }).where(eq(vendors.vendorId, vendorId));
+		await transaction.insert(auditLogs).values({
+			logId: nanoid(20), userId: actorId, actionType: active ? "VENDOR_REACTIVATED" : "VENDOR_DEACTIVATED", tableName: "vendors", recordId: vendorId,
+			oldValue: JSON.stringify({ isActive: Boolean(current.isActive) }), newValue: JSON.stringify({ isActive: active }), timestamp: updatedAt,
+		});
+	});
+	return { ...current, isActive: active ? 1 : 0, updatedAt };
+}
 
 export async function createVendor(vendorData: any): Promise<any> {
   const db = await getDb();
@@ -1649,4 +2250,77 @@ export async function recordExternalRequestReplay(replayData: typeof externalReq
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.insert(externalRequestReplays).values(replayData);
+}
+
+
+// ============ PAPER-FIRST ENCOUNTER WORKFLOW ============
+
+export async function completeConsultationWithAudit(consultationId: string, actorId: string, allowAdminOverride = false) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  return database.transaction(async (transaction) => {
+    const consultation = (await transaction.select().from(consultations).where(eq(consultations.consultationId, consultationId)).limit(1))[0];
+    if (!consultation) throw new Error("Consultation not found");
+    const appointment = consultation.appointmentId
+      ? (await transaction.select().from(appointments).where(eq(appointments.appointmentId, consultation.appointmentId)).limit(1))[0]
+      : null;
+    if (!appointment) throw new Error("Appointment not found");
+    if (!allowAdminOverride && appointment.consultantId !== Number(actorId)) throw new Error("Only the assigned consultant can complete this encounter");
+    if (consultation.isFinalized) return { consultation, changed: false };
+    const timestamp = new Date().toISOString();
+    await transaction.update(consultations).set({ isFinalized: 1, updatedAt: timestamp }).where(eq(consultations.consultationId, consultationId));
+    await transaction.insert(auditLogs).values({
+      logId: nanoid(20), userId: actorId, actionType: allowAdminOverride ? "CONSULTATION_COMPLETED_ADMIN_OVERRIDE" : "CONSULTATION_COMPLETED",
+      tableName: "consultations", recordId: consultationId, oldValue: JSON.stringify({ isFinalized: consultation.isFinalized }),
+      newValue: JSON.stringify({ isFinalized: 1, appointmentId: appointment.appointmentId }), timestamp,
+    });
+    return { consultation: { ...consultation, isFinalized: 1 as const, updatedAt: timestamp }, changed: true };
+  });
+}
+
+export async function getEncounterBillByConsultationId(consultationId: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  return (await database.select().from(bills).where(eq(bills.consultationId, consultationId)).limit(1))[0] ?? null;
+}
+
+export async function createEncounterBillAndCloseVisit(data: {
+  bill: typeof bills.$inferInsert;
+  items: Array<typeof billItems.$inferInsert>;
+  appointmentId: string;
+  actorId: string;
+}) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  return database.transaction(async (transaction) => {
+    const consultation = data.bill.consultationId
+      ? (await transaction.select().from(consultations).where(eq(consultations.consultationId, data.bill.consultationId)).limit(1))[0]
+      : null;
+    if (!consultation || !consultation.appointmentId || consultation.appointmentId !== data.appointmentId) throw new Error("Encounter billing context is invalid");
+    if (!consultation.isFinalized) throw new Error("Consultation must be completed before billing");
+    const existing = (await transaction.select().from(bills).where(eq(bills.consultationId, consultation.consultationId)).limit(1))[0];
+    if (existing) return { bill: existing, created: false };
+    await transaction.insert(bills).values(data.bill);
+    for (const item of data.items) await transaction.insert(billItems).values(item);
+    const timestamp = new Date().toISOString();
+    await transaction.update(appointments).set({ status: "Completed", updatedAt: timestamp }).where(eq(appointments.appointmentId, data.appointmentId));
+    await transaction.insert(auditLogs).values({
+      logId: nanoid(20), userId: data.actorId, actionType: "VISIT_CLOSED_AFTER_BILL", tableName: "appointments", recordId: data.appointmentId,
+      newValue: JSON.stringify({ consultationId: consultation.consultationId, billId: data.bill.billId, status: "Completed" }), timestamp,
+    });
+    return { bill: data.bill, created: true };
+  });
+}
+
+export async function getPatientVisitChain(patientId: string) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  const patientAppointments = await database.select().from(appointments).where(eq(appointments.patientId, patientId)).orderBy(desc(appointments.createdAt));
+  const chains = [];
+  for (const appointment of patientAppointments) {
+    const consultation = (await database.select().from(consultations).where(eq(consultations.appointmentId, appointment.appointmentId)).limit(1))[0] ?? null;
+    const bill = consultation ? (await database.select().from(bills).where(eq(bills.consultationId, consultation.consultationId)).limit(1))[0] ?? null : null;
+    chains.push({ appointment, consultation, bill });
+  }
+  return chains;
 }

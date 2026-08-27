@@ -17,9 +17,19 @@ import { notifyOwner } from "./_core/notification";
 import { resolveArtifactStorageKey } from "./artifactAccess";
 import { hashPassword, verifyPassword, generateRandomPassword } from "./_core/auth";
 import { registerPatientWithTracking } from "./services/patientRegistration";
-import { getOcrProvider } from "./ocr/provider";
+import { getOcrProvider, isSafeOcrClientError } from "./ocr/provider";
 import { parseOcrText } from "./poParsing/parser";
 import { reconcileDocument } from "./poParsing/reconcile";
+import { applySubmittedPurchaseOrderValues, createExtractionReviewEvidence } from "../shared/poExtractionReview";
+import type { PurchaseOrderReviewPrefill } from "../shared/poReviewPrefill";
+import type { CatalogResolutionDecision } from "../shared/catalogResolution";
+import { suggestCatalogMatches } from "./catalogMatching/matcher";
+import { normalizeCatalogText } from "./catalogMatching/normalize";
+import { enrichPurchaseOrderFromVerifiedVendor, normalizeGstNumber } from "./procurement";
+import { storeConsultantImage } from "./consultantAssets";
+import { FIXED_CLINIC_BRANDING } from "../shared/clinicBranding";
+import { normalizeIndianMobile } from "./external/validation";
+import { hasStrongDuplicate, rankPatientCandidates } from "./visitWorkflow";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -41,14 +51,341 @@ const safeNotifyOwner = async (title: string, content: string) => {
   }
 };
 
+async function requireActiveConsultant(consultantId: number) {
+  const consultant = await db.getActiveConsultantById(consultantId);
+  if (!consultant) throw new Error("Selected consultant is not active");
+  return consultant;
+}
+
+function assertConsultantSelfOrAdmin(ctx: { user: { id: number; role: string } }, consultantId: number) {
+  if (ctx.user.role === "admin") return;
+  if (ctx.user.role === "consultant" && ctx.user.id === consultantId) return;
+  throw new Error("You are not authorized to access this consultant record");
+}
+
+async function assertAppointmentWorkflowAccess(ctx: { user: { id: number; role: string } }) {
+  if (ctx.user.role === "admin" || ctx.user.role === "consultant") return;
+  if (ctx.user.role === "staff" && await db.checkFeatureAccess("staff", "patient_records")) return;
+  throw new Error("You are not authorized to manage appointments");
+}
+
+async function requireAccessibleAppointment(ctx: { user: { id: number; role: string } }, appointmentId: string) {
+  const appointment = await db.getAppointmentById(appointmentId);
+  if (!appointment) throw new Error("Appointment not found");
+  if (ctx.user.role === "consultant" && appointment.consultantId !== ctx.user.id) {
+    throw new Error("Consultants cannot access another consultant's appointment");
+  }
+  await assertAppointmentWorkflowAccess(ctx);
+  return appointment;
+}
+
+const reviewFieldSchema = z.object({
+  value: z.string().max(2_000),
+  extractedValue: z.string().max(2_000),
+  sourceText: z.string().max(2_000).optional(),
+  confidence: z.enum(["high", "medium", "low"]),
+  warnings: z.array(z.string().max(500)).max(50),
+  edited: z.boolean(),
+});
+
+const purchaseOrderReviewPrefillSchema = z.object({
+  documentType: z.enum(["PURCHASE_ORDER", "GST_INVOICE", "UNKNOWN"]),
+  header: z.object({
+    invoiceNumber: reviewFieldSchema,
+    invoiceDate: reviewFieldSchema,
+    vendorName: reviewFieldSchema,
+    vendorGstin: reviewFieldSchema,
+  }),
+  totals: z.object({
+    subtotal: reviewFieldSchema,
+    cgst: reviewFieldSchema,
+    sgst: reviewFieldSchema,
+    igst: reviewFieldSchema,
+    totalTax: reviewFieldSchema,
+    grandTotal: reviewFieldSchema,
+  }),
+  items: z.array(z.object({
+    description: reviewFieldSchema,
+    hsnCode: reviewFieldSchema,
+    batchNumber: reviewFieldSchema,
+    expiryDate: reviewFieldSchema,
+    quantity: reviewFieldSchema,
+    unitPrice: reviewFieldSchema,
+    discount: reviewFieldSchema,
+    gstRate: reviewFieldSchema,
+    taxableAmount: reviewFieldSchema,
+    lineTotal: reviewFieldSchema,
+  })).max(100),
+  warnings: z.array(z.string().max(500)).max(100),
+  reconciliation: z.object({
+    lineTotalsMatch: z.boolean().nullable(),
+    subtotalMatches: z.boolean().nullable(),
+    taxMatches: z.boolean().nullable(),
+    grandTotalMatches: z.boolean().nullable(),
+    delta: z.number().finite().optional(),
+  }),
+  requiresExplicitSubmission: z.literal(true),
+});
+
+const catalogResolutionInputSchema = z.object({
+  lineIndex: z.number().int().min(0).max(99),
+  decision: z.enum(["ACCEPTED", "UNMATCHED"]),
+  catalogItemId: z.string().min(1).max(50).optional(),
+}).superRefine((value, ctx) => {
+  if (value.decision === "ACCEPTED" && !value.catalogItemId) {
+    ctx.addIssue({ code: "custom", message: "An accepted catalog match requires a catalog item" });
+  }
+  if (value.decision === "UNMATCHED" && value.catalogItemId) {
+    ctx.addIssue({ code: "custom", message: "An unmatched decision cannot include a catalog item" });
+  }
+});
+
+const purchaseOrderCreateInputSchema = z.object({
+	vendorId: z.string().trim().min(1).max(50),
+	vendorName: z.string().min(1),
+	vendorContactNumber: z.string().min(10),
+  vendorEmail: z.string().email().optional(),
+  vendorGSTNumber: z.string().optional(),
+  vendorBankDetails: z.string().optional(),
+  vendorAddress: z.string().optional(),
+  totalAmount: z.string().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Total amount must be a valid non-negative number"),
+  expectedDeliveryDate: z.string().optional(),
+  notes: z.string().optional(),
+  authorizationNotes: z.string().optional(),
+  items: z.array(z.object({
+    itemName: z.string().min(1),
+    quantity: z.number().int().positive(),
+    unitPrice: z.string().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Unit price must be a valid non-negative number"),
+  })).min(1),
+});
+
+async function canonicalizeLinkedVendorPurchaseOrder(input: z.infer<typeof purchaseOrderCreateInputSchema>) {
+	const vendor = await db.getVendorById(input.vendorId);
+	if (!vendor || !Boolean(vendor.isActive)) throw new Error("Select an active Vendor Master record before creating a purchase order");
+	const inputGst = normalizeGstNumber(input.vendorGSTNumber);
+	if (inputGst && vendor.normalizedGstNumber && inputGst !== vendor.normalizedGstNumber) {
+		throw new Error("Vendor GSTIN conflicts with the selected Vendor Master record and must be reviewed before submission");
+	}
+	const enriched = enrichPurchaseOrderFromVerifiedVendor(input, vendor);
+	return {
+		...input,
+		vendorId: String(vendor.vendorId),
+		vendorName: enriched.vendorName,
+		vendorContactNumber: enriched.vendorContactNumber || input.vendorContactNumber,
+		vendorEmail: enriched.vendorEmail ?? undefined,
+		vendorGSTNumber: enriched.vendorGSTNumber ?? undefined,
+		vendorBankDetails: enriched.vendorBankDetails ?? undefined,
+		vendorAddress: enriched.vendorAddress ?? undefined,
+	} satisfies z.infer<typeof purchaseOrderCreateInputSchema>;
+}
+
+function buildPendingApprovalPurchaseOrder(
+  input: z.infer<typeof purchaseOrderCreateInputSchema>,
+  catalogItemIdsByLineIndex = new Map<number, string>(),
+) {
+  const purchaseOrderId = utils.generateAuditLogId();
+  const totalAmount = Number(input.totalAmount);
+  const items = input.items.map((item, index) => {
+    const poItemId = utils.generateAuditLogId();
+    const unitPrice = Number(item.unitPrice);
+    return {
+      poItemId,
+      purchaseOrderId,
+      itemName: item.itemName.trim(),
+      catalogItemId: catalogItemIdsByLineIndex.get(index),
+      quantity: item.quantity,
+      unitPrice: unitPrice.toString() as any,
+      subtotal: (unitPrice * item.quantity).toString() as any,
+    };
+  });
+
+  return {
+    purchaseOrderId,
+    totalAmount,
+    items,
+		purchaseOrder: {
+			purchaseOrderId,
+			vendorId: input.vendorId,
+			vendorName: input.vendorName,
+      vendorContactNumber: input.vendorContactNumber,
+      vendorEmail: input.vendorEmail,
+      vendorGstNumber: input.vendorGSTNumber,
+      vendorBankDetails: input.vendorBankDetails,
+      vendorAddress: input.vendorAddress,
+      totalAmount: totalAmount.toString() as any,
+      paymentStatus: "Pending" as const,
+      approvalStatus: "Pending Approval" as const,
+      authorizationNotes: input.authorizationNotes,
+      expectedDeliveryDate: input.expectedDeliveryDate,
+      notes: input.notes,
+    },
+  };
+}
+
+async function buildCatalogResolutionEvidence(
+  decisions: z.infer<typeof catalogResolutionInputSchema>[],
+  review: PurchaseOrderReviewPrefill,
+  confirmedAt: string,
+): Promise<{ resolutions: CatalogResolutionDecision[]; catalogItemIdsByLineIndex: Map<number, string> }> {
+  const uniqueLineIndices = new Set<number>();
+  for (const decision of decisions) {
+    if (uniqueLineIndices.has(decision.lineIndex)) throw new Error("Each review line can have only one catalog decision");
+    uniqueLineIndices.add(decision.lineIndex);
+    if (!review.items[decision.lineIndex]) throw new Error("Catalog decision references an unavailable review line");
+  }
+
+  if (decisions.length === 0) {
+    return { resolutions: [], catalogItemIdsByLineIndex: new Map<number, string>() };
+  }
+
+  const [catalogItems, aliases] = await Promise.all([
+    db.getActiveCatalogItems(),
+    db.getActiveCatalogItemAliases(),
+  ]);
+  const resolutions: CatalogResolutionDecision[] = [];
+  const catalogItemIdsByLineIndex = new Map<number, string>();
+
+  for (const decision of decisions) {
+    const line = review.items[decision.lineIndex];
+    const base = {
+      lineIndex: decision.lineIndex,
+      originalExtractedDescription: line.description.extractedValue,
+      reviewedDescription: line.description.value,
+      decision: decision.decision,
+      reasons: [] as string[],
+      conflicts: [] as string[],
+      confirmedAt,
+    };
+
+    if (decision.decision === "UNMATCHED") {
+      resolutions.push(base);
+      continue;
+    }
+
+    const candidates = suggestCatalogMatches({
+      lineDescription: line.description.value,
+      hsnCode: line.hsnCode.value || undefined,
+    }, catalogItems, aliases);
+    const selected = candidates.find((candidate) => candidate.catalogItemId === decision.catalogItemId);
+    if (!selected) throw new Error("The selected catalog item is not a current safe suggestion for this reviewed line");
+    if (selected.conflicts.length > 0) throw new Error("A catalog match with strength, form, HSN, or ambiguity conflicts cannot be accepted");
+
+    catalogItemIdsByLineIndex.set(decision.lineIndex, selected.catalogItemId);
+    resolutions.push({
+      ...base,
+      decision: "ACCEPTED",
+      catalogItemId: selected.catalogItemId,
+      canonicalName: selected.canonicalName,
+      matchLevel: selected.matchLevel,
+      source: selected.source,
+      reasons: selected.reasons,
+      conflicts: selected.conflicts,
+    });
+  }
+
+  return { resolutions, catalogItemIdsByLineIndex };
+}
+
+async function requirePurchaseOrderAccess(user: { id: number; role: "user" | "admin" | "consultant" | "staff" }) {
+  if (user.role === "user") {
+    throw new Error("You do not have permission to access purchase-order evidence");
+  }
+  if (!(await db.checkFeatureAccess(user.role, "purchase_orders"))) {
+    throw new Error("You do not have permission to access purchase-order evidence");
+  }
+}
+
+/** Catalog reads follow the existing PO/catalog feature-access boundary. Catalog writes are admin-only. */
+async function requireCatalogReadAccess(user: { id: number; role: "user" | "admin" | "consultant" | "staff" }) {
+  await requirePurchaseOrderAccess(user);
+}
+
+const optionalCatalogText = z.string().trim().max(255).nullable().optional();
+const catalogItemInputSchema = z.object({
+  canonicalName: z.string().trim().min(1).max(255),
+  genericName: optionalCatalogText,
+  brandName: optionalCatalogText,
+  strength: z.string().trim().max(100).nullable().optional(),
+  dosageForm: z.string().trim().max(100).nullable().optional(),
+  manufacturer: optionalCatalogText,
+  hsnCode: z.string().trim().max(32).nullable().optional(),
+  gstRate: z.number().finite().min(0).max(100).nullable().optional(),
+});
+
+const catalogItemUpdateSchema = catalogItemInputSchema.partial().refine((value) => Object.keys(value).length > 0, {
+  message: "At least one catalog field must be provided",
+});
+
+const catalogAliasInputSchema = z.object({
+  catalogItemId: z.string().trim().min(1).max(50),
+  vendorId: z.string().trim().max(50).optional(),
+  aliasText: z.string().trim().min(1).max(255),
+  source: z.enum(["MANUAL_CURATED", "VENDOR_CURATED"]),
+});
+
+function catalogAuditEntry(
+  userId: number,
+  actionType: string,
+  tableName: "catalogItems" | "catalogItemAliases",
+  recordId: string,
+  oldValue?: Record<string, unknown>,
+  newValue?: Record<string, unknown>,
+) {
+  return {
+    logId: utils.generateAuditLogId(),
+    userId: userId.toString(),
+    actionType,
+    tableName,
+    recordId,
+    oldValue: oldValue ? JSON.stringify(oldValue) : null,
+    newValue: newValue ? JSON.stringify(newValue) : null,
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function catalogItemAuditSnapshot(item: Record<string, unknown>) {
+  return {
+    catalogItemId: item.catalogItemId,
+    canonicalName: item.canonicalName,
+    normalizedName: item.normalizedName,
+    genericName: item.genericName ?? null,
+    brandName: item.brandName ?? null,
+    strength: item.strength ?? null,
+    dosageForm: item.dosageForm ?? null,
+    manufacturer: item.manufacturer ?? null,
+    hsnCode: item.hsnCode ?? null,
+    gstRate: item.gstRate ?? null,
+    active: item.active,
+  };
+}
+
+function catalogAliasAuditSnapshot(alias: Record<string, unknown>) {
+  return {
+    aliasId: alias.aliasId,
+    catalogItemId: alias.catalogItemId,
+    vendorId: alias.vendorId,
+    aliasText: alias.aliasText,
+    normalizedAlias: alias.normalizedAlias,
+    source: alias.source,
+    active: alias.active,
+  };
+}
+
+function safeCatalogWriteError(error: unknown): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/duplicate|unique|ER_DUP_ENTRY/i.test(message)) return new Error("A catalog record with the same normalized identity already exists");
+  console.error("[Catalog administration] Write failed:", message);
+  return new Error("Catalog administration change could not be saved");
+}
+
 export const appRouter = router({
   system: systemRouter,
+
   ocr: router({
     extractDocument: protectedProcedure
       .input(z.object({
         data: z.string(),
         mimeType: z.string(),
-        maxSizeMb: z.number().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
@@ -56,28 +393,21 @@ export const appRouter = router({
           const result = await provider.extractDocument({
             data: input.data,
             mimeType: input.mimeType,
-            maxSizeMb: input.maxSizeMb,
           });
           return result;
         } catch (error) {
           const errMessage = error instanceof Error ? error.message : String(error);
           console.error("[OCR Router] Extraction failed:", errMessage);
-          // Preserve safe known validation errors (MIME, size, PDF deferral, empty), mask raw provider/SDK internal errors
-          const isSafeValidation =
-            errMessage.includes("Unsupported MIME type") ||
-            errMessage.includes("PDF OCR is not supported") ||
-            errMessage.includes("Cannot process empty file") ||
-            errMessage.includes("exceeds maximum allowed limit") ||
-            errMessage.includes("OCR input data is required") ||
-            errMessage.includes("Malformed data URI");
 
-          if (isSafeValidation) {
+          if (isSafeOcrClientError(errMessage)) {
             throw new Error(errMessage);
           }
+
           throw new Error("OCR extraction failed");
         }
       }),
   }),
+
   poParsing: router({
     parseOcrText: protectedProcedure
       .input(z.object({
@@ -88,6 +418,268 @@ export const appRouter = router({
         return reconcileDocument(parsed);
       }),
   }),
+
+  catalogMatching: router({
+    suggestMatches: protectedProcedure
+      .input(z.object({
+        lineDescription: z.string().trim().min(1).max(2_000),
+        vendorId: z.string().trim().min(1).max(50).optional(),
+        hsnCode: z.string().trim().min(1).max(32).optional(),
+      }))
+      .query(async ({ input, ctx }) => {
+        await requirePurchaseOrderAccess(ctx.user);
+        const [catalogItems, aliases] = await Promise.all([
+          db.getActiveCatalogItems(),
+          db.getActiveCatalogItemAliases(),
+        ]);
+        return suggestCatalogMatches(input, catalogItems, aliases);
+      }),
+  }),
+
+  catalogAdmin: router({
+    listItems: protectedProcedure
+      .input(z.object({ query: z.string().trim().max(255).optional(), includeInactive: z.boolean().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        await requireCatalogReadAccess(ctx.user);
+        return db.listCatalogItemsForAdmin(input ?? {});
+      }),
+
+    getItem: protectedProcedure
+      .input(z.object({ catalogItemId: z.string().trim().min(1).max(50) }))
+      .query(async ({ input, ctx }) => {
+        await requireCatalogReadAccess(ctx.user);
+        const item = await db.getCatalogItemById(input.catalogItemId);
+        if (!item) throw new Error("Catalog item not found");
+        return item;
+      }),
+
+    listAliases: protectedProcedure
+      .input(z.object({ catalogItemId: z.string().trim().min(1).max(50), includeInactive: z.boolean().optional() }))
+      .query(async ({ input, ctx }) => {
+        await requireCatalogReadAccess(ctx.user);
+        return db.listCatalogAliasesForAdmin(input.catalogItemId, input.includeInactive ?? false);
+      }),
+
+    listVendors: protectedProcedure.query(async ({ ctx }) => {
+      await requireCatalogReadAccess(ctx.user);
+      return db.getAllVendors();
+    }),
+
+    createItem: adminProcedure
+      .input(catalogItemInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const normalizedName = normalizeCatalogText(input.canonicalName);
+        if (!normalizedName) throw new Error("Catalog name must contain searchable text");
+        const existing = await db.getCatalogItemByNormalizedName(normalizedName);
+        if (existing) throw new Error("A catalog item with the same normalized name already exists");
+
+        const catalogItemId = utils.generateAuditLogId();
+        const item = {
+          catalogItemId,
+          canonicalName: input.canonicalName,
+          normalizedName,
+          genericName: input.genericName ?? null,
+          brandName: input.brandName ?? null,
+          strength: input.strength ?? null,
+          dosageForm: input.dosageForm ?? null,
+          manufacturer: input.manufacturer ?? null,
+          hsnCode: input.hsnCode ?? null,
+          gstRate: input.gstRate === undefined || input.gstRate === null ? null : input.gstRate.toFixed(2),
+        };
+
+        try {
+          await db.createCatalogItemWithAudit(item, catalogAuditEntry(
+            ctx.user.id,
+            "CATALOG_ITEM_CREATED",
+            "catalogItems",
+            catalogItemId,
+            undefined,
+            catalogItemAuditSnapshot({ ...item, active: 1 }),
+          ));
+        } catch (error) {
+          throw safeCatalogWriteError(error);
+        }
+        return { ...item, active: 1 };
+      }),
+
+    updateItem: adminProcedure
+      .input(z.object({ catalogItemId: z.string().trim().min(1).max(50), updates: catalogItemUpdateSchema }))
+      .mutation(async ({ input, ctx }) => {
+        const current = await db.getCatalogItemById(input.catalogItemId);
+        if (!current) throw new Error("Catalog item not found");
+
+        const canonicalName = input.updates.canonicalName ?? current.canonicalName;
+        const normalizedName = normalizeCatalogText(canonicalName);
+        if (!normalizedName) throw new Error("Catalog name must contain searchable text");
+        const duplicate = await db.getCatalogItemByNormalizedName(normalizedName);
+        if (duplicate && duplicate.catalogItemId !== input.catalogItemId) {
+          throw new Error("A catalog item with the same normalized name already exists");
+        }
+
+        const updates = {
+          ...input.updates,
+          normalizedName,
+          gstRate: input.updates.gstRate === undefined
+            ? undefined
+            : input.updates.gstRate === null ? null : input.updates.gstRate.toFixed(2),
+        };
+        const next = { ...current, ...updates };
+        try {
+          await db.updateCatalogItemWithAudit(
+            input.catalogItemId,
+            updates,
+            catalogAuditEntry(
+              ctx.user.id,
+              "CATALOG_ITEM_UPDATED",
+              "catalogItems",
+              input.catalogItemId,
+              catalogItemAuditSnapshot(current as unknown as Record<string, unknown>),
+              catalogItemAuditSnapshot(next as unknown as Record<string, unknown>),
+            ),
+          );
+        } catch (error) {
+          throw safeCatalogWriteError(error);
+        }
+        return next;
+      }),
+
+    setItemActive: adminProcedure
+      .input(z.object({ catalogItemId: z.string().trim().min(1).max(50), active: z.boolean() }))
+      .mutation(async ({ input, ctx }) => {
+        const current = await db.getCatalogItemById(input.catalogItemId);
+        if (!current) throw new Error("Catalog item not found");
+        if (Boolean(current.active) === input.active) return { ...current, active: input.active ? 1 : 0 };
+
+        const next = { ...current, active: input.active ? 1 : 0 };
+        try {
+          await db.setCatalogItemActiveWithAudit(
+            input.catalogItemId,
+            input.active,
+            catalogAuditEntry(
+              ctx.user.id,
+              input.active ? "CATALOG_ITEM_REACTIVATED" : "CATALOG_ITEM_DEACTIVATED",
+              "catalogItems",
+              input.catalogItemId,
+              catalogItemAuditSnapshot(current as unknown as Record<string, unknown>),
+              catalogItemAuditSnapshot(next as unknown as Record<string, unknown>),
+            ),
+          );
+        } catch (error) {
+          throw safeCatalogWriteError(error);
+        }
+        return next;
+      }),
+
+    createAlias: adminProcedure
+      .input(catalogAliasInputSchema)
+      .mutation(async ({ input, ctx }) => {
+        const item = await db.getCatalogItemById(input.catalogItemId);
+        if (!item) throw new Error("Catalog item not found");
+        if (!Boolean(item.active)) throw new Error("Aliases can be added only to an active catalog item");
+
+        const vendorId = input.vendorId?.trim() ?? "";
+        if (vendorId) {
+          const vendor = await db.getVendorById(vendorId);
+          if (!vendor) throw new Error("Vendor not found or inactive");
+        }
+        const normalizedAlias = normalizeCatalogText(input.aliasText);
+        if (!normalizedAlias) throw new Error("Alias text must contain searchable text");
+        const duplicate = await db.getCatalogAliasByVendorAndNormalizedAlias(vendorId, normalizedAlias);
+        if (duplicate) throw new Error("An alias with the same vendor scope and normalized text already exists");
+
+        const aliasId = utils.generateAuditLogId();
+        const alias = {
+          aliasId,
+          catalogItemId: input.catalogItemId,
+          vendorId,
+          aliasText: input.aliasText,
+          normalizedAlias,
+          source: input.source,
+          createdBy: ctx.user.id.toString(),
+        };
+        try {
+          await db.createCatalogAliasWithAudit(alias, catalogAuditEntry(
+            ctx.user.id,
+            "CATALOG_ALIAS_CREATED",
+            "catalogItemAliases",
+            aliasId,
+            undefined,
+            catalogAliasAuditSnapshot({ ...alias, active: 1 }),
+          ));
+        } catch (error) {
+          throw safeCatalogWriteError(error);
+        }
+        return { ...alias, active: 1 };
+      }),
+
+    setAliasActive: adminProcedure
+      .input(z.object({ aliasId: z.string().trim().min(1).max(50), active: z.boolean() }))
+      .mutation(async ({ input, ctx }) => {
+        const current = await db.getCatalogAliasById(input.aliasId);
+        if (!current) throw new Error("Catalog alias not found");
+        if (Boolean(current.active) === input.active) return { ...current, active: input.active ? 1 : 0 };
+
+        const next = { ...current, active: input.active ? 1 : 0 };
+        try {
+          await db.setCatalogAliasActiveWithAudit(
+            input.aliasId,
+            input.active,
+            catalogAuditEntry(
+              ctx.user.id,
+              input.active ? "CATALOG_ALIAS_REACTIVATED" : "CATALOG_ALIAS_DEACTIVATED",
+              "catalogItemAliases",
+              input.aliasId,
+              catalogAliasAuditSnapshot(current as unknown as Record<string, unknown>),
+              catalogAliasAuditSnapshot(next as unknown as Record<string, unknown>),
+            ),
+          );
+        } catch (error) {
+          throw safeCatalogWriteError(error);
+        }
+        return next;
+      }),
+  }),
+
+  vendorAdmin: router({
+    list: protectedProcedure
+      .input(z.object({ includeInactive: z.boolean().optional() }).optional())
+      .query(async ({ input, ctx }) => {
+        await requirePurchaseOrderAccess(ctx.user);
+        return db.listVendorsForAdmin(input?.includeInactive ?? false);
+      }),
+    create: adminProcedure
+      .input(z.object({
+        name: z.string().trim().min(1).max(150), contactNumber: z.string().trim().max(20).optional(),
+        gstNumber: z.string().trim().max(50).optional(), email: z.string().email().optional(),
+        address: z.string().trim().max(2_000).optional(), bankDetails: z.string().trim().max(2_000).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => db.createVendorWithAudit(input, ctx.user.id.toString())),
+    update: adminProcedure
+      .input(z.object({
+        vendorId: z.string().trim().min(1).max(50),
+        values: z.object({
+          name: z.string().trim().min(1).max(150), contactNumber: z.string().trim().max(20).optional(),
+          gstNumber: z.string().trim().max(50).optional(), email: z.string().email().optional(),
+          address: z.string().trim().max(2_000).optional(), bankDetails: z.string().trim().max(2_000).optional(),
+        }),
+      }))
+      .mutation(async ({ input, ctx }) => db.updateVendorWithAudit(input.vendorId, input.values, ctx.user.id.toString())),
+    setActive: adminProcedure
+      .input(z.object({ vendorId: z.string().trim().min(1).max(50), active: z.boolean() }))
+      .mutation(async ({ input, ctx }) => db.setVendorActiveWithAudit(input.vendorId, input.active, ctx.user.id.toString())),
+  }),
+
+  vendorResolution: router({
+    resolve: protectedProcedure
+      .input(z.object({ vendorName: z.string().trim().min(1).max(255), vendorGSTNumber: z.string().trim().max(50).optional() }))
+      .query(async ({ input, ctx }) => {
+        await requirePurchaseOrderAccess(ctx.user);
+        const candidates = await db.findActiveVendorCandidates(input.vendorName, input.vendorGSTNumber);
+        const resolution = (await import("./procurement")).resolveVendorMaster({ vendorName: input.vendorName, vendorGSTNumber: input.vendorGSTNumber }, candidates);
+        return resolution;
+      }),
+  }),
+
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -157,22 +749,24 @@ export const appRouter = router({
 
     setPassword: protectedProcedure
       .input(z.object({
-        password: z.string().min(6),
+        password: z.string().min(8).max(128),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
+          const existing = await db.getUserById(ctx.user.id as number);
+          if (existing?.passwordHash) throw new Error("A password already exists; use Change Password instead");
           await db.setUserPassword(ctx.user.id as number, input.password);
           return { success: true };
         } catch (error) {
           console.error("[Auth] Set password failed:", error);
-          throw new Error("Failed to set password");
+          throw new Error(error instanceof Error ? error.message : "Failed to set password");
         }
       }),
 
     changePassword: protectedProcedure
       .input(z.object({
         currentPassword: z.string(),
-        newPassword: z.string().min(6),
+        newPassword: z.string().min(8).max(128),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
@@ -363,15 +957,25 @@ export const appRouter = router({
     create: protectedProcedure
       .input(z.object({
         patientId: z.string(),
+        consultantId: z.number().int().positive().optional(),
         audioFileUrl: z.string().optional(),
         audioFileKey: z.string().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
+        const consultantId = ctx.user.role === "consultant"
+          ? ctx.user.id
+          : input.consultantId;
+        if (!consultantId) throw new Error("An active consultant must be selected for a consultation");
+        if (ctx.user.role === "consultant" && input.consultantId && input.consultantId !== ctx.user.id) {
+          throw new Error("Consultants cannot create a consultation for another consultant");
+        }
+        await requireActiveConsultant(consultantId);
         const consultationId = utils.generateConsultationId();
 
         const consultation = await db.createConsultation({
           consultationId,
           patientId: input.patientId,
+          consultantId,
           audioFileUrl: input.audioFileUrl,
           audioFileKey: input.audioFileKey,
           consultationDate: new Date().toISOString(),
@@ -502,14 +1106,52 @@ export const appRouter = router({
 
     getById: protectedProcedure
       .input(z.object({ consultationId: z.string() }))
-      .query(async ({ input }) => {
-        return db.getConsultationById(input.consultationId);
+      .query(async ({ input, ctx }) => {
+        const consultation = await db.getConsultationById(input.consultationId);
+        if (!consultation) return null;
+        if (ctx.user.role === "consultant" && consultation.consultantId !== ctx.user.id) {
+          throw new Error("You are not authorized to access this consultation");
+        }
+        return consultation;
       }),
 
     getByPatientId: protectedProcedure
       .input(z.object({ patientId: z.string() }))
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
+        if (ctx.user.role === "consultant") {
+          return db.getConsultationsByPatientAndConsultant(input.patientId, ctx.user.id);
+        }
         return db.getConsultationsByPatientId(input.patientId);
+      }),
+
+    getBrandedPrintData: protectedProcedure
+      .input(z.object({ consultationId: z.string().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const printData = await db.getConsultationPrintData(input.consultationId);
+        if (!printData) throw new Error("Consultation print data not found");
+        assertConsultantSelfOrAdmin(ctx, printData.consultantId ?? 0);
+        if (ctx.user.role === "staff" && !await db.checkFeatureAccess("staff", "patient_records")) {
+          throw new Error("You are not authorized to print this consultation");
+        }
+
+        const consultantLogo = printData.consultantLogoKey ? await storageGet(printData.consultantLogoKey) : null;
+        const signature = printData.signatureKey ? await storageGet(printData.signatureKey) : null;
+        const { consultantLogoKey: _consultantLogoKey, signatureKey: _signatureKey, ...safePrintData } = printData;
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: "CONSULTATION_OP_PRINT_VIEWED",
+          tableName: "consultations",
+          recordId: input.consultationId,
+          newValue: JSON.stringify({ consultantId: printData.consultantId, hasLogo: Boolean(consultantLogo), hasSignature: Boolean(signature) }),
+          timestamp: new Date().toISOString(),
+        });
+        return {
+          ...safePrintData,
+          consultantLogoUrl: consultantLogo?.url,
+          signatureUrl: signature?.url,
+          facility: FIXED_CLINIC_BRANDING,
+        };
       }),
   }),
 
@@ -773,6 +1415,35 @@ export const appRouter = router({
         return billWithInvoice;
       }),
 
+    createEncounter: protectedProcedure
+      .input(z.object({
+        consultationId: z.string().trim().min(1),
+        appointmentId: z.string().trim().min(1),
+        items: z.array(z.object({ itemType: z.string().trim().min(1), description: z.string().trim().min(1), quantity: z.number().int().positive(), unitPrice: z.string().regex(/^\d+(\.\d{1,2})?$/) })).min(1),
+        discountAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
+        taxAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const consultation = await db.getConsultationById(input.consultationId);
+        if (!consultation || consultation.appointmentId !== input.appointmentId) throw new Error("Encounter billing context is invalid");
+        const appointment = await requireAccessibleAppointment(ctx, input.appointmentId);
+        if (ctx.user.role === "consultant" && consultation.consultantId !== ctx.user.id) throw new Error("Consultants cannot bill another consultant's encounter");
+        const patient = await db.getPatientById(consultation.patientId);
+        if (!patient) throw new Error("Patient not found");
+        const totalAmount = input.items.reduce((sum, item) => sum + Number(item.unitPrice) * item.quantity, 0);
+        const discountAmount = Number(input.discountAmount);
+        const taxAmount = Number(input.taxAmount);
+        const finalAmount = totalAmount - discountAmount + taxAmount;
+        const billId = utils.generateBillId();
+        const result = await db.createEncounterBillAndCloseVisit({
+          bill: { billId, patientId: consultation.patientId, consultationId: consultation.consultationId, totalAmount: totalAmount.toFixed(2) as any, discountAmount: discountAmount.toFixed(2) as any, taxAmount: taxAmount.toFixed(2) as any, finalAmount: finalAmount.toFixed(2) as any, paymentStatus: "Pending" },
+          items: input.items.map((item) => ({ billItemId: utils.generateBillItemId(), billId, itemType: item.itemType, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice as any, subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2) as any })),
+          appointmentId: appointment.appointmentId,
+          actorId: String(ctx.user.id),
+        });
+        return { ...result, patientId: consultation.patientId, consultationId: consultation.consultationId, appointmentId: appointment.appointmentId };
+      }),
+
     getAll: protectedProcedure.query(async () => {
       const bills = await db.getAllBills();
       return Promise.all(
@@ -900,7 +1571,9 @@ export const appRouter = router({
         return {
           consultationId: consultation.consultationId,
           patientId: consultation.patientId,
+          appointmentId: consultation.appointmentId,
           consultantId: consultation.consultantId,
+          isFinalized: consultation.isFinalized,
           consultationDate: consultation.consultationDate,
           clinicalHistory: consultation.clinicalHistory,
           presentComplaints: consultation.presentComplaints,
@@ -1015,54 +1688,12 @@ export const appRouter = router({
   // ============ PHARMACY PURCHASE ORDERS ============
   purchaseOrders: router({
     create: protectedProcedure
-      .input(z.object({
-        vendorName: z.string().min(1),
-        vendorContactNumber: z.string().min(10),
-        vendorEmail: z.string().email().optional(),
-        vendorGSTNumber: z.string().optional(),
-        vendorBankDetails: z.string().optional(),
-        vendorAddress: z.string().optional(),
-        totalAmount: z.string().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Total amount must be a valid non-negative number"),
-        expectedDeliveryDate: z.string().optional(),
-        notes: z.string().optional(),
-        authorizationNotes: z.string().optional(),
-        items: z.array(z.object({
-          itemName: z.string().min(1),
-          quantity: z.number().int().positive(),
-          unitPrice: z.string().refine((value) => Number.isFinite(Number(value)) && Number(value) >= 0, "Unit price must be a valid non-negative number"),
-        })).min(1),
-      }))
+      .input(purchaseOrderCreateInputSchema)
       .mutation(async ({ input, ctx }) => {
-        const purchaseOrderId = utils.generateAuditLogId();
-        const totalAmount = Number(input.totalAmount);
-        const items = input.items.map((item) => {
-          const poItemId = utils.generateAuditLogId();
-          const unitPrice = Number(item.unitPrice);
-          return {
-            poItemId,
-            purchaseOrderId,
-            itemName: item.itemName.trim(),
-            quantity: item.quantity,
-            unitPrice: unitPrice.toString() as any,
-            subtotal: (unitPrice * item.quantity).toString() as any,
-          };
-        });
+        const governedInput = await canonicalizeLinkedVendorPurchaseOrder(input);
+        const { purchaseOrderId, totalAmount, items, purchaseOrder } = buildPendingApprovalPurchaseOrder(governedInput);
 
-        await db.createPurchaseOrderWithItems({
-          purchaseOrderId,
-          vendorName: input.vendorName,
-          vendorContactNumber: input.vendorContactNumber,
-          vendorEmail: input.vendorEmail,
-          vendorGstNumber: input.vendorGSTNumber,
-          vendorBankDetails: input.vendorBankDetails,
-          vendorAddress: input.vendorAddress,
-          totalAmount: totalAmount.toString() as any,
-          paymentStatus: "Pending",
-          approvalStatus: "Pending Approval",
-          authorizationNotes: input.authorizationNotes,
-          expectedDeliveryDate: input.expectedDeliveryDate,
-          notes: input.notes,
-        }, items);
+        await db.createPurchaseOrderWithItems(purchaseOrder, items);
 
         await db.createAuditLog({
           logId: utils.generateAuditLogId(),
@@ -1070,7 +1701,7 @@ export const appRouter = router({
           actionType: "CREATE",
           tableName: "purchaseOrders",
           recordId: purchaseOrderId,
-          newValue: JSON.stringify({ vendorName: input.vendorName, totalAmount, approvalStatus: "Pending Approval" }),
+          newValue: JSON.stringify({ vendorId: governedInput.vendorId, vendorName: governedInput.vendorName, totalAmount, approvalStatus: "Pending Approval" }),
           timestamp: new Date().toISOString(),
         });
 
@@ -1081,19 +1712,99 @@ export const appRouter = router({
           actorId: ctx.user.id.toString(),
           actorName: ctx.user.name ?? null,
           eventSummary: "Purchase order created and submitted for approval.",
-          details: JSON.stringify({ vendorName: input.vendorName, totalAmount, authorizationNotes: input.authorizationNotes ?? null }),
+          details: JSON.stringify({ vendorId: governedInput.vendorId, vendorName: governedInput.vendorName, totalAmount, authorizationNotes: governedInput.authorizationNotes ?? null }),
         });
 
         await safeNotifyOwner(
           "Purchase Order Pending Approval",
-          `PO #${purchaseOrderId} from ${input.vendorName} for ₹${totalAmount} is awaiting approval.`,
+          `PO #${purchaseOrderId} from ${governedInput.vendorName} for ₹${totalAmount} is awaiting approval.`,
         );
 
         return { success: true, purchaseOrderId, approvalStatus: "Pending Approval" as const };
       }),
 
+    createFromReviewedExtraction: protectedProcedure
+      .input(purchaseOrderCreateInputSchema.extend({
+        reviewSubmissionId: z.string().uuid(),
+        extractionProvider: z.enum(["google-cloud-vision", "mock-ocr"]),
+        review: purchaseOrderReviewPrefillSchema,
+        catalogResolutions: z.array(catalogResolutionInputSchema).max(100).default([]),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await requirePurchaseOrderAccess(ctx.user);
+
+        const duplicate = await db.getPurchaseOrderExtractionReviewBySubmissionId(input.reviewSubmissionId);
+        if (duplicate) throw new Error("This reviewed extraction has already been submitted");
+
+        const governedInput = await canonicalizeLinkedVendorPurchaseOrder(input);
+        const finalReview = applySubmittedPurchaseOrderValues(input.review as PurchaseOrderReviewPrefill, {
+          vendorName: governedInput.vendorName,
+          vendorGSTNumber: governedInput.vendorGSTNumber,
+          items: governedInput.items,
+        });
+        const reviewedAt = new Date().toISOString();
+        const catalogEvidence = await buildCatalogResolutionEvidence(input.catalogResolutions, finalReview, reviewedAt);
+        const { purchaseOrderId, totalAmount, items, purchaseOrder } = buildPendingApprovalPurchaseOrder(governedInput, catalogEvidence.catalogItemIdsByLineIndex);
+        const reviewEvidence = createExtractionReviewEvidence(finalReview);
+        const reviewId = utils.generateAuditLogId();
+
+        try {
+          await db.createPurchaseOrderWithItemsAndExtractionReview(purchaseOrder, items, {
+            review: {
+              reviewId,
+              purchaseOrderId,
+              reviewSubmissionId: input.reviewSubmissionId,
+              extractionProvider: input.extractionProvider,
+              documentType: reviewEvidence.documentType,
+              reviewStatus: "CONFIRMED",
+              reviewerUserId: ctx.user.id.toString(),
+              reviewerName: ctx.user.name ?? null,
+              reviewedAt,
+              createdAt: reviewedAt,
+              extractedHeaderJson: JSON.stringify(reviewEvidence.extractedHeader),
+              extractedItemsJson: JSON.stringify(reviewEvidence.extractedItems),
+              extractedTotalsJson: JSON.stringify(reviewEvidence.extractedTotals),
+              reconciliationJson: JSON.stringify(reviewEvidence.reconciliation),
+              warningsJson: JSON.stringify(reviewEvidence.warnings),
+              correctedFieldsJson: JSON.stringify(reviewEvidence.correctedFields),
+              finalReviewedValuesJson: JSON.stringify(reviewEvidence.finalReviewedValues),
+              catalogResolutionsJson: JSON.stringify(catalogEvidence.resolutions),
+            },
+            auditLog: {
+              logId: utils.generateAuditLogId(),
+              userId: ctx.user.id.toString(),
+              actionType: "CREATE",
+              tableName: "purchaseOrderExtractionReviews",
+              recordId: reviewId,
+              newValue: JSON.stringify({ purchaseOrderId, reviewId, reviewStatus: "CONFIRMED", acceptedCatalogMatchCount: catalogEvidence.resolutions.filter((resolution) => resolution.decision === "ACCEPTED").length }),
+              timestamp: reviewedAt,
+            },
+            history: {
+              historyId: utils.generateAuditLogId(),
+              purchaseOrderId,
+              eventType: "EXTRACTION_REVIEW_CONFIRMED",
+              actorId: ctx.user.id.toString(),
+              actorName: ctx.user.name ?? null,
+              eventSummary: "Reviewed OCR/parser extraction evidence recorded with pending-approval PO submission.",
+              details: JSON.stringify({ reviewId, correctedFieldCount: reviewEvidence.correctedFields.length, documentType: reviewEvidence.documentType, acceptedCatalogMatchCount: catalogEvidence.resolutions.filter((resolution) => resolution.decision === "ACCEPTED").length }),
+              createdAt: reviewedAt,
+            },
+          });
+        } catch (error) {
+          console.error("[PO evidence] Reviewed submission transaction failed", error);
+          throw new Error("Unable to create the reviewed purchase order and its evidence record");
+        }
+
+        await safeNotifyOwner(
+          "Purchase Order Pending Approval",
+          `PO #${purchaseOrderId} from ${governedInput.vendorName} for ₹${totalAmount} is awaiting approval. Reviewed extraction evidence was recorded.`,
+        );
+
+        return { success: true, purchaseOrderId, reviewId, approvalStatus: "Pending Approval" as const, evidenceRecorded: true as const };
+      }),
+
     getAll: protectedProcedure.query(async () => {
-      return db.getAllPurchaseOrders();
+      return db.getAllPurchaseOrdersWithReceiptState();
     }),
 
     getMetrics: protectedProcedure.query(async () => {
@@ -1107,6 +1818,15 @@ export const appRouter = router({
         if (!po) return null;
         const items = await db.getPurchaseOrderItems(input.purchaseOrderId);
         return { ...po, items };
+      }),
+
+    getExtractionReview: protectedProcedure
+      .input(z.object({ purchaseOrderId: z.string().min(1) }))
+      .query(async ({ input, ctx }) => {
+        await requirePurchaseOrderAccess(ctx.user);
+        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
+        if (!po) throw new Error("Purchase Order not found");
+        return db.getPurchaseOrderExtractionReview(input.purchaseOrderId);
       }),
 
     getReceiptSummary: protectedProcedure
@@ -1149,6 +1869,7 @@ export const appRouter = router({
         return db.createGoodsReceipt({
           ...input,
           receivedBy: ctx.user.id.toString(),
+          receivedByName: ctx.user.name ?? null,
         });
       }),
 
@@ -1197,41 +1918,14 @@ export const appRouter = router({
     approve: adminProcedure
       .input(z.object({ purchaseOrderId: z.string() }))
       .mutation(async ({ input, ctx }) => {
-        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
-        if (!po) throw new Error("Purchase Order not found");
-
-        if (po.approvalStatus !== "Pending Approval") {
-          throw new Error(`Cannot approve a PO with status: ${po.approvalStatus}`);
-        }
-
-        await db.approvePurchaseOrder(input.purchaseOrderId, ctx.user.name || ctx.user.id.toString());
-
-        // Notify owner
-        await notifyOwner({
-          title: "Purchase Order Approved",
-          content: `PO #${input.purchaseOrderId} from ${po.vendorName} has been approved.`,
+        const po = await db.approvePurchaseOrderWithAudit(input.purchaseOrderId, {
+          actorId: ctx.user.id.toString(), actorName: ctx.user.name ?? null,
         });
 
-        // Log audit trail
-        await db.createAuditLog({
-          logId: utils.generateAuditLogId(),
-          userId: ctx.user.id.toString(),
-          actionType: "UPDATE",
-          tableName: "purchaseOrders",
-          recordId: input.purchaseOrderId,
-          newValue: JSON.stringify({ approvalStatus: "Approved" }),
-          timestamp: new Date().toISOString(),
-        });
-
-        await db.createPurchaseOrderHistory({
-          historyId: utils.generateAuditLogId(),
-          purchaseOrderId: input.purchaseOrderId,
-          eventType: "APPROVED",
-          actorId: ctx.user.id.toString(),
-          actorName: ctx.user.name ?? null,
-          eventSummary: "Purchase order approved.",
-          details: JSON.stringify({ previousStatus: po.approvalStatus, approvalStatus: "Approved" }),
-        });
+		await safeNotifyOwner(
+			"Purchase Order Approved",
+			`PO #${input.purchaseOrderId} from ${po.vendorName} has been approved.`,
+		);
 
         return { success: true };
       }),
@@ -1242,45 +1936,14 @@ export const appRouter = router({
         rejectionReason: z.string().min(5),
       }))
       .mutation(async ({ input, ctx }) => {
-        const po = await db.getPurchaseOrderById(input.purchaseOrderId);
-        if (!po) throw new Error("Purchase Order not found");
-
-        if (po.approvalStatus !== "Pending Approval") {
-          throw new Error(`Cannot reject a PO with status: ${po.approvalStatus}`);
-        }
-
-        await db.rejectPurchaseOrder(
-          input.purchaseOrderId,
-          input.rejectionReason,
-          ctx.user.name || ctx.user.id.toString()
-        );
-
-        // Notify owner
-        await notifyOwner({
-          title: "Purchase Order Rejected",
-          content: `PO #${input.purchaseOrderId} from ${po.vendorName} has been rejected. Reason: ${input.rejectionReason}`,
+        const po = await db.rejectPurchaseOrderWithAudit(input.purchaseOrderId, input.rejectionReason, {
+          actorId: ctx.user.id.toString(), actorName: ctx.user.name ?? null,
         });
 
-        // Log audit trail
-        await db.createAuditLog({
-          logId: utils.generateAuditLogId(),
-          userId: ctx.user.id.toString(),
-          actionType: "UPDATE",
-          tableName: "purchaseOrders",
-          recordId: input.purchaseOrderId,
-          newValue: JSON.stringify({ approvalStatus: "Rejected", rejectionReason: input.rejectionReason }),
-          timestamp: new Date().toISOString(),
-        });
-
-        await db.createPurchaseOrderHistory({
-          historyId: utils.generateAuditLogId(),
-          purchaseOrderId: input.purchaseOrderId,
-          eventType: "REJECTED",
-          actorId: ctx.user.id.toString(),
-          actorName: ctx.user.name ?? null,
-          eventSummary: "Purchase order rejected.",
-          details: JSON.stringify({ previousStatus: po.approvalStatus, approvalStatus: "Rejected", rejectionReason: input.rejectionReason }),
-        });
+		await safeNotifyOwner(
+			"Purchase Order Rejected",
+			`PO #${input.purchaseOrderId} from ${po.vendorName} has been rejected. Reason: ${input.rejectionReason}`,
+		);
 
         return { success: true };
       }),
@@ -1385,7 +2048,7 @@ export const appRouter = router({
       try {
         const consultants = await db.getAllStaffUsers();
         return consultants
-          .filter(u => u.role === 'consultant')
+          .filter(u => u.role === 'consultant' && Boolean(u.isActive))
           .map(u => ({
             id: u.id,
             userId: u.userId,
@@ -1397,6 +2060,9 @@ export const appRouter = router({
             isActive: u.isActive,
             stateCounsilSection: u.stateCounsilSection,
             registrationNumber: u.registrationNumber,
+            qualifications: u.qualifications,
+            specialization: u.specialization,
+            designation: u.designation,
             createdAt: u.createdAt,
           }));
       } catch (error) {
@@ -1424,6 +2090,10 @@ export const appRouter = router({
             isActive: consultant.isActive,
             stateCounsilSection: consultant.stateCounsilSection,
             registrationNumber: consultant.registrationNumber,
+            qualifications: consultant.qualifications,
+            specialization: consultant.specialization,
+            designation: consultant.designation,
+            prescriptionHeaderText: consultant.prescriptionHeaderText,
             createdAt: consultant.createdAt,
           };
         } catch (error) {
@@ -1431,30 +2101,121 @@ export const appRouter = router({
           throw new Error("Failed to fetch consultant");
         }
       }),
+
+    getMyProfile: protectedProcedure.query(async ({ ctx }) => {
+      if (ctx.user.role !== "consultant") {
+        throw new Error("Only consultants can access a consultant profile");
+      }
+      const consultant = await db.getConsultantProfileById(ctx.user.id);
+      if (!consultant) throw new Error("Consultant profile not found");
+      return {
+        id: consultant.id,
+        name: consultant.name,
+        email: consultant.email,
+        phone: consultant.phone,
+        department: consultant.department,
+        stateCounsilSection: consultant.stateCounsilSection,
+        registrationNumber: consultant.registrationNumber,
+        qualifications: consultant.qualifications,
+        specialization: consultant.specialization,
+        designation: consultant.designation,
+        prescriptionHeaderText: consultant.prescriptionHeaderText,
+        isActive: consultant.isActive,
+      };
+    }),
+
+    updateProfile: adminProcedure
+      .input(z.object({
+        consultantId: z.number().int().positive(),
+        name: z.string().min(2).max(255).optional(),
+        email: z.string().email().optional(),
+        phone: z.string().max(20).optional(),
+        department: z.string().max(100).optional(),
+        qualifications: z.string().max(255).optional(),
+        specialization: z.string().max(255).optional(),
+        designation: z.string().max(255).optional(),
+        stateCounsilSection: z.string().max(100).optional(),
+        registrationNumber: z.string().max(100).optional(),
+        prescriptionHeaderText: z.string().max(2_000).optional(),
+        isActive: z.boolean().optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const existing = await db.getConsultantProfileById(input.consultantId);
+        if (!existing) throw new Error("Consultant not found");
+        const { consultantId, isActive, ...profileUpdates } = input;
+        const updates = isActive === undefined
+          ? profileUpdates
+          : { ...profileUpdates, isActive: isActive ? 1 : 0 };
+        await db.updateConsultantProfileById(consultantId, updates);
+        const actionType = isActive === false
+          ? "CONSULTANT_DEACTIVATED"
+          : isActive === true && !existing.isActive
+            ? "CONSULTANT_ACTIVATED"
+            : "CONSULTANT_PROFILE_UPDATED";
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType,
+          tableName: "users",
+          recordId: consultantId.toString(),
+          oldValue: JSON.stringify({ name: existing.name, isActive: existing.isActive, registrationNumber: existing.registrationNumber }),
+          newValue: JSON.stringify({ ...updates, consultantId }),
+          timestamp: new Date().toISOString(),
+        });
+        return { success: true };
+      }),
+
+    uploadAsset: adminProcedure
+      .input(z.object({
+        consultantId: z.number().int().positive(),
+        assetType: z.enum(["logo", "signature"]),
+        dataUrl: z.string().max(2_100_000),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const consultant = await db.getConsultantProfileById(input.consultantId);
+        if (!consultant) throw new Error("Consultant not found");
+        const stored = await storeConsultantImage(input);
+        await db.updateConsultantProfileById(input.consultantId, input.assetType === "logo"
+          ? { consultantLogoKey: stored.key }
+          : { signatureKey: stored.key });
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(),
+          userId: ctx.user.id.toString(),
+          actionType: input.assetType === "logo" ? "CONSULTANT_LOGO_UPDATED" : "CONSULTANT_SIGNATURE_UPDATED",
+          tableName: "users",
+          recordId: input.consultantId.toString(),
+          newValue: JSON.stringify({ assetType: input.assetType, mimeType: stored.mimeType, sizeBytes: stored.sizeBytes }),
+          timestamp: new Date().toISOString(),
+        });
+        return { success: true };
+      }),
   }),
 
   rbac: router({
     createStaffUser: adminProcedure
       .input(z.object({
         role: z.enum(["consultant", "staff"]),
-        name: z.string().min(2),
+        name: z.string().trim().min(2).max(150),
+        password: z.string().min(8).max(128),
         email: z.string().email().optional(),
         phone: z.string().optional(),
         department: z.string().optional(),
+        stateCounsilSection: z.string().max(100).optional(),
+        registrationNumber: z.string().max(100).optional(),
+        qualifications: z.string().max(255).optional(),
+        specialization: z.string().max(255).optional(),
+        designation: z.string().max(255).optional(),
+        prescriptionHeaderText: z.string().max(2_000).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
-          // Generate user ID and temporary password
           const sequence = await db.getNextUserSequence(input.role);
           const userId = utils.generateUserId(input.role, sequence);
-          const tempPassword = utils.generateTemporaryPassword();
-          const passwordHash = await utils.hashPassword(tempPassword);
           const username = userId.toLowerCase();
+          if (await db.getUserByUsername(username)) throw new Error("A user with this login ID already exists");
+          if (input.email && await db.getUserByEmail(input.email)) throw new Error("A user with this email already exists");
+          const passwordHash = await utils.hashPassword(input.password);
 
-          // Generate QR code for login
-          const qrcodeLoginUrl = await utils.generateQRCodeForLogin(username, tempPassword);
-
-          // Create user
           const userData = {
             openId: `local-${userId}`,
             name: input.name,
@@ -1466,28 +2227,44 @@ export const appRouter = router({
             username,
             passwordHash,
             isActive: 1,
-            qrcodeLoginUrl,
             createdBy: ctx.user.id,
             loginMethod: "local",
+            stateCounsilSection: input.stateCounsilSection,
+            registrationNumber: input.registrationNumber,
+            qualifications: input.qualifications,
+            specialization: input.specialization,
+            designation: input.designation,
+            prescriptionHeaderText: input.prescriptionHeaderText,
           };
 
           await db.createStaffUser(userData);
+          if (input.role === "consultant") {
+            const createdConsultant = await db.getStaffUserById(userId);
+            await db.createAuditLog({
+              logId: utils.generateAuditLogId(),
+              userId: ctx.user.id.toString(),
+              actionType: "CONSULTANT_PROFILE_CREATED",
+              tableName: "users",
+              recordId: createdConsultant?.id?.toString() || userId,
+              newValue: JSON.stringify({ userId, name: input.name, registrationNumber: input.registrationNumber }),
+              timestamp: new Date().toISOString(),
+            });
+          }
 
-          // Notify owner
           await safeNotifyOwner(
             `New ${input.role} created`,
-            `${input.name} (${userId}) has been added to the system. Temporary password: ${tempPassword}`
+            `${input.name} (${userId}) has been added to the system. The administrator supplied the initial password.`
           );
 
           return {
             success: true,
             userId,
             username,
-            tempPassword,
-            qrcodeLoginUrl,
           };
         } catch (error) {
           console.error("[RBAC] Create staff user failed:", error);
+          const message = error instanceof Error ? error.message : "Failed to create staff user";
+          if (message.includes("already exists")) throw new Error(message);
           throw new Error("Failed to create staff user");
         }
       }),
@@ -1504,6 +2281,12 @@ export const appRouter = router({
           department: u.department,
           role: u.role,
           isActive: u.isActive,
+          stateCounsilSection: u.stateCounsilSection,
+          registrationNumber: u.registrationNumber,
+          qualifications: u.qualifications,
+          specialization: u.specialization,
+          designation: u.designation,
+          prescriptionHeaderText: u.prescriptionHeaderText,
           createdAt: u.createdAt,
         }));
       } catch (error) {
@@ -1519,41 +2302,94 @@ export const appRouter = router({
         email: z.string().email().optional(),
         phone: z.string().optional(),
         department: z.string().optional(),
-        role: z.enum(["admin", "consultant", "staff", "user"]).optional(),
+        role: z.enum(["consultant", "staff"]).optional(),
         stateCounsilSection: z.string().optional(),
         registrationNumber: z.string().optional(),
+        qualifications: z.string().max(255).optional(),
+        specialization: z.string().max(255).optional(),
+        designation: z.string().max(255).optional(),
+        prescriptionHeaderText: z.string().max(2_000).optional(),
         isActive: z.boolean().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
+          const existing = await db.getStaffUserById(input.userId);
+          if (!existing) throw new Error("User not found");
           const updates: Record<string, any> = {};
-          if (input.name) updates.name = input.name;
-          if (input.email) updates.email = input.email;
-          if (input.phone) updates.phone = input.phone;
-          if (input.department) updates.department = input.department;
-          if (input.role) updates.role = input.role;
-          if (input.stateCounsilSection) updates.stateCounsilSection = input.stateCounsilSection;
-          if (input.registrationNumber) updates.registrationNumber = input.registrationNumber;
+          if (input.name !== undefined) updates.name = input.name;
+          if (input.email !== undefined) {
+            const duplicate = await db.getUserByEmail(input.email);
+            if (duplicate && duplicate.id !== existing.id) throw new Error("A user with this email already exists");
+            updates.email = input.email;
+          }
+          if (input.phone !== undefined) updates.phone = input.phone;
+          if (input.department !== undefined) updates.department = input.department;
+          if (input.role !== undefined) updates.role = input.role;
+          if (input.stateCounsilSection !== undefined) updates.stateCounsilSection = input.stateCounsilSection;
+          if (input.registrationNumber !== undefined) updates.registrationNumber = input.registrationNumber;
+          if (input.qualifications !== undefined) updates.qualifications = input.qualifications;
+          if (input.specialization !== undefined) updates.specialization = input.specialization;
+          if (input.designation !== undefined) updates.designation = input.designation;
+          if (input.prescriptionHeaderText !== undefined) updates.prescriptionHeaderText = input.prescriptionHeaderText;
           if (input.isActive !== undefined) updates.isActive = input.isActive;
 
           await db.updateStaffUser(input.userId, updates);
+          if (existing.role === "consultant" || input.role === "consultant") {
+            await db.createAuditLog({
+              logId: utils.generateAuditLogId(),
+              userId: ctx.user.id.toString(),
+              actionType: input.isActive === false ? "CONSULTANT_DEACTIVATED" : input.isActive === true && !existing.isActive ? "CONSULTANT_ACTIVATED" : "CONSULTANT_PROFILE_UPDATED",
+              tableName: "users",
+              recordId: existing.id.toString(),
+              oldValue: JSON.stringify({ name: existing.name, isActive: existing.isActive, registrationNumber: existing.registrationNumber }),
+              newValue: JSON.stringify(updates),
+              timestamp: new Date().toISOString(),
+            });
+          }
           return { success: true };
         } catch (error) {
           console.error("[RBAC] Update staff user failed:", error);
+          const message = error instanceof Error ? error.message : "Failed to update staff user";
+          if (message.includes("already exists")) throw new Error(message);
           throw new Error("Failed to update staff user");
         }
       }),
 
+    resetUserPassword: adminProcedure
+      .input(z.object({ userId: z.string().trim().min(1), password: z.string().min(8).max(128) }))
+      .mutation(async ({ input, ctx }) => {
+        const target = await db.getStaffUserById(input.userId);
+        if (!target) throw new Error("User not found");
+        await db.updateUserPassword(target.id, await utils.hashPassword(input.password));
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(), userId: ctx.user.id.toString(), actionType: "USER_PASSWORD_RESET",
+          tableName: "users", recordId: target.id.toString(),
+          newValue: JSON.stringify({ targetUserId: input.userId }), timestamp: new Date().toISOString(),
+        });
+        return { success: true, userId: input.userId };
+      }),
+
     deleteStaffUser: adminProcedure
-      .input(z.object({ userId: z.string() }))
-      .mutation(async ({ input }) => {
+      .input(z.object({ userId: z.string().trim().min(1) }))
+      .mutation(async ({ input, ctx }) => {
         try {
+          const target = await db.getStaffUserById(input.userId);
+          if (!target) throw new Error("User not found");
+          if (target.role === "admin" && target.isActive && await db.getActiveAdminCount() <= 1) {
+            throw new Error("The last active administrator cannot be deleted");
+          }
+          const references = await db.getUserReferenceSummary(target.id);
+          if (references.total > 0) throw new Error("This user is referenced by historical or operational records and cannot be deleted; deactivate the account instead.");
           await db.deleteStaffUser(input.userId);
-          await safeNotifyOwner("Staff user deleted", `User ${input.userId} has been removed from the system`);
+          await db.createAuditLog({
+            logId: utils.generateAuditLogId(), userId: ctx.user.id.toString(), actionType: "USER_DELETED",
+            tableName: "users", recordId: target.id.toString(),
+            oldValue: JSON.stringify({ userId: target.userId, role: target.role, name: target.name }), timestamp: new Date().toISOString(),
+          });
           return { success: true };
         } catch (error) {
           console.error("[RBAC] Delete staff user failed:", error);
-          throw new Error("Failed to delete staff user");
+          throw new Error(error instanceof Error ? error.message : "Failed to delete staff user");
         }
       }),
 
@@ -1953,24 +2789,131 @@ export const appRouter = router({
 
   }),
 
+  visits: router({
+    activeConsultants: protectedProcedure.query(async ({ ctx }) => {
+      await assertAppointmentWorkflowAccess(ctx);
+      if (ctx.user.role === "consultant") {
+        const consultant = await requireActiveConsultant(ctx.user.id);
+        return [consultant];
+      }
+      return db.getActiveConsultants();
+    }),
+
+    patientCandidates: protectedProcedure
+      .input(z.object({ query: z.string().trim().min(1).max(100) }))
+      .query(async ({ input, ctx }) => {
+        await assertAppointmentWorkflowAccess(ctx);
+        const patients = await db.searchPatients(input.query);
+        const ranked = rankPatientCandidates(input.query, patients);
+        await db.createAuditLog({
+          logId: utils.generateAuditLogId(), userId: String(ctx.user.id), actionType: "PHI_ACCESS", tableName: "patients", recordId: "visit-patient-search",
+          newValue: JSON.stringify({ resultCount: ranked.length }), timestamp: new Date().toISOString(),
+        });
+        return ranked.map(({ patientId, firstName, lastName, age, gender, contactNumber, matchStrength }) => ({ patientId, firstName, lastName, age, gender, contactNumber, matchStrength }));
+      }),
+
+    registerPatient: protectedProcedure
+      .input(z.object({
+        firstName: z.string().trim().min(1).max(100), lastName: z.string().trim().min(1).max(100), age: z.number().int().min(0).max(130).optional(),
+        gender: z.enum(["Male", "Female", "Other"]).optional(), contactNumber: z.string().trim().min(10).max(20), email: z.string().trim().email().optional(), address: z.string().trim().max(1000).optional(),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        await assertAppointmentWorkflowAccess(ctx);
+        const normalizedContactNumber = normalizeIndianMobile(input.contactNumber);
+        if (!normalizedContactNumber) throw new Error("A valid Indian mobile number is required");
+        const conflicts = await db.getPatientsByNormalizedContactNumber(normalizedContactNumber);
+        if (hasStrongDuplicate(normalizedContactNumber, conflicts)) {
+          return { created: false as const, requiresResolution: true as const, candidates: conflicts.map(({ patientId, firstName, lastName, age, gender, contactNumber }) => ({ patientId, firstName, lastName, age, gender, contactNumber })) };
+        }
+        const result = await registerPatientWithTracking(input, { auditActorId: String(ctx.user.id), notificationUserId: ctx.user.id, source: "cms" });
+        return { created: true as const, requiresResolution: false as const, patient: result.patient };
+      }),
+
+    createAppointment: protectedProcedure
+      .input(z.object({ patientId: z.string().trim().min(1), consultantId: z.number().int().positive(), appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), appointmentTime: z.string().regex(/^\d{2}:\d{2}$/), appointmentSource: z.enum(["MANUAL", "WALK_IN", "PHONE"]), notes: z.string().trim().max(2000).optional() }))
+      .mutation(async ({ input, ctx }) => {
+        await assertAppointmentWorkflowAccess(ctx);
+        const patient = await db.getPatientById(input.patientId);
+        if (!patient) throw new Error("Selected patient was not found");
+        if (ctx.user.role === "consultant" && input.consultantId !== ctx.user.id) throw new Error("Consultants cannot create an appointment for another consultant");
+        const consultantId = ctx.user.role === "consultant" ? ctx.user.id : input.consultantId;
+        await requireActiveConsultant(consultantId);
+        const appointmentId = await db.createVisitAppointmentWithAudit({ ...input, consultantId, actorId: String(ctx.user.id) });
+        return { appointmentId, patientId: patient.patientId, consultantId };
+      }),
+
+    checkIn: protectedProcedure
+      .input(z.object({ appointmentId: z.string().trim().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        await requireAccessibleAppointment(ctx, input.appointmentId);
+        return db.checkInAppointmentWithAudit(input.appointmentId, String(ctx.user.id));
+      }),
+
+    startConsultation: protectedProcedure
+      .input(z.object({ appointmentId: z.string().trim().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        await requireAccessibleAppointment(ctx, input.appointmentId);
+		return db.startAppointmentConsultationWithAudit(input.appointmentId, String(ctx.user.id));
+		}),
+
+		generateOp: protectedProcedure
+		  .input(z.object({ appointmentId: z.string().trim().min(1) }))
+		  .mutation(async ({ input, ctx }) => {
+		    const appointment = await requireAccessibleAppointment(ctx, input.appointmentId);
+		    if (appointment.status !== "Checked-in") throw new Error("Appointment must be checked in before generating an OP");
+		    const result = await db.startAppointmentConsultationWithAudit(input.appointmentId, String(ctx.user.id));
+		    return { consultation: result.consultation, created: result.created };
+		  }),
+
+		completeConsultation: protectedProcedure
+		  .input(z.object({ consultationId: z.string().trim().min(1) }))
+		  .mutation(async ({ input, ctx }) => {
+		    const consultation = await db.getConsultationById(input.consultationId);
+		    if (!consultation) throw new Error("Consultation not found");
+		    if (ctx.user.role !== "admin" && ctx.user.role !== "consultant") throw new Error("Only the assigned consultant or an admin can complete an encounter");
+		    if (ctx.user.role === "consultant" && consultation.consultantId !== ctx.user.id) throw new Error("Consultants can complete only their own encounters");
+		    return db.completeConsultationWithAudit(input.consultationId, String(ctx.user.id), ctx.user.role === "admin");
+		  }),
+
+		getVisitChain: protectedProcedure
+		  .input(z.object({ patientId: z.string().trim().min(1) }))
+		  .query(async ({ input, ctx }) => {
+		    await assertAppointmentWorkflowAccess(ctx);
+		    if (ctx.user.role === "consultant") {
+		      const chains = await db.getPatientVisitChain(input.patientId);
+		      return chains.filter((chain) => chain.appointment.consultantId === ctx.user.id);
+		    }
+		    return db.getPatientVisitChain(input.patientId);
+		  }),
+	  }),
+
   appointments: router({
     // Get all appointments for a consultant or all appointments for admin
     list: protectedProcedure
       .input(z.object({
         consultantId: z.number().optional(),
         patientId: z.string().optional(),
-        status: z.enum(["Scheduled", "Completed", "Cancelled", "No-show"]).optional(),
+        status: z.enum(["Scheduled", "Checked-in", "Completed", "Cancelled", "No-show"]).optional(),
         dateFrom: z.string().optional(),
         dateTo: z.string().optional(),
       }))
       .query(async ({ input, ctx }) => {
         try {
+          await assertAppointmentWorkflowAccess(ctx);
           let appointments: any[] = [];
-          
-          if (input.patientId) {
+          const requestedConsultantId = input.consultantId;
+          if (ctx.user.role === "consultant" && requestedConsultantId && requestedConsultantId !== ctx.user.id) {
+            throw new Error("Consultants cannot list another consultant's appointments");
+          }
+          const effectiveConsultantId = ctx.user.role === "consultant" ? ctx.user.id : requestedConsultantId;
+
+          if (effectiveConsultantId) {
+            appointments = await db.getAppointmentsByConsultant(effectiveConsultantId);
+            if (input.patientId) appointments = appointments.filter((appointment) => appointment.patientId === input.patientId);
+          } else if (input.patientId) {
             appointments = await db.getAppointmentsByPatient(input.patientId);
-          } else if (input.consultantId) {
-            appointments = await db.getAppointmentsByConsultant(input.consultantId);
+          } else {
+            appointments = await db.getAllAppointments();
           }
           
           if (input.status) {
@@ -2004,9 +2947,15 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         try {
+          await assertAppointmentWorkflowAccess(ctx);
+          if (ctx.user.role === "consultant" && input.consultantId !== ctx.user.id) {
+            throw new Error("Consultants cannot create an appointment for another consultant");
+          }
+          const consultantId = ctx.user.role === "consultant" ? ctx.user.id : input.consultantId;
+          await requireActiveConsultant(consultantId);
           // Check for conflicts
           const conflict = await db.checkAppointmentConflict(
-            input.consultantId,
+            consultantId,
             input.appointmentDate,
             input.appointmentTime
           );
@@ -2015,15 +2964,15 @@ export const appRouter = router({
             throw new Error("Time slot already booked");
           }
           
-          const appointment = await db.createAppointment({
+          const appointmentId = await db.createAppointmentSafely({
             patientId: input.patientId,
-            consultantId: input.consultantId,
+            consultantId,
             appointmentDate: input.appointmentDate,
             appointmentTime: input.appointmentTime,
             notes: input.notes,
           });
           
-          return appointment;
+          return { appointmentId, consultantId };
         } catch (error) {
           console.error("[Appointments] Create failed:", error);
           throw new Error(error instanceof Error ? error.message : "Failed to create appointment");
@@ -2037,10 +2986,9 @@ export const appRouter = router({
         newDate: z.string(),
         newTime: z.string(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
-          const appointment = await db.getAppointmentById(input.appointmentId);
-          if (!appointment) throw new Error("Appointment not found");
+          const appointment = await requireAccessibleAppointment(ctx, input.appointmentId);
           
           const conflict = await db.checkAppointmentConflict(
             appointment.consultantId,
@@ -2071,8 +3019,9 @@ export const appRouter = router({
         appointmentId: z.string(),
         reason: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
+          await requireAccessibleAppointment(ctx, input.appointmentId);
           await db.cancelAppointment(input.appointmentId);
           return { success: true };
         } catch (error) {
@@ -2087,8 +3036,9 @@ export const appRouter = router({
         appointmentId: z.string(),
         notes: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
+          await requireAccessibleAppointment(ctx, input.appointmentId);
           await db.updateAppointmentStatus(input.appointmentId, "No-show");
           return { success: true };
         } catch (error) {
@@ -2103,8 +3053,9 @@ export const appRouter = router({
         appointmentId: z.string(),
         notes: z.string().optional(),
       }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         try {
+          await requireAccessibleAppointment(ctx, input.appointmentId);
           await db.updateAppointmentStatus(input.appointmentId, "Completed");
           return { success: true };
         } catch (error) {
@@ -2121,6 +3072,7 @@ export const appRouter = router({
       }))
       .query(async ({ input }) => {
         try {
+          await requireActiveConsultant(input.consultantId);
           const slots = await db.getAvailableSlots(input.consultantId, input.date);
           return slots;
         } catch (error) {

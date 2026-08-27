@@ -8,7 +8,8 @@ export const appointments = mysqlTable("appointments", {
 	appointmentDate: varchar({ length: 10 }).notNull(),
 	appointmentTime: varchar({ length: 5 }).notNull(),
 	duration: int().default(30),
-	status: mysqlEnum(['Scheduled','Completed','Cancelled','No-show','Rescheduled']).default('Scheduled'),
+	status: mysqlEnum(['Scheduled','Checked-in','Completed','Cancelled','No-show','Rescheduled']).default('Scheduled'),
+	appointmentSource: mysqlEnum(['MANUAL','WALK_IN','PHONE']).default('MANUAL').notNull(),
 	notes: text(),
 	reminderSent: tinyint().default(0),
 	reminderSentAt: timestamp({ mode: 'string' }),
@@ -75,8 +76,10 @@ export const bills = mysqlTable("bills", {
 	receiptDeliveryTimestamp: timestamp({ mode: 'string' }),
 	receiptPdfUrl: text(),
 	receiptPdfKey: text(),
-	consultationNotes: text(),
-});
+		consultationNotes: text(),
+	}, (table) => [
+		uniqueIndex("bills_consultationId_unique").on(table.consultationId),
+	]);
 
 export const consultantAvailability = mysqlTable("consultantAvailability", {
 	availabilityId: varchar({ length: 50 }).notNull(),
@@ -107,11 +110,15 @@ export const consultations = mysqlTable("consultations", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	consultantId: int(),
-});
+	appointmentId: varchar({ length: 50 }),
+}, (table) => [
+	uniqueIndex("consultations_appointmentId_unique").on(table.appointmentId),
+]);
 
 export const inventory = mysqlTable("inventory", {
 	itemId: varchar({ length: 50 }).notNull(),
 	itemName: varchar({ length: 255 }).notNull(),
+	catalogItemId: varchar({ length: 50 }),
 	batchNumber: varchar({ length: 100 }).notNull(),
 	expiryDate: varchar({ length: 10 }).notNull(),
 	quantityAvailable: int().default(0),
@@ -125,6 +132,7 @@ export const inventory = mysqlTable("inventory", {
 },
 	(table) => [
 		uniqueIndex("inventory_item_batch_expiry_unique").on(table.itemName, table.batchNumber, table.expiryDate),
+		uniqueIndex("inventory_catalog_batch_expiry_unique").on(table.catalogItemId, table.batchNumber, table.expiryDate),
 	]);
 
 export const notificationPreferences = mysqlTable("notificationPreferences", {
@@ -177,6 +185,7 @@ export const purchaseOrderItems = mysqlTable("purchaseOrderItems", {
 	poItemId: varchar({ length: 50 }).notNull(),
 	purchaseOrderId: varchar({ length: 50 }).notNull(),
 	itemName: varchar({ length: 255 }).notNull(),
+	catalogItemId: varchar({ length: 50 }),
 	quantity: int().default(1),
 	receivedQuantity: int().default(0).notNull(),
 	unitPrice: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -186,6 +195,7 @@ export const purchaseOrderItems = mysqlTable("purchaseOrderItems", {
 
 export const purchaseOrders = mysqlTable("purchaseOrders", {
 	purchaseOrderId: varchar({ length: 50 }).notNull(),
+	vendorId: varchar({ length: 50 }),
 	vendorName: varchar({ length: 255 }).notNull(),
 	vendorContactNumber: varchar({ length: 20 }).notNull(),
 	vendorEmail: varchar({ length: 255 }),
@@ -204,7 +214,10 @@ export const purchaseOrders = mysqlTable("purchaseOrders", {
 	approvedBy: varchar({ length: 100 }),
 	approvalTimestamp: timestamp({ mode: 'string' }),
 	authorizationNotes: text(),
-});
+},
+	(table) => [
+		index("purchaseOrders_vendorId_idx").on(table.vendorId),
+	]);
 
 export const goodsReceipts = mysqlTable("goodsReceipts", {
 	goodsReceiptId: varchar({ length: 50 }).notNull(),
@@ -244,6 +257,7 @@ export const stockMovements = mysqlTable("stockMovements", {
 	goodsReceiptItemId: varchar({ length: 50 }).notNull(),
 	purchaseOrderId: varchar({ length: 50 }).notNull(),
 	inventoryItemId: varchar({ length: 50 }).notNull(),
+	catalogItemId: varchar({ length: 50 }),
 	itemName: varchar({ length: 255 }).notNull(),
 	batchNumber: varchar({ length: 100 }).notNull(),
 	quantityAdded: int().notNull(),
@@ -274,6 +288,84 @@ export const purchaseOrderHistory = mysqlTable("purchaseOrderHistory", {
 	index("purchaseOrderHistory_purchaseOrder_createdAt_idx").on(table.purchaseOrderId, table.createdAt),
 ]);
 
+/**
+ * Immutable, one-per-PO evidence snapshot created only with an explicitly
+ * submitted reviewed OCR/parser purchase order. The project schema does not
+ * currently declare relational foreign keys; uniqueness and application-level
+ * transaction boundaries preserve the PO linkage consistently.
+ */
+export const purchaseOrderExtractionReviews = mysqlTable("purchaseOrderExtractionReviews", {
+	reviewId: varchar({ length: 50 }).primaryKey(),
+	purchaseOrderId: varchar({ length: 50 }).notNull(),
+	reviewSubmissionId: varchar({ length: 100 }).notNull(),
+	extractionProvider: varchar({ length: 64 }).notNull(),
+	documentType: varchar({ length: 32 }).notNull(),
+	reviewStatus: mysqlEnum(["CONFIRMED"]).default("CONFIRMED").notNull(),
+	reviewerUserId: varchar({ length: 100 }).notNull(),
+	reviewerName: varchar({ length: 255 }),
+	reviewedAt: timestamp({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
+	createdAt: timestamp({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
+	extractedHeaderJson: text().notNull(),
+	extractedItemsJson: text().notNull(),
+	extractedTotalsJson: text().notNull(),
+	reconciliationJson: text().notNull(),
+	warningsJson: text().notNull(),
+	correctedFieldsJson: text().notNull(),
+	finalReviewedValuesJson: text().notNull(),
+	catalogResolutionsJson: text(),
+}, (table) => [
+	uniqueIndex("purchaseOrderExtractionReviews_reviewId_unique").on(table.reviewId),
+	uniqueIndex("purchaseOrderExtractionReviews_purchaseOrder_unique").on(table.purchaseOrderId),
+	uniqueIndex("purchaseOrderExtractionReviews_submission_unique").on(table.reviewSubmissionId),
+	index("purchaseOrderExtractionReviews_reviewer_createdAt_idx").on(table.reviewerUserId, table.createdAt),
+]);
+
+/**
+ * Canonical product identity. Inventory remains batch-centric and must not be
+ * treated as this catalog; catalog data is curated explicitly and never
+ * inferred from OCR or a supplier invoice.
+ */
+export const catalogItems = mysqlTable("catalogItems", {
+	catalogItemId: varchar({ length: 50 }).primaryKey(),
+	canonicalName: varchar({ length: 255 }).notNull(),
+	normalizedName: varchar({ length: 255 }).notNull(),
+	genericName: varchar({ length: 255 }),
+	brandName: varchar({ length: 255 }),
+	strength: varchar({ length: 100 }),
+	dosageForm: varchar({ length: 100 }),
+	manufacturer: varchar({ length: 255 }),
+	hsnCode: varchar({ length: 32 }),
+	gstRate: decimal({ precision: 5, scale: 2 }),
+	active: tinyint().default(1).notNull(),
+	createdAt: timestamp({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
+	updatedAt: timestamp({ mode: "string" }).defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+	uniqueIndex("catalogItems_catalogItemId_unique").on(table.catalogItemId),
+	uniqueIndex("catalogItems_normalizedName_unique").on(table.normalizedName),
+	index("catalogItems_active_normalizedName_idx").on(table.active, table.normalizedName),
+]);
+
+/**
+ * Controlled aliases for catalog entries. An empty vendorId denotes a global
+ * alias; vendor-specific aliases retain their actual vendor ID. No automatic
+ * alias-learning endpoint is introduced in Step 5.
+ */
+export const catalogItemAliases = mysqlTable("catalogItemAliases", {
+	aliasId: varchar({ length: 50 }).primaryKey(),
+	catalogItemId: varchar({ length: 50 }).notNull(),
+	vendorId: varchar({ length: 50 }).notNull().default(""),
+	aliasText: varchar({ length: 255 }).notNull(),
+	normalizedAlias: varchar({ length: 255 }).notNull(),
+	source: varchar({ length: 50 }).notNull(),
+	active: tinyint().default(1).notNull(),
+	createdBy: varchar({ length: 100 }),
+	createdAt: timestamp({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
+}, (table) => [
+	uniqueIndex("catalogItemAliases_aliasId_unique").on(table.aliasId),
+	uniqueIndex("catalogItemAliases_vendor_alias_unique").on(table.vendorId, table.normalizedAlias),
+	index("catalogItemAliases_catalogItem_active_idx").on(table.catalogItemId, table.active),
+]);
+
 export const rolePermissions = mysqlTable("rolePermissions", {
 	permissionId: varchar({ length: 50 }).notNull(),
 	role: varchar({ length: 20 }).notNull(),
@@ -301,12 +393,18 @@ export const rolePermissions = mysqlTable("rolePermissions", {
 	username: varchar({ length: 100 }),
 	passwordHash: text(),
 	phone: varchar({ length: 20 }),
-	department: varchar({ length: 100 }),
-	isActive: tinyint().default(1),
-	createdBy: int(),
-	stateCounsilSection: varchar({ length: 100 }),
-	registrationNumber: varchar({ length: 100 }),
-},
+		department: varchar({ length: 100 }),
+		isActive: tinyint().default(1),
+		createdBy: int(),
+		stateCounsilSection: varchar({ length: 100 }),
+		registrationNumber: varchar({ length: 100 }),
+		qualifications: varchar({ length: 255 }),
+		specialization: varchar({ length: 255 }),
+		designation: varchar({ length: 255 }),
+		prescriptionHeaderText: text(),
+		consultantLogoKey: text(),
+		signatureKey: text(),
+	},
 (table) => [
 	index("users_userId_unique").on(table.userId),
 	index("users_username_unique").on(table.username),
@@ -315,15 +413,32 @@ export const rolePermissions = mysqlTable("rolePermissions", {
 export const vendors = mysqlTable("vendors", {
 	vendorId: varchar({ length: 50 }).notNull(),
 	name: varchar({ length: 150 }).notNull(),
+	normalizedVendorName: varchar({ length: 255 }),
 	contactNumber: varchar({ length: 20 }),
 	gstNumber: varchar({ length: 50 }),
+	normalizedGstNumber: varchar({ length: 50 }),
 	address: text(),
+	bankDetails: text(),
 	dlNumber: json(),
 	email: varchar({ length: 320 }),
 	isActive: tinyint().default(1),
 	createdBy: int().notNull(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+	(table) => [
+		index("vendors_active_normalizedVendorName_idx").on(table.isActive, table.normalizedVendorName),
+		index("vendors_normalizedGstNumber_idx").on(table.normalizedGstNumber),
+	]);
+
+/**
+ * A stable row per PO serializes all app-mediated receipt posts for that PO.
+ * The lock is acquired inside the same database transaction that posts a
+ * Goods Receipt, preventing concurrent receipts from exceeding ordered stock.
+ */
+export const procurementPostingLocks = mysqlTable("procurementPostingLocks", {
+	purchaseOrderId: varchar({ length: 50 }).primaryKey(),
+	updatedAt: timestamp({ mode: "string" }).defaultNow().onUpdateNow().notNull(),
 });
 
 export const enquiries = mysqlTable("enquiries", {

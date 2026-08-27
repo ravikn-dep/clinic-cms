@@ -6,12 +6,11 @@ import { appRouter } from "./routers";
 import type { TrpcContext } from "./_core/context";
 
 describe("Phase 3 Step 1: OCR Security Hardening & Input Validation", () => {
-  describe("MIME Validation & PDF Deferral", () => {
+  describe("MIME Validation", () => {
     it("should accept valid JPEG and PNG mime types", () => {
       const validInputs: OcrInput[] = [
         { data: Buffer.from("fake-jpeg-bytes"), mimeType: "image/jpeg" },
         { data: Buffer.from("fake-png-bytes"), mimeType: "image/png" },
-        { data: "ZmFrZS1pbWFnZS1ieXRlcw==", mimeType: "image/jpg" },
       ];
 
       validInputs.forEach((input) => {
@@ -19,13 +18,13 @@ describe("Phase 3 Step 1: OCR Security Hardening & Input Validation", () => {
       });
     });
 
-    it("should safely reject PDF with deferred message", () => {
+    it("should allow PDF MIME to proceed to the bounded PDF inspection path", () => {
       const pdfInput: OcrInput = {
         data: Buffer.from("fake-pdf-bytes"),
         mimeType: "application/pdf",
       };
 
-      expect(() => validateOcrInput(pdfInput)).toThrow(/PDF OCR is not supported in this release/i);
+      expect(() => validateOcrInput(pdfInput)).not.toThrow();
     });
 
     it("should reject unsupported MIME types", () => {
@@ -50,7 +49,6 @@ describe("Phase 3 Step 1: OCR Security Hardening & Input Validation", () => {
       const oversizeInput: OcrInput = {
         data: Buffer.alloc(11 * 1024 * 1024), // 11MB
         mimeType: "image/jpeg",
-        maxSizeMb: 10,
       };
 
       expect(() => validateOcrInput(oversizeInput)).toThrow(/exceeds maximum allowed limit/i);

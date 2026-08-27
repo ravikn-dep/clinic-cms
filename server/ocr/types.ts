@@ -5,7 +5,6 @@ export type OcrInput = {
   mimeType: string;
   inputType?: OcrInputType;
   fileName?: string;
-  maxSizeMb?: number;
 };
 
 export type OcrPage = {
@@ -19,8 +18,10 @@ export type OcrResult = {
   provider: "google-cloud-vision" | "mock-ocr";
   fullText: string;
   pages: OcrPage[];
+  sourceMimeType: "image/jpeg" | "image/png" | "application/pdf";
+  pageCount: number;
   confidence?: number;
-  rawProviderMetadata?: Record<string, unknown>;
+  safeProviderMetadata?: Record<string, unknown>;
 };
 
 export interface OcrProvider {

@@ -4,316 +4,136 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trash2, Edit2, Plus, Download } from "lucide-react";
+import { Edit2, ImageUp, KeyRound, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+
+type FormData = {
+  name: string;
+  password: string;
+  email: string;
+  phone: string;
+  department: string;
+  role: "consultant" | "staff";
+  stateCounsilSection: string;
+  registrationNumber: string;
+  qualifications: string;
+  specialization: string;
+  designation: string;
+  prescriptionHeaderText: string;
+  isActive: boolean;
+};
+
+const emptyForm = (): FormData => ({
+  name: "", password: "", email: "", phone: "", department: "", role: "consultant",
+  stateCounsilSection: "", registrationNumber: "", qualifications: "", specialization: "",
+  designation: "", prescriptionHeaderText: "", isActive: true,
+});
+
+async function readImageFile(file: File) {
+  if (!(file.type === "image/png" || file.type === "image/jpeg")) throw new Error("Only PNG and JPEG images are supported.");
+  if (file.size > 1_500_000) throw new Error("Image must be 1.5 MB or smaller.");
+  return await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Unable to read the selected image."));
+    reader.onload = () => resolve(String(reader.result));
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function UserManagement() {
   const { user } = useAuth();
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    department: "",
-    role: "consultant" as "consultant" | "staff",
-    stateCounsilSection: "",
-    registrationNumber: "",
-  });
+  const [formData, setFormData] = useState<FormData>(emptyForm());
+  const staffUsers = trpc.rbac.listStaffUsers.useQuery(undefined, { enabled: user?.role === "admin" });
+  const utils = trpc.useUtils();
 
-  const staffUsers = trpc.rbac.listStaffUsers.useQuery(undefined, {
-    enabled: user?.role === "admin",
-  });
-
-  const createUser = trpc.rbac.createStaffUser.useMutation({
-    onSuccess: () => {
-      staffUsers.refetch();
-      setFormData({ name: "", email: "", phone: "", department: "", role: "consultant", stateCounsilSection: "", registrationNumber: "" });
-      setShowForm(false);
-      alert("Staff user created successfully!");
-    },
-    onError: (error) => {
-      alert(`Error: ${error.message}`);
-    },
-  });
-
-  const updateUser = trpc.rbac.updateStaffUser.useMutation({
-    onSuccess: () => {
-      staffUsers.refetch();
-      setEditingUser(null);
-      setFormData({ name: "", email: "", phone: "", department: "", role: "consultant", stateCounsilSection: "", registrationNumber: "" });
-      alert("Staff user updated successfully!");
-    },
-    onError: (error) => {
-      alert(`Error: ${error.message}`);
-    },
-  });
-
-  const deleteUser = trpc.rbac.deleteStaffUser.useMutation({
-    onSuccess: () => {
-      staffUsers.refetch();
-      alert("Staff user deleted successfully!");
-    },
-    onError: (error) => {
-      alert(`Error: ${error.message}`);
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingUser) {
-      updateUser.mutate({
-        userId: editingUser.userId,
-        ...formData,
-      });
-    } else {
-      createUser.mutate(formData);
-    }
+  const resetForm = () => {
+    setEditingUser(null);
+    setFormData(emptyForm());
+    setShowForm(false);
+  };
+  const saveSuccess = () => {
+    utils.rbac.listStaffUsers.invalidate();
+    toast.success(editingUser ? "User updated." : "User created.");
+    resetForm();
+  };
+  const createUser = trpc.rbac.createStaffUser.useMutation({ onSuccess: saveSuccess, onError: (error) => toast.error(error.message) });
+  const updateUser = trpc.rbac.updateStaffUser.useMutation({ onSuccess: saveSuccess, onError: (error) => toast.error(error.message) });
+  const deleteUser = trpc.rbac.deleteStaffUser.useMutation({ onSuccess: () => { utils.rbac.listStaffUsers.invalidate(); toast.success("User removed."); }, onError: (error) => toast.error(error.message) });
+  const uploadAsset = trpc.consultants.uploadAsset.useMutation({ onSuccess: () => toast.success("Consultant image stored securely."), onError: (error) => toast.error(error.message) });
+  const resetPassword = trpc.rbac.resetUserPassword.useMutation({ onSuccess: () => toast.success("Password reset successfully."), onError: (error) => toast.error(error.message) });
+  const handleResetPassword = (staffUser: any) => {
+    const password = window.prompt("Enter a new password (at least 8 characters). It will not be shown again.");
+    if (password === null) return;
+    if (password.length < 8) { toast.error("Password must be at least 8 characters."); return; }
+    resetPassword.mutate({ userId: staffUser.userId, password });
   };
 
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (editingUser) {
+      const { password: _password, ...updateData } = formData;
+      updateUser.mutate({ userId: editingUser.userId, ...updateData });
+    } else {
+      const { isActive, password, ...createData } = formData;
+      createUser.mutate({ ...createData, password, email: createData.email || undefined });
+    }
+  };
   const handleEdit = (staffUser: any) => {
     setEditingUser(staffUser);
     setFormData({
-      name: staffUser.name || "",
-      email: staffUser.email || "",
-      phone: staffUser.phone || "",
-      department: staffUser.department || "",
-      role: staffUser.role,
-      stateCounsilSection: staffUser.stateCounsilSection || "",
-      registrationNumber: staffUser.registrationNumber || "",
+      name: staffUser.name || "", password: "", email: staffUser.email || "", phone: staffUser.phone || "", department: staffUser.department || "",
+      role: staffUser.role, stateCounsilSection: staffUser.stateCounsilSection || "", registrationNumber: staffUser.registrationNumber || "",
+      qualifications: staffUser.qualifications || "", specialization: staffUser.specialization || "", designation: staffUser.designation || "",
+      prescriptionHeaderText: staffUser.prescriptionHeaderText || "", isActive: Boolean(staffUser.isActive),
     });
     setShowForm(true);
   };
-
-  const handleCancel = () => {
-    setShowForm(false);
-    setEditingUser(null);
-    setFormData({ name: "", email: "", phone: "", department: "", role: "consultant", stateCounsilSection: "", registrationNumber: "" });
+  const handleAsset = async (assetType: "logo" | "signature", file?: File) => {
+    if (!editingUser?.id || !file) return;
+    try {
+      await uploadAsset.mutateAsync({ consultantId: editingUser.id, assetType, dataUrl: await readImageFile(file) });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to upload consultant image.");
+    }
   };
 
-  if (user?.role !== "admin") {
-    return (
-      <div className="p-6">
-        <Card className="border-red-200 bg-red-50">
-          <CardHeader>
-            <CardTitle className="text-red-900">Access Denied</CardTitle>
-          </CardHeader>
-          <CardContent className="text-red-800">
-            Only administrators can manage staff users.
-          </CardContent>
-        </Card>
+  if (user?.role !== "admin") return <div className="p-6"><Card className="border-red-200 bg-red-50"><CardHeader><CardTitle className="text-red-900">Access Denied</CardTitle></CardHeader><CardContent className="text-red-800">Only administrators can manage user and consultant credentials.</CardContent></Card></div>;
+  const consultant = formData.role === "consultant";
+
+  return <div className="space-y-6 p-6">
+    <div className="flex items-center justify-between gap-4"><div><h1 className="text-3xl font-bold text-slate-900">User Management</h1><p className="text-slate-600">Manage staff accounts and consultant identity under Settings → Users.</p></div><Button onClick={() => { resetForm(); setShowForm(true); }} className="gap-2 bg-teal-600 hover:bg-teal-700"><Plus className="h-4 w-4" /> Add User</Button></div>
+    {showForm && <Card className="border-teal-200 bg-teal-50"><CardHeader><CardTitle>{editingUser ? "Edit User" : "Create New User"}</CardTitle><CardDescription>Consultant registration and branding data is authoritative and admin-controlled.</CardDescription></CardHeader><CardContent><form onSubmit={handleSubmit} className="space-y-5">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Field label="Display Name *"><Input value={formData.name} onChange={(event) => setFormData({ ...formData, name: event.target.value })} required /></Field>
+        {!editingUser && <Field label="Initial Password *"><Input type="password" minLength={8} value={formData.password} onChange={(event) => setFormData({ ...formData, password: event.target.value })} required autoComplete="new-password" /></Field>}
+        <Field label="Role *"><Select value={formData.role} onValueChange={(role: "consultant" | "staff") => setFormData({ ...formData, role })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="consultant">Consultant</SelectItem><SelectItem value="staff">Staff</SelectItem></SelectContent></Select></Field>
+        <Field label="Email"><Input type="email" value={formData.email} onChange={(event) => setFormData({ ...formData, email: event.target.value })} /></Field>
+        <Field label="Phone"><Input value={formData.phone} onChange={(event) => setFormData({ ...formData, phone: event.target.value })} /></Field>
+        <Field label="Department"><Input value={formData.department} onChange={(event) => setFormData({ ...formData, department: event.target.value })} /></Field>
+        {editingUser && <div className="flex items-end gap-3 pb-2"><Switch checked={formData.isActive} onCheckedChange={(isActive) => setFormData({ ...formData, isActive })} /><Label>Active account</Label></div>}
       </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">User Management</h1>
-          <p className="text-slate-600">Create and manage consultant and staff accounts</p>
-        </div>
-        <Button
-          onClick={() => setShowForm(!showForm)}
-          className="gap-2 bg-teal-600 hover:bg-teal-700"
-        >
-          <Plus className="h-4 w-4" />
-          Add Staff User
-        </Button>
+      {consultant && <section className="space-y-4 rounded-xl border border-teal-200 bg-white/75 p-4"><div><h2 className="font-semibold text-teal-950">Consultant Details</h2><p className="text-sm text-slate-600">This identity appears on the left side of that consultant’s OP document.</p></div><div className="grid gap-4 md:grid-cols-2">
+        <Field label="Qualifications"><Input value={formData.qualifications} onChange={(event) => setFormData({ ...formData, qualifications: event.target.value })} /></Field>
+        <Field label="Specialization"><Input value={formData.specialization} onChange={(event) => setFormData({ ...formData, specialization: event.target.value })} /></Field>
+        <Field label="Designation"><Input value={formData.designation} onChange={(event) => setFormData({ ...formData, designation: event.target.value })} /></Field>
+        <Field label="Registration Council"><Input value={formData.stateCounsilSection} onChange={(event) => setFormData({ ...formData, stateCounsilSection: event.target.value })} /></Field>
+        <Field label="Registration Number"><Input value={formData.registrationNumber} onChange={(event) => setFormData({ ...formData, registrationNumber: event.target.value })} /></Field>
+        <Field label="Prescription Header Text"><Input value={formData.prescriptionHeaderText} onChange={(event) => setFormData({ ...formData, prescriptionHeaderText: event.target.value })} /></Field>
       </div>
-
-      {showForm && (
-        <Card className="border-teal-200 bg-teal-50">
-          <CardHeader>
-            <CardTitle>{editingUser ? "Edit Staff User" : "Create New Staff User"}</CardTitle>
-            <CardDescription>
-              {editingUser
-                ? "Update staff member details"
-                : "Add a new consultant or staff member to the system"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700">Name *</label>
-                  <Input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    placeholder="Full name"
-                    required
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700">Role *</label>
-                  <Select value={formData.role} onValueChange={(value: any) => setFormData({ ...formData, role: value })}>
-                    <SelectTrigger className="mt-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="consultant">Consultant</SelectItem>
-                      <SelectItem value="staff">Staff</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700">Email</label>
-                  <Input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    placeholder="email@example.com"
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700">Phone</label>
-                  <Input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="+91 98765 43210"
-                    className="mt-1"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700">Department</label>
-                  <Input
-                    type="text"
-                    value={formData.department}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    placeholder="e.g., Orthopedics, General"
-                    className="mt-1"
-                  />
-                </div>
-                {formData.role === "consultant" && (
-                  <>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700">State Council Section</label>
-                      <Input
-                        type="text"
-                        value={formData.stateCounsilSection}
-                        onChange={(e) => setFormData({ ...formData, stateCounsilSection: e.target.value })}
-                        placeholder="e.g., Medical Council of India"
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700">Registration Number</label>
-                      <Input
-                        type="text"
-                        value={formData.registrationNumber}
-                        onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
-                        placeholder="e.g., MCI/12345"
-                        className="mt-1"
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button type="submit" className="bg-teal-600 hover:bg-teal-700">
-                  {editingUser ? "Update User" : "Create User"}
-                </Button>
-                <Button type="button" variant="outline" onClick={handleCancel}>
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Staff Members</CardTitle>
-          <CardDescription>
-            {staffUsers.data?.length || 0} consultant(s) and staff member(s)
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {staffUsers.isLoading ? (
-            <div className="text-center text-slate-500">Loading staff users...</div>
-          ) : staffUsers.data && staffUsers.data.length > 0 ? (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>User ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Role</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Department</TableHead>
-                    <TableHead>Registration #</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {staffUsers.data.map((staffUser: any) => (
-                    <TableRow key={staffUser.id}>
-                      <TableCell className="font-mono text-sm">{staffUser.userId}</TableCell>
-                      <TableCell className="font-medium">{staffUser.name}</TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          staffUser.role === "consultant"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-green-100 text-green-800"
-                        }`}>
-                          {staffUser.role}
-                        </span>
-                      </TableCell>
-                      <TableCell>{staffUser.email || "-"}</TableCell>
-                      <TableCell>{staffUser.phone || "-"}</TableCell>
-                      <TableCell>{staffUser.department || "-"}</TableCell>
-                      <TableCell className="font-mono text-sm">{staffUser.registrationNumber || "-"}</TableCell>
-                      <TableCell>
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                          staffUser.isActive
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}>
-                          {staffUser.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </TableCell>
-                      <TableCell className="flex gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleEdit(staffUser)}
-                          className="gap-1"
-                        >
-                          <Edit2 className="h-3 w-3" />
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => {
-                            if (confirm(`Delete ${staffUser.name}?`)) {
-                              deleteUser.mutate({ userId: staffUser.userId });
-                            }
-                          }}
-                          className="gap-1"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          Delete
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          ) : (
-            <div className="text-center text-slate-500">No staff users yet. Create one to get started.</div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
+      {editingUser && <div className="grid gap-3 md:grid-cols-2"><AssetControl label="Upload / Replace Consultant Logo" onFile={(file) => handleAsset("logo", file)} disabled={uploadAsset.isPending} /><AssetControl label="Upload / Replace Digital Signature" onFile={(file) => handleAsset("signature", file)} disabled={uploadAsset.isPending} /></div>}
+      {!editingUser && <p className="text-xs text-muted-foreground">Save the consultant first, then upload optional PNG/JPEG logo or signature files (maximum 1.5 MB).</p>}
+      </section>}
+      <div className="flex gap-2"><Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={createUser.isPending || updateUser.isPending}>{editingUser ? "Save User" : "Create User"}</Button><Button type="button" variant="outline" onClick={resetForm}>Cancel</Button></div>
+    </form></CardContent></Card>}
+    <Card><CardHeader><CardTitle>Users</CardTitle><CardDescription>{staffUsers.data?.length || 0} consultant(s) and staff member(s)</CardDescription></CardHeader><CardContent>{staffUsers.isLoading ? <div className="text-center text-slate-500">Loading users…</div> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>User ID</TableHead><TableHead>Name</TableHead><TableHead>Role</TableHead><TableHead>Specialization</TableHead><TableHead>Registration</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{(staffUsers.data || []).map((staffUser: any) => <TableRow key={staffUser.id}><TableCell className="font-mono text-sm">{staffUser.userId}</TableCell><TableCell><div className="font-medium">{staffUser.name}</div><div className="text-xs text-muted-foreground">{staffUser.email || "—"}</div></TableCell><TableCell className="capitalize">{staffUser.role}</TableCell><TableCell>{staffUser.specialization || staffUser.department || "—"}</TableCell><TableCell>{staffUser.registrationNumber || "—"}</TableCell><TableCell>{staffUser.isActive ? "Active" : "Inactive"}</TableCell><TableCell className="flex gap-2"><Button size="sm" variant="outline" onClick={() => handleEdit(staffUser)}><Edit2 className="mr-1 h-3 w-3" />Edit</Button><Button size="sm" variant="outline" onClick={() => handleResetPassword(staffUser)} disabled={resetPassword.isPending}><KeyRound className="mr-1 h-3 w-3" />Reset Password</Button><Button size="sm" variant="destructive" onClick={() => { if (confirm(`Delete ${staffUser.name}?`)) deleteUser.mutate({ userId: staffUser.userId }); }}><Trash2 className="mr-1 h-3 w-3" />Delete</Button></TableCell></TableRow>)}</TableBody></Table></div>}</CardContent></Card>
+  </div>;
 }
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="space-y-1.5"><Label>{label}</Label>{children}</div>; }
+function AssetControl({ label, onFile, disabled }: { label: string; onFile: (file?: File) => void; disabled: boolean }) { return <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-teal-300 bg-teal-50 px-3 py-4 text-sm font-medium text-teal-900 hover:bg-teal-100"><ImageUp className="h-4 w-4" />{label}<input className="sr-only" type="file" accept="image/png,image/jpeg" disabled={disabled} onChange={(event) => onFile(event.target.files?.[0])} /></label>; }
