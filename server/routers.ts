@@ -2218,6 +2218,37 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    getAvailability: adminProcedure
+      .input(z.object({ consultantId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const consultant = await db.getConsultantProfileById(input.consultantId);
+        if (!consultant) throw new Error("Consultant not found");
+        return db.getConsultantAvailability(input.consultantId);
+      }),
+
+    updateAvailability: adminProcedure
+      .input(z.object({
+        consultantId: z.number().int().positive(),
+        availability: z.array(z.object({
+          dayOfWeek: z.number().int().min(0).max(6),
+          startTime: z.string(),
+          endTime: z.string(),
+          active: z.boolean().optional(),
+          slotDuration: z.number().int().positive().max(240).optional(),
+          maxAppointmentsPerDay: z.number().int().positive().max(100).optional(),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const consultant = await db.getConsultantProfileById(input.consultantId);
+        if (!consultant) throw new Error("Consultant not found");
+        const availability = await db.replaceConsultantAvailabilityWithAudit(
+          input.consultantId,
+          input.availability,
+          ctx.user.id.toString(),
+        );
+        return { success: true, availability };
+      }),
+
     uploadAsset: adminProcedure
       .input(z.object({
         consultantId: z.number().int().positive(),

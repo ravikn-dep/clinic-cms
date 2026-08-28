@@ -11,6 +11,7 @@ import { downloadCsvFile } from "@/lib/downloadCsv";
 import { CalendarDays, Copy, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound, FileCheck, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
+import { closePrintWindow, openPrintWindow, renderAndPrintWindow } from "@/lib/printWindow";
 import { useLocation } from "wouter";
 import { keepExpandedPatientVisible, toggleExpandedPatientId } from "@/lib/patientRecordsView";
 
@@ -126,19 +127,17 @@ export default function PatientRecords() {
   });
 
   const printConsultationOP = async (consultationId: string) => {
+    const printWindow = openPrintWindow();
+    if (!printWindow) {
+      toast.error("Unable to open print window. Please check your browser settings.");
+      return;
+    }
     try {
       const printData = await brandedPrint.mutateAsync({ consultationId });
-      const printWindow = window.open("", "", "width=800,height=600");
-      if (!printWindow) {
-        toast.error("Unable to open print window. Please check your browser settings.");
-        return;
-      }
-      printWindow.document.write(generateConsultationOPHTML(printData));
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
+      renderAndPrintWindow(printWindow, generateConsultationOPHTML(printData));
       toast.success("Consultant-branded OP printed successfully.");
     } catch (error) {
+      closePrintWindow(printWindow);
       toast.error(error instanceof Error ? error.message : "Unable to prepare the consultation OP.");
     }
   };

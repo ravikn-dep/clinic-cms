@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,39 @@ import { Edit2, ImageUp, KeyRound, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { getUserManagementErrorMessage } from "@shared/userManagementErrors";
 import { requireConsultantAssetUrl } from "@shared/consultantAssetResponse";
+
+type AvailabilityInterval = { dayOfWeek: number; startTime: string; endTime: string; active: boolean };
+const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function toAvailabilityDraft(rows: Array<{ dayOfWeek: number; startTime: string; endTime: string; isActive: number | null }>): AvailabilityInterval[] {
+  return rows.map((row) => ({ dayOfWeek: row.dayOfWeek, startTime: row.startTime, endTime: row.endTime, active: Boolean(row.isActive) }));
+}
+
+function emptyAvailabilityInterval(dayOfWeek: number): AvailabilityInterval {
+  return { dayOfWeek, startTime: "09:00", endTime: "17:00", active: true };
+}
+
+function validateAvailabilityDraft(input: AvailabilityInterval[]) {
+  const seen = new Set<string>();
+  const activeByDay = new Map<number, Array<{ start: number; end: number }>>();
+  for (const interval of input) {
+    if (!/^\d{2}:\d{2}$/.test(interval.startTime) || !/^\d{2}:\d{2}$/.test(interval.endTime)) return "Enter valid start and end times.";
+    const [startHours, startMinutes] = interval.startTime.split(":").map(Number);
+    const [endHours, endMinutes] = interval.endTime.split(":").map(Number);
+    const start = startHours * 60 + startMinutes;
+    const end = endHours * 60 + endMinutes;
+    if (start >= end) return `${DAYS[interval.dayOfWeek]} intervals must end after they start.`;
+    const identity = `${interval.dayOfWeek}|${interval.startTime}|${interval.endTime}`;
+    if (seen.has(identity)) return "Duplicate availability intervals are not allowed.";
+    seen.add(identity);
+    if (!interval.active) continue;
+    const sameDay = activeByDay.get(interval.dayOfWeek) ?? [];
+    if (sameDay.some((existing) => start < existing.end && existing.start < end)) return `${DAYS[interval.dayOfWeek]} intervals cannot overlap.`;
+    sameDay.push({ start, end });
+    activeByDay.set(interval.dayOfWeek, sameDay);
+  }
+  return null;
+}
 
 type FormData = {
   name: string;
@@ -52,7 +85,12 @@ export default function UserManagement() {
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [formData, setFormData] = useState<FormData>(emptyForm());
+  const [availability, setAvailability] = useState<AvailabilityInterval[]>([]);
   const staffUsers = trpc.rbac.listStaffUsers.useQuery(undefined, { enabled: user?.role === "admin" });
+  const availabilityQuery = trpc.consultants.getAvailability.useQuery(
+    { consultantId: editingUser?.id ?? 0 },
+    { enabled: user?.role === "admin" && Boolean(editingUser?.id) && editingUser?.role === "consultant" },
+  );
   const utils = trpc.useUtils();
 
   const resetForm = () => {
@@ -67,7 +105,10 @@ export default function UserManagement() {
   };
   const showMutationError = (error: { message: string }) => toast.error(getUserManagementErrorMessage(error.message));
   const createUser = trpc.rbac.createStaffUser.useMutation({ onSuccess: saveSuccess, onError: showMutationError });
-  const updateUser = trpc.rbac.updateStaffUser.useMutation({ onSuccess: saveSuccess, onError: showMutationError });
+  const updateUser = trpc.rbac.updateStaffUser.useMutation({ onError: showMutationError });
+  const updateAvailability = trpc.consultants.updateAvailability.useMutation({
+    onError: (error) => toast.error(error.message || "Unable to save consultant availability."),
+  });
   const deleteUser = trpc.rbac.deleteStaffUser.useMutation({ onSuccess: () => { utils.rbac.listStaffUsers.invalidate(); toast.success("User removed."); }, onError: showMutationError });
   const uploadAsset = trpc.consultants.uploadAsset.useMutation({
     onSuccess: (_result, variables) => {
@@ -84,11 +125,23 @@ export default function UserManagement() {
     resetPassword.mutate({ userId: staffUser.userId, password });
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (editingUser) {
+      if (formData.role === "consultant") {
+        const availabilityError = validateAvailabilityDraft(availability);
+        if (availabilityError) { toast.error(availabilityError); return; }
+      }
       const { password: _password, ...updateData } = formData;
-      updateUser.mutate({ userId: editingUser.userId, ...updateData });
+      try {
+        await updateUser.mutateAsync({ userId: editingUser.userId, ...updateData });
+        if (formData.role === "consultant") {
+          await updateAvailability.mutateAsync({ consultantId: editingUser.id, availability });
+        }
+        saveSuccess();
+      } catch {
+        // The mutation hooks surface safe user-facing errors.
+      }
     } else {
       const { isActive, password, ...createData } = formData;
       createUser.mutate({ ...createData, password, email: createData.email || undefined });
@@ -102,8 +155,17 @@ export default function UserManagement() {
       qualifications: staffUser.qualifications || "", specialization: staffUser.specialization || "", designation: staffUser.designation || "",
       prescriptionHeaderText: staffUser.prescriptionHeaderText || "", consultantLocation: staffUser.consultantLocation || "", isActive: Boolean(staffUser.isActive),
     });
+    setAvailability([]);
     setShowForm(true);
   };
+  useEffect(() => {
+    if (availabilityQuery.data) setAvailability(toAvailabilityDraft(availabilityQuery.data));
+  }, [availabilityQuery.data]);
+
+  const addAvailabilityInterval = (dayOfWeek: number) => setAvailability((current) => [...current, emptyAvailabilityInterval(dayOfWeek)]);
+  const updateAvailabilityInterval = (index: number, updates: Partial<AvailabilityInterval>) => setAvailability((current) => current.map((interval, currentIndex) => currentIndex === index ? { ...interval, ...updates } : interval));
+  const removeAvailabilityInterval = (index: number) => setAvailability((current) => current.filter((_, currentIndex) => currentIndex !== index));
+
   const handleAsset = async (assetType: "logo" | "signature", file?: File) => {
     if (!editingUser?.id || !file) return;
     try {
@@ -146,10 +208,25 @@ export default function UserManagement() {
           <AssetPreview label="Current consultant logo" url={editingUser.consultantLogoUrl} />
           <AssetPreview label="Current digital signature" url={editingUser.signatureUrl} />
         </div>
+        <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div><h3 className="font-semibold text-slate-900">Availability</h3><p className="text-sm text-slate-600">Set one or more active intervals per day. Overlapping intervals cannot be saved.</p></div>
+          {DAYS.map((day, dayOfWeek) => {
+            const dayIntervals = availability.map((interval, index) => ({ interval, index })).filter(({ interval }) => interval.dayOfWeek === dayOfWeek);
+            return <div key={day} className="space-y-2 rounded-md border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between"><span className="text-sm font-medium text-slate-800">{day}</span><Button type="button" size="sm" variant="outline" onClick={() => addAvailabilityInterval(dayOfWeek)} className="h-8">+ Add interval</Button></div>
+              {dayIntervals.length === 0 ? <p className="text-xs text-slate-500">No active hours configured.</p> : dayIntervals.map(({ interval, index }) => <div key={`${day}-${index}`} className="grid items-end gap-2 sm:grid-cols-[1fr_1fr_auto_auto]">
+                <Field label="Start"><Input type="time" value={interval.startTime} onChange={(event) => updateAvailabilityInterval(index, { startTime: event.target.value })} /></Field>
+                <Field label="End"><Input type="time" value={interval.endTime} onChange={(event) => updateAvailabilityInterval(index, { endTime: event.target.value })} /></Field>
+                <div className="flex items-center gap-2 pb-2"><Switch checked={interval.active} onCheckedChange={(active) => updateAvailabilityInterval(index, { active })} /><Label className="text-xs">Active</Label></div>
+                <Button type="button" size="sm" variant="ghost" onClick={() => removeAvailabilityInterval(index)} className="pb-2 text-red-700 hover:text-red-800">Remove</Button>
+              </div>)}
+            </div>;
+          })}
+        </div>
       </>}
       {!editingUser && <p className="text-xs text-muted-foreground">Save the consultant first, then upload optional PNG/JPEG logo or signature files (maximum 1.5 MB).</p>}
       </section>}
-      <div className="flex gap-2"><Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={createUser.isPending || updateUser.isPending}>{editingUser ? "Save User" : "Create User"}</Button><Button type="button" variant="outline" onClick={resetForm}>Cancel</Button></div>
+      <div className="flex gap-2"><Button type="submit" className="bg-teal-600 hover:bg-teal-700" disabled={createUser.isPending || updateUser.isPending || updateAvailability.isPending}>{editingUser ? "Save User" : "Create User"}</Button><Button type="button" variant="outline" onClick={resetForm}>Cancel</Button></div>
     </form></CardContent></Card>}
     <Card><CardHeader><CardTitle>Users</CardTitle><CardDescription>{staffUsers.data?.length || 0} consultant(s) and staff member(s)</CardDescription></CardHeader><CardContent>{staffUsers.isLoading ? <div className="text-center text-slate-500">Loading users…</div> : <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>User ID</TableHead><TableHead>Name</TableHead><TableHead>Role</TableHead><TableHead>Specialization</TableHead><TableHead>Registration</TableHead><TableHead>Status</TableHead><TableHead>Actions</TableHead></TableRow></TableHeader><TableBody>{(staffUsers.data || []).map((staffUser: any) => <TableRow key={staffUser.id}><TableCell className="font-mono text-sm">{staffUser.userId}</TableCell><TableCell><div className="font-medium">{staffUser.name}</div><div className="text-xs text-muted-foreground">{staffUser.email || "—"}</div></TableCell><TableCell className="capitalize">{staffUser.role}</TableCell><TableCell>{staffUser.specialization || staffUser.department || "—"}</TableCell><TableCell>{staffUser.registrationNumber || "—"}</TableCell><TableCell>{staffUser.isActive ? "Active" : "Inactive"}</TableCell><TableCell className="flex gap-2"><Button size="sm" variant="outline" onClick={() => handleEdit(staffUser)}><Edit2 className="mr-1 h-3 w-3" />Edit</Button><Button size="sm" variant="outline" onClick={() => handleResetPassword(staffUser)} disabled={resetPassword.isPending}><KeyRound className="mr-1 h-3 w-3" />Reset Password</Button><Button size="sm" variant="destructive" onClick={() => { if (confirm(`Delete ${staffUser.name}?`)) deleteUser.mutate({ userId: staffUser.userId }); }}><Trash2 className="mr-1 h-3 w-3" />Delete</Button></TableCell></TableRow>)}</TableBody></Table></div>}</CardContent></Card>
   </div>;

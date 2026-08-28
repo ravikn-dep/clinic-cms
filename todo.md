@@ -1214,3 +1214,57 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Refactor the single master OP template to the approved A4 geometry with dynamic consultant/patient/visit data, proportional logo, optional signature, compact footer, and exact validity text.
 - [x] Add focused tests for location persistence/print data, consultant-specific values, missing optional data, timing/date formatting, master-template behavior, and migration correctness.
 - [x] Run migration/schema validation, focused/full tests, type-check, build, diff hygiene, and browser verification; do not deploy, push, merge, or run production migration. Development evidence: consultantLocation column exists as nullable TEXT; fresh-baseline execution was not attempted because the repository baseline artifact is stale and the operation would be destructive on the connected development database.
+
+## Generate OP No-Response Regression
+- [x] Reproduce the no-response Generate OP action in an authenticated Preview session and capture the exact identifier and tRPC payload.
+- [x] Trace appointment, encounter, consultation, and print-data linkage for the failed record without creating fake fallback data.
+- [ ] Apply only the narrow lifecycle/data-resolution correction required; BLOCKED because the failed development record has a consultation and encounter but no canonical patient or consultant row; no fake fallback, historical backfill, or production data action is authorized.
+- [ ] Add focused regression coverage and run check, tests, build, diff hygiene, and real browser verification. BLOCKED pending an authorized valid development record or data-repair decision.
+
+## Attachment 63 — Development-Only Orphan Repair and OP Re-Verification
+- [x] Inspect foreign-key and dependent business rows for the specifically authorized appointment, encounter, and consultation IDs before deletion; no FK dependents, bills, enquiries, or unexpected clinical/business dependents were found, and three audit-log rows were retained.
+- [x] Delete only the authorized orphaned synthetic development rows in dependency-safe order, stopping if unexpected dependents exist. Removed exactly consultation `CON-YKFOLLJ-5L8LBD2R`, encounter `ENC--WEEJSWONLWU8HFN`, and appointment `APT-012THZCM6SKTPUZF`; post-delete counts are zero.
+- [ ] Select an existing valid development patient and active consultant with canonical branding, location, and availability; BLOCKED because the development database has one active consultant with logo/location (`DR. DEEPTHI S`, id `4260027`) but zero active availability rows, and no existing consultant satisfies all requirements.
+- [ ] Create a fresh appointment through the normal application workflow and execute Check In → Generate OP & Print. BLOCKED pending an existing valid consultant availability schedule; no appointment or synthetic branding data was created.
+- [ ] Verify the appointment → consultation → branded print-data → master renderer chain and compare the rendered OP against every approved visual requirement. BLOCKED because no valid all-requirements test record is available after authorized cleanup.
+- [ ] Verify Patient Records produces the same OP; BLOCKED for the same missing active availability prerequisite. Source changes: none. Production impact: none.
+
+## Attachment 64 — Development Availability and Master OP Re-Verification
+- [x] Audit whether multiple active intervals on the same consultant/day are supported by the schema, procedures, validation, and UI. Schema permits multiple intervals because no consultant/day unique constraint exists, but no canonical router/UI configuration path exists.
+- [ ] If supported, configure Dr. Deepthi’s Monday–Saturday 17:30–20:30 and Sunday 10:00–12:00 plus 15:00–17:00 schedule through the canonical UI only. BLOCKED — SPLIT-SHIFT AVAILABILITY DECISION REQUIRED because the canonical UI/procedure path is absent; no direct SQL rows were inserted.
+- [ ] Verify the timing formatter preserves the Sunday split and compacts identical weekday schedules. BLOCKED until valid split-shift rows can be configured through an approved path.
+- [ ] Create a valid appointment through the normal UI using an existing canonical patient and Dr. Deepthi, then run Check In → Generate OP & Print. BLOCKED because Dr. Deepthi has zero active availability and no valid all-requirements consultant exists.
+- [ ] Visually verify every approved Master OP requirement and verify the same renderer from Patient Records; BLOCKED because the valid runtime prerequisite cannot be created without an approved schedule configuration path.
+
+## Attachment 65 — Canonical Consultant Availability CRUD
+- [ ] Confirm existing consultantAvailability schema/source-of-truth and admin authorization conventions; no schema or migration changes allowed.
+- [ ] Add narrow protected admin availability read/update procedures using existing conventions and server-enforced authorization.
+- [ ] Validate day/time ranges, duplicate intervals, active overlap, multiple same-day intervals, and atomic full-schedule replacement.
+- [ ] Add a compact Availability editor inside the existing consultant edit surface with add/remove intervals, validation feedback, success toast, and refetch.
+- [ ] Add focused tests for authorization, persistence, atomicity, split Sunday sessions, overlap rejection, formatter grouping, and appointment availability regression.
+- [ ] Configure Dr. Deepthi’s approved development schedule through the authenticated UI only.
+- [ ] Re-verify the valid appointment → encounter → consultation → branded print-data → Master OP and Patient Records flows, then run full validation without deployment or production changes.
+
+## Generate OP No-Response After Availability Configuration
+- [x] Reproduce Generate OP with the configured consultant schedule in authenticated Preview.
+- [x] Trace appointment, encounter, consultation, branded print-data, timing formatter, and print-window behavior. The current appointment reaches `visits.generateOp` successfully, then `consultations.getBrandedPrintData` fails because its patient `PAT-1787326515063` and consultant `26610571` rows are absent.
+- [ ] Apply only a narrow runtime correction if a genuine application defect is confirmed; no application defect was found. The current blocker is orphaned development data, so no fallback or source change is authorized.
+- [ ] Validate Patient Records OP generation, focused/full tests, type-check, build, diff hygiene, and browser behavior. End-to-end validation is blocked until a valid appointment uses an existing patient and active consultant.
+
+## Attachment 66 — Fresh Valid Appointment and OP Acceptance
+- [ ] Verify Dr. Deepthi user `4260027` has active status, logo, location, and actual active availability rows.
+- [ ] Select and verify an existing canonical patient row; do not use orphaned appointment references.
+- [ ] Create a fresh appointment for that patient and Dr. Deepthi through the authenticated UI only.
+- [ ] Check in the appointment and verify patient, consultant, encounter, and appointment linkage.
+- [ ] Generate OP & Print; capture consultation ID, branded print-data response, and master renderer output.
+- [ ] Verify every listed Master OP visual requirement and repeat OP generation from Patient Records.
+- [ ] Run full tests, build, diff check, and focused availability validation; do not deploy, push, merge, migrate, or access production.
+
+## Generate OP Print Window Follow-up — 2026-08-28
+- [x] Make the appointment Generate OP & Print flow open its print window from the user gesture before asynchronous tRPC work, then populate it after branded print data resolves; preserve safe error cleanup, duplicate-submit protection, and the existing encounter/consultation workflow.
+- [x] Add regression coverage for the appointment print orchestration and preserve Patient Records behavior.
+- [x] Re-verify Preview appointment and Patient Records printing, OP HTML rendering, type-check, full tests, build, diff hygiene, and save a checkpoint.
+
+## Branded Print-data Resolution Follow-up — 2026-08-28
+- [x] Diagnose the reproduced `Consultation print data not found` response without changing production data or weakening authorization. The failed ID was a stale orphaned development consultation; the valid canonical Patient Records consultation resolves with HTTP 200 and branded data, so no unsafe resolver fallback was added.
+- [x] Preserve regression coverage for the resolver’s valid consultation path and re-run the appointment and Patient Records Preview checks, including user-gesture popup orchestration.

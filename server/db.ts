@@ -300,7 +300,7 @@ export async function updateConsultantProfileById(
   updates: Partial<Pick<typeof users.$inferInsert,
     "name" | "email" | "phone" | "department" | "stateCounsilSection" | "registrationNumber" |
     "qualifications" | "specialization" | "designation" | "prescriptionHeaderText" |
-    "consultantLogoKey" | "signatureKey" | "isActive"
+    "consultantLogoKey" | "signatureKey" | "consultantLocation" | "isActive"
   >>,
 ) {
   const db = await getDb();
@@ -1945,11 +1945,91 @@ export async function checkInAppointment(appointmentId: string, checkedInBy: str
   }).where(eq(appointments.appointmentId, appointmentId));
 }
 
+export type ConsultantAvailabilityInput = {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  active?: boolean;
+  slotDuration?: number;
+  maxAppointmentsPerDay?: number;
+};
+
+function availabilityMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+export function validateConsultantAvailability(input: ConsultantAvailabilityInput[]) {
+  const timePattern = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+  const seen = new Set<string>();
+  const activeByDay = new Map<number, Array<{ start: number; end: number }>>();
+  for (const interval of input) {
+    if (!Number.isInteger(interval.dayOfWeek) || interval.dayOfWeek < 0 || interval.dayOfWeek > 6) {
+      throw new Error("Availability day must be between Sunday and Saturday");
+    }
+    if (!timePattern.test(interval.startTime) || !timePattern.test(interval.endTime)) {
+      throw new Error("Availability times must use HH:MM format");
+    }
+    const start = availabilityMinutes(interval.startTime);
+    const end = availabilityMinutes(interval.endTime);
+    if (start >= end) throw new Error("Availability start time must be before end time");
+    const identity = `${interval.dayOfWeek}|${interval.startTime}|${interval.endTime}`;
+    if (seen.has(identity)) throw new Error("Duplicate availability intervals are not allowed");
+    seen.add(identity);
+    if (interval.active === false) continue;
+    const sameDay = activeByDay.get(interval.dayOfWeek) ?? [];
+    if (sameDay.some((existing) => start < existing.end && existing.start < end)) {
+      throw new Error("Active availability intervals cannot overlap on the same day");
+    }
+    sameDay.push({ start, end });
+    activeByDay.set(interval.dayOfWeek, sameDay);
+  }
+  return input;
+}
+
 export async function getConsultantAvailability(consultantId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  return await db.select().from(consultantAvailability)
+    .where(eq(consultantAvailability.consultantId, consultantId))
+    .orderBy(consultantAvailability.dayOfWeek, consultantAvailability.startTime);
+}
 
-  return await db.select().from(consultantAvailability).where(eq(consultantAvailability.consultantId, consultantId));
+export async function replaceConsultantAvailabilityWithAudit(
+  consultantId: number,
+  input: ConsultantAvailabilityInput[],
+  actorId: string,
+) {
+  const database = await getDb();
+  if (!database) throw new Error("Database not available");
+  validateConsultantAvailability(input);
+  return database.transaction(async (transaction) => {
+    const previous = await transaction.select().from(consultantAvailability)
+      .where(eq(consultantAvailability.consultantId, consultantId));
+    await transaction.delete(consultantAvailability).where(eq(consultantAvailability.consultantId, consultantId));
+    const rows = input.map((interval, index) => ({
+      availabilityId: `AVL-${Date.now()}-${index}-${nanoid(8)}`,
+      consultantId,
+      dayOfWeek: interval.dayOfWeek,
+      startTime: interval.startTime,
+      endTime: interval.endTime,
+      slotDuration: interval.slotDuration ?? 30,
+      maxAppointmentsPerDay: interval.maxAppointmentsPerDay ?? 10,
+      isActive: interval.active === false ? 0 : 1,
+    }));
+    if (rows.length) await transaction.insert(consultantAvailability).values(rows as any);
+    await transaction.insert(auditLogs).values({
+      logId: nanoid(20),
+      userId: actorId,
+      actionType: "CONSULTANT_AVAILABILITY_UPDATED",
+      tableName: "consultantAvailability",
+      recordId: consultantId.toString(),
+      oldValue: JSON.stringify(previous.map(({ availabilityId: _id, createdAt: _created, updatedAt: _updated, ...row }) => row)),
+      newValue: JSON.stringify(rows.map(({ availabilityId: _id, ...row }) => row)),
+      timestamp: new Date().toISOString(),
+    });
+    return rows;
+  });
 }
 
 export async function setConsultantAvailability(data: {
@@ -1960,24 +2040,10 @@ export async function setConsultantAvailability(data: {
   slotDuration?: number;
   maxAppointmentsPerDay?: number;
 }) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  const availabilityId = `AVL-${Date.now()}`;
-
-  await db.insert(consultantAvailability).values({
-    availabilityId,
-    consultantId: data.consultantId,
-    dayOfWeek: data.dayOfWeek,
-    startTime: data.startTime,
-    endTime: data.endTime,
-    slotDuration: data.slotDuration ?? 30,
-    maxAppointmentsPerDay: data.maxAppointmentsPerDay ?? 10,
-    isActive: 1,
-  } as any);
-
-  return availabilityId;
+  const rows = await replaceConsultantAvailabilityWithAudit(data.consultantId, [data], "system");
+  return rows[0]?.availabilityId;
 }
+
 
 export async function getAvailableSlots(consultantId: number, date: string) {
   const db = await getDb();

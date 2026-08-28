@@ -13,6 +13,7 @@ import { trpc } from "@/lib/trpc";
 import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { toast } from "sonner";
 import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
+import { openAndPrintWhenReady } from "@/lib/printWindow";
 
 export default function Appointments() {
   const { user } = useAuth();
@@ -97,24 +98,6 @@ export default function Appointments() {
 
   const brandedPrint = trpc.consultations.getBrandedPrintData.useMutation();
 
-  const printConsultationOP = async (consultationId: string) => {
-    try {
-      const printData = await brandedPrint.mutateAsync({ consultationId });
-      const printWindow = window.open("", "", "width=800,height=600");
-      if (!printWindow) {
-        toast.error("Unable to open print window. Please check your browser settings.");
-        return;
-      }
-      printWindow.document.write(generateConsultationOPHTML(printData));
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      toast.success("Consultant-branded OP prepared for printing.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to prepare the consultation OP.");
-    }
-  };
-
   const checkInMutation = trpc.visits.checkIn.useMutation({
     onSuccess: () => {
       toast.success("Patient checked in");
@@ -123,14 +106,25 @@ export default function Appointments() {
     onError: (error) => toast.error(error.message || "Failed to check in patient"),
   });
 
-  const startConsultationMutation = trpc.visits.generateOp.useMutation({
-    onSuccess: (result) => {
-      toast.success(result.created ? "Consultation started" : "Existing consultation reopened");
-      appointmentsQuery.refetch();
-      void printConsultationOP(result.consultation.consultationId);
-    },
-    onError: (error) => toast.error(error.message || "Failed to start consultation"),
-  });
+  const startConsultationMutation = trpc.visits.generateOp.useMutation();
+  const generateOpAndPrint = async (appointmentId: string) => {
+    try {
+      const didOpenPrintPreview = await openAndPrintWhenReady(async () => {
+        const result = await startConsultationMutation.mutateAsync({ appointmentId });
+        toast.success(result.created ? "Consultation started" : "Existing consultation reopened");
+        void appointmentsQuery.refetch();
+        const printData = await brandedPrint.mutateAsync({ consultationId: result.consultation.consultationId });
+        return generateConsultationOPHTML(printData);
+      });
+      if (!didOpenPrintPreview) {
+        toast.error("Unable to open print window. Please check your browser settings.");
+        return;
+      }
+      toast.success("Consultant-branded OP prepared for printing.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to generate the consultation OP");
+    }
+  };
 
   // Filter appointments by date if in list view
   const filteredAppointments = useMemo(() => {
@@ -388,7 +382,7 @@ export default function Appointments() {
                         )}
 						{apt.status === "Checked-in" && (
 							<div className="flex gap-2">
-									<Button size="sm" onClick={() => startConsultationMutation.mutate({ appointmentId: apt.appointmentId })} disabled={startConsultationMutation.isPending || brandedPrint.isPending}><Stethoscope className="mr-1 h-4 w-4" />Generate OP & Print</Button>
+									<Button size="sm" onClick={() => void generateOpAndPrint(apt.appointmentId)} disabled={startConsultationMutation.isPending || brandedPrint.isPending}><Stethoscope className="mr-1 h-4 w-4" />Generate OP & Print</Button>
 							</div>
 						)}
                       </div>
