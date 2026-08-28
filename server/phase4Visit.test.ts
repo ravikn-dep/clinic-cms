@@ -86,6 +86,24 @@ describe("Phase 4 Step 2 unified consultant visit router", () => {
     expect(writes.po).not.toHaveBeenCalled(); expect(writes.receipt).not.toHaveBeenCalled(); expect(writes.inventory).not.toHaveBeenCalled();
   });
 
+  it("returns the existing consultation context when resuming an OP-generated direct encounter without creating another visit", async () => {
+    vi.spyOn(db, "getPatientById").mockResolvedValue(patient as any);
+    vi.spyOn(db, "getActiveConsultantById").mockResolvedValue(activeConsultant as any);
+    const create = vi.spyOn(db, "createDirectEncounterWithAudit").mockResolvedValue({
+      encounter: { encounterId: "ENC-100", patientId: "PAT-100", consultantId: 21, status: "OP Generated", source: "MANUAL" },
+      created: false,
+    } as any);
+    const consultation = vi.spyOn(db, "getConsultationByEncounterId").mockResolvedValue({ consultationId: "CON-100", encounterId: "ENC-100" } as any);
+    const writes = zeroProcurementAndInventoryWrites();
+
+    await expect(caller("admin").visits.createEncounter({ patientId: "PAT-100", consultantId: 21, source: "MANUAL" }))
+      .resolves.toMatchObject({ created: false, encounter: { encounterId: "ENC-100", status: "OP Generated" }, consultation: { consultationId: "CON-100" } });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(consultation).toHaveBeenCalledWith("ENC-100");
+    expect(writes.po).not.toHaveBeenCalled(); expect(writes.receipt).not.toHaveBeenCalled(); expect(writes.inventory).not.toHaveBeenCalled();
+  });
+
   it("rejects consultant appointment tampering before invoking the transactional booking helper", async () => {
     vi.spyOn(db, "getPatientById").mockResolvedValue(patient as any);
     const create = vi.spyOn(db, "createVisitAppointmentWithAudit");

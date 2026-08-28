@@ -139,7 +139,7 @@ export default function Home() {
   return (
     <div className="friendly-page space-y-7 lg:space-y-8">
       <section className="friendly-hero">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-6 2xl:flex-row 2xl:items-center 2xl:justify-between">
           <div className="max-w-3xl space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className="friendly-chip inline-flex items-center gap-2">
@@ -160,7 +160,7 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <div className="flex flex-col gap-3 sm:flex-row lg:flex-col xl:flex-row">
+          <div className="flex flex-col gap-3 sm:flex-row 2xl:flex-col 2xl:flex-row">
 			<FeatureGate feature="appointments">
 				<Button onClick={() => navigate("/new-visit")} size="lg" className="friendly-action bg-teal-600 text-white hover:bg-teal-700">
 					+ New Visit / Appointment
@@ -178,7 +178,7 @@ export default function Home() {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+      <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         {stats.map((stat) => (
           <FeatureGate key={stat.label} feature={stat.feature}>
             <Card className={`friendly-card overflow-hidden bg-gradient-to-br ${stat.tone} border-0 shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1`}>

@@ -2937,7 +2937,11 @@ export const appRouter = router({
         const consultantId = ctx.user.role === "consultant" ? ctx.user.id : input.consultantId;
         if (ctx.user.role === "consultant" && input.consultantId !== ctx.user.id) throw new Error("Consultants cannot create an encounter for another consultant");
         await requireActiveConsultant(consultantId);
-        return db.createDirectEncounterWithAudit({ patientId: patient.patientId, consultantId, source: input.source, actorId: String(ctx.user.id) });
+        const result = await db.createDirectEncounterWithAudit({ patientId: patient.patientId, consultantId, source: input.source, actorId: String(ctx.user.id) });
+        const consultation = result.encounter.status === "OP Generated"
+          ? await db.getConsultationByEncounterId(result.encounter.encounterId)
+          : null;
+        return { ...result, consultation };
       }),
 
     checkInEncounter: protectedProcedure

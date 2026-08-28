@@ -326,6 +326,14 @@ export async function getConsultationById(consultationId: string) {
   return result.length > 0 ? result[0] : null;
 }
 
+export async function getConsultationByEncounterId(encounterId: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.select().from(consultations).where(eq(consultations.encounterId, encounterId)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
 export async function getConsultationsByPatientId(patientId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -343,6 +351,8 @@ export async function getConsultationsByPatientAndConsultant(patientId: string, 
 }
 
 const CONSULTANT_AVAILABILITY_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+const CONSULTANT_AVAILABILITY_DAY_SHORT_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const CONSULTANT_AVAILABILITY_DISPLAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 
 function formatAvailabilityTime(value: string): string {
   const [hoursText, minutesText] = value.split(":");
@@ -356,17 +366,32 @@ function formatAvailabilityTime(value: string): string {
 
 export function formatConsultantAvailability(rows: Array<{ dayOfWeek: number; startTime: string; endTime: string }>): string | null {
   if (!rows.length) return null;
-  const grouped = new Map<string, string[]>();
+  const intervalsByDay = new Map<number, string[]>();
   for (const row of rows) {
-    const day = CONSULTANT_AVAILABILITY_DAYS[row.dayOfWeek] ?? `Day ${row.dayOfWeek}`;
+    if (row.dayOfWeek < 0 || row.dayOfWeek > 6) continue;
     const range = `${formatAvailabilityTime(row.startTime)}–${formatAvailabilityTime(row.endTime)}`;
-    const existing = grouped.get(day) || [];
+    const existing = intervalsByDay.get(row.dayOfWeek) || [];
     existing.push(range);
-    grouped.set(day, existing);
+    intervalsByDay.set(row.dayOfWeek, existing);
   }
-  return Array.from(grouped.entries())
-    .map(([day, ranges]) => `${day.slice(0, 3)}: ${ranges.join(" & ")}`)
-    .join(" · ");
+  const daySchedules = CONSULTANT_AVAILABILITY_DISPLAY_ORDER
+    .filter((day) => intervalsByDay.has(day))
+    .map((day) => ({ day, ranges: intervalsByDay.get(day)!.sort(), signature: intervalsByDay.get(day)!.sort().join(" & ") }));
+  const groups: Array<{ startDay: number; endDay: number; ranges: string[]; signature: string }> = [];
+  for (const schedule of daySchedules) {
+    const current = groups[groups.length - 1];
+    if (current && current.endDay !== 0 && schedule.day !== 0 && current.signature === schedule.signature && schedule.day === current.endDay + 1) {
+      current.endDay = schedule.day;
+      continue;
+    }
+    groups.push({ startDay: schedule.day, endDay: schedule.day, ranges: schedule.ranges, signature: schedule.signature });
+  }
+  return groups.map((group) => {
+    const dayLabel = group.startDay === group.endDay
+      ? CONSULTANT_AVAILABILITY_DAYS[group.startDay]
+      : `${CONSULTANT_AVAILABILITY_DAY_SHORT_NAMES[group.startDay]} to ${CONSULTANT_AVAILABILITY_DAY_SHORT_NAMES[group.endDay]}`;
+    return `${dayLabel}: ${group.ranges.join(" & ")}`;
+  }).join(" · ");
 }
 
 export async function getConsultationPrintData(consultationId: string) {

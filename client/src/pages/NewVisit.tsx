@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatIndianMobileInput, normalizeIndianMobile } from "@shared/indianMobile";
 import { CalendarPlus, CheckCircle2, Printer, Search, UserPlus } from "lucide-react";
 import { toast } from "sonner";
@@ -12,7 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
-import { closePrintWindow, openPrintWindow, renderAndPrintWindow } from "@/lib/printWindow";
+import { openAndPrintWhenReady } from "@/lib/printWindow";
+import { canSearchPatientCandidates, PATIENT_SEARCH_DEBOUNCE_MS } from "@/lib/patientSearch";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -31,12 +32,18 @@ export default function NewVisit() {
   const [booking, setBooking] = useState({ appointmentDate: today(), appointmentTime: "10:00", appointmentSource: "MANUAL" as "MANUAL" | "WALK_IN" | "PHONE", notes: "" });
   const [encounter, setEncounter] = useState<Encounter | null>(null);
   const [consultationId, setConsultationId] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   const utils = trpc.useUtils();
   const consultants = trpc.visits.activeConsultants.useQuery();
-  const candidates = trpc.visits.patientCandidates.useQuery({ query }, { enabled: query.trim().length >= 2 });
+  const candidates = trpc.visits.patientCandidates.useQuery({ query: debouncedQuery }, { enabled: canSearchPatientCandidates(debouncedQuery) });
   const effectiveConsultantId = user?.role === "consultant" ? String(user.id) : consultantId;
   const selectedPatient = useMemo<Patient | undefined>(() => registeredPatient?.patientId === selectedPatientId ? registeredPatient : candidates.data?.find((candidate) => candidate.patientId === selectedPatientId), [candidates.data, registeredPatient, selectedPatientId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), PATIENT_SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [query]);
 
   const registerMutation = trpc.visits.registerPatient.useMutation({
     onSuccess: (result) => {
@@ -57,6 +64,7 @@ export default function NewVisit() {
   const encounterMutation = trpc.visits.createEncounter.useMutation({
     onSuccess: (result) => {
       setEncounter(result.encounter as Encounter);
+      setConsultationId(result.consultation?.consultationId ?? "");
       toast.success(result.created ? "Patient visit created." : "Today's open patient visit resumed.");
     },
     onError: (error) => toast.error(error.message || "Unable to create patient visit"),
@@ -82,17 +90,17 @@ export default function NewVisit() {
   });
   const printConsultationOP = async () => {
     if (!consultationId) return;
-    const printWindow = openPrintWindow();
-    if (!printWindow) {
-      toast.error("Allow pop-ups to print the OP.");
-      return;
-    }
     try {
-      const printData = await brandedPrint.mutateAsync({ consultationId });
-      renderAndPrintWindow(printWindow, generateConsultationOPHTML(printData));
+      const opened = await openAndPrintWhenReady(async () => {
+        const printData = await brandedPrint.mutateAsync({ consultationId });
+        return generateConsultationOPHTML(printData);
+      });
+      if (!opened) {
+        toast.error("Allow pop-ups to print the OP.");
+        return;
+      }
       toast.success("OP print preview opened.");
     } catch (error) {
-      closePrintWindow(printWindow);
       toast.error(error instanceof Error ? error.message : "Unable to prepare OP print preview");
     }
   };

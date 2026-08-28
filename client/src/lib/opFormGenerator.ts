@@ -349,13 +349,10 @@ export function generateConsultationOPHTML(op: BrandedConsultationOP): string {
     html, body { margin:0; padding:0; background:#fff; color:#111827; }
     body { font-family: Arial, 'Times New Roman', serif; font-size:10pt; }
     .page { width:194mm; height:282mm; margin:0 auto; padding:0; display:flex; flex-direction:column; overflow:hidden; }
-    .master-header { height:44mm; flex:none; position:relative; padding:2mm 0 3mm; border-bottom:1px solid #64748b; }
-    .consultant-brand { position:absolute; top:2mm; right:0; width:92mm; min-height:20mm; display:flex; align-items:flex-start; justify-content:flex-end; gap:4mm; text-align:right; }
-    .consultant-brand-copy { max-width:72mm; }
-    .consultant-brand h1 { margin:0; font-size:15pt; line-height:1.1; color:#0f172a; }
-    .consultant-brand p { margin:.8mm 0 0; font-size:8pt; line-height:1.15; color:#475569; }
+    .master-header { height:22mm; flex:none; position:relative; padding:0 0 2mm; border-bottom:1px solid #64748b; }
+    .consultant-brand { position:absolute; top:0; right:0; height:20mm; display:flex; align-items:flex-start; justify-content:flex-end; }
     .consultant-logo { display:block; height:16mm; width:auto; max-width:30mm; object-fit:contain; flex:0 1 auto; }
-    .patient-block { height:25mm; flex:none; margin-top:3mm; border:1px solid #94a3b8; display:grid; grid-template-columns:1.7fr .8fr 1.2fr; grid-template-rows:8mm 8mm 8mm; font-size:8.5pt; }
+    .patient-block { height:25mm; flex:none; margin-top:2mm; border:1px solid #94a3b8; display:grid; grid-template-columns:1.7fr .8fr 1.2fr; grid-template-rows:8mm 8mm 8mm; font-size:8.5pt; }
     .patient-field { min-width:0; padding:1.1mm 2mm; border-right:1px solid #cbd5e1; border-bottom:1px solid #cbd5e1; overflow:hidden; }
     .patient-field:nth-child(3n) { border-right:0; }
     .patient-field.address { grid-column:1 / -1; border-bottom:0; }
@@ -363,26 +360,19 @@ export function generateConsultationOPHTML(op: BrandedConsultationOP): string {
     .value { display:block; color:#111827; font-size:9pt; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .clinical-area { flex:1; min-height:0; margin-top:4mm; position:relative; border-top:1px solid #334155; padding-top:2mm; }
     .clinical-title { margin:0; font-size:9pt; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#0f172a; }
-    .writing-space { position:absolute; inset:8mm 0 23mm; background:repeating-linear-gradient(to bottom, transparent 0, transparent 8mm, #e2e8f0 8.2mm, transparent 8.5mm); }
+    .writing-space { position:absolute; inset:8mm 0 23mm; }
     .signature-block { position:absolute; right:0; bottom:2mm; width:48mm; height:18mm; text-align:center; }
     .signature-image { display:block; width:auto; max-width:42mm; height:10mm; margin:0 auto 1mm; object-fit:contain; }
     .signature-line { width:100%; height:10mm; border-bottom:1px solid #334155; }
     .signature-label { margin-top:1mm; font-size:7pt; color:#334155; }
-    .footer { flex:none; height:9mm; margin-top:2mm; border-top:1px solid #94a3b8; display:flex; align-items:center; justify-content:space-between; gap:4mm; overflow:hidden; color:#334155; font-size:7pt; line-height:1.1; }
-    .footer span { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .footer .validity { flex:none; max-width:70mm; text-align:right; }
+    .footer { flex:none; height:9mm; margin-top:2mm; border-top:1px solid #94a3b8; display:grid; grid-template-columns:minmax(0, 1fr) max-content; grid-template-rows:auto auto; column-gap:4mm; align-content:center; overflow:hidden; color:#334155; font-size:7pt; line-height:1.1; }
+    .footer-meta, .footer-timings { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .footer-meta { grid-column:1; grid-row:1; }
+    .footer-timings { grid-column:1; grid-row:2; }
+    .footer .validity { grid-column:2; grid-row:1 / span 2; max-width:58mm; text-align:right; }
     @media print { .page { margin:0; } }
   </style></head><body><main class="page">
-    <header class="master-header"><section class="consultant-brand">
-      <div class="consultant-brand-copy">
-        <h1>${escapeHtml(op.consultantName)}</h1>
-        ${op.qualifications ? `<p>${escapeHtml(op.qualifications)}</p>` : ""}
-        ${op.designation ? `<p>${escapeHtml(op.designation)}</p>` : ""}
-        ${op.specialization ? `<p>${escapeHtml(op.specialization)}</p>` : ""}
-        ${(op.registrationCouncil || op.registrationNumber) ? `<p>${escapeHtml(op.registrationCouncil)}${op.registrationCouncil && op.registrationNumber ? " · " : ""}${escapeHtml(op.registrationNumber)}</p>` : ""}
-      </div>
-      ${op.consultantLogoUrl ? `<img class="consultant-logo" src="${escapeHtml(op.consultantLogoUrl)}" alt="Consultant logo" />` : ""}
-    </section></header>
+    <header class="master-header"><section class="consultant-brand">${op.consultantLogoUrl ? `<img class="consultant-logo" src="${escapeHtml(op.consultantLogoUrl)}" alt="Consultant logo" />` : ""}</section></header>
     <section class="patient-block" aria-label="Patient information">
       <div class="patient-field"><span class="label">Patient Name</span><span class="value">${escapeHtml(`${op.firstName} ${op.lastName}`)}</span></div>
       <div class="patient-field"><span class="label">Age / Gender</span><span class="value">${escapeHtml([op.age, op.gender].filter(Boolean).join(" / "))}</span></div>
@@ -393,10 +383,12 @@ export function generateConsultationOPHTML(op: BrandedConsultationOP): string {
       <div class="patient-field address"><span class="label">Address</span><span class="value">${escapeHtml(op.address)}</span></div>
     </section>
     <section class="clinical-area" aria-label="Clinical Notes"><h2 class="clinical-title">Clinical Notes</h2><div class="writing-space" aria-label="Blank handwriting area"></div><div class="signature-block">${signature}<div class="signature-label">Signature</div></div></section>
-    <footer class="footer"><span>${escapeHtml(op.consultantLocation)}</span><span>${escapeHtml(op.consultantTimings)}</span><span class="validity">OP valid only upto 4 weeks or one visit within.</span></footer>
+    <footer class="footer"><span class="footer-meta">Location: ${escapeHtml(op.consultantLocation)} · Date &amp; Time: ${escapeHtml(formatOPDateTime(op.consultationDate))}</span><span class="footer-timings">Timings: ${escapeHtml(op.consultantTimings)}</span><span class="validity">OP valid only upto 4 weeks or one visit within.</span></footer>
   </main></body></html>`;
 }
 
 export function formatOPDateTime(value: string): string {
-  return new Date(value).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+  const parts = new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }).formatToParts(new Date(value));
+  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${lookup.day} ${lookup.month} ${lookup.year}, ${lookup.hour}:${lookup.minute} ${lookup.dayPeriod?.toUpperCase()}`;
 }

@@ -1278,3 +1278,15 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Inventory all development-database rows linked to patient IDs beginning with `PAT`, including dependent clinical, appointment, encounter, billing, notification, enquiry, audit, and storage-reference metadata where a relational patient key exists.
 - [x] Hard-delete only the approved `PAT%` development records in dependency order, preserving all `DOCM%` patient records and their linked data without changing schema or production.
 - [x] Verify zero remaining relational `PAT%` patient rows, verify `DOCM%` preservation, and record the completed cleanup.
+
+## Attachment 67 — Responsive Shell, Workflow Continuity, and Master OP Fidelity — 2026-08-28
+- [x] Audit the current dashboard shell, sidebar positioning, responsive breakpoints, main-content geometry, and overlap behavior at the required viewport matrix without changing code.
+- [x] Trace the authenticated New Visit → Appointment → Check In → Generate OP → Print OP request sequence, measure baseline latency, and identify only proven redundant or serial work without changing lifecycle semantics.
+- [x] Audit the sole master OP renderer, logo resolution, consultant location, grouped availability timing, 12-hour timestamp, A4 CSS, header, patient block, handwriting area, signature, and footer against the approved specification.
+- [x] Apply only scoped responsive shell changes, proven workflow cache/loading improvements, and single-renderer OP fidelity corrections; do not modify auth, RBAC, CMS-admin separation, procurement, inventory, OCR, billing architecture, integrations, schema, production data, or deployment.
+- [x] Add focused regression coverage; re-run required responsive, workflow, OP HTML, type, test, build, and diff-hygiene verification; record results and save a checkpoint without pushing, merging, deploying, or migrating.
+
+## Attachment 67 New Visit Print Orchestration Follow-up — 2026-08-28
+- [x] Replace the New Visit page’s duplicate print-window sequence with the shared tested user-gesture-safe orchestration after the controlled Preview check remained in its localized Preparing state without dispatching branded print-data retrieval.
+- [x] Re-run the controlled New Visit print action and confirm its branded-data request completes successfully before the native print dialog blocks browser automation, without changing encounter lifecycle semantics.
+- [x] Restore the existing consultation print context when Create or Resume Patient Visit returns an OP-generated encounter, so a refreshed New Visit workspace can safely enable Print OP without creating another encounter or consultation.
