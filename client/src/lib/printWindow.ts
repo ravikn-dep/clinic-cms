@@ -5,6 +5,7 @@ export function openPrintWindow(): Window | null {
   printWindow.document.open();
   printWindow.document.write(`<!doctype html><html><head><title>Preparing consultation OP…</title></head><body><p style="font-family:Arial,sans-serif;padding:24px">Preparing the consultant-branded OP…</p></body></html>`);
   printWindow.document.close();
+  printWindow.focus();
   return printWindow;
 }
 

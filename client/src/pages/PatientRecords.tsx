@@ -11,7 +11,7 @@ import { downloadCsvFile } from "@/lib/downloadCsv";
 import { CalendarDays, Copy, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound, FileCheck, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
-import { closePrintWindow, openPrintWindow, renderAndPrintWindow } from "@/lib/printWindow";
+import { openAndPrintWhenReady } from "@/lib/printWindow";
 import { useLocation } from "wouter";
 import { keepExpandedPatientVisible, toggleExpandedPatientId } from "@/lib/patientRecordsView";
 
@@ -127,18 +127,19 @@ export default function PatientRecords() {
   });
 
   const printConsultationOP = async (consultationId: string) => {
-    const printWindow = openPrintWindow();
-    if (!printWindow) {
-      toast.error("Unable to open print window. Please check your browser settings.");
-      return;
-    }
+    const feedbackId = toast.loading("Preparing consultant-branded OP…");
     try {
-      const printData = await brandedPrint.mutateAsync({ consultationId });
-      renderAndPrintWindow(printWindow, generateConsultationOPHTML(printData));
-      toast.success("Consultant-branded OP printed successfully.");
+      const didOpenPrintPreview = await openAndPrintWhenReady(async () => {
+        const printData = await brandedPrint.mutateAsync({ consultationId });
+        return generateConsultationOPHTML(printData);
+      });
+      if (!didOpenPrintPreview) {
+        toast.error("Unable to open print window. Please allow pop-ups and try again.", { id: feedbackId });
+        return;
+      }
+      toast.success("Consultant-branded OP sent to the print dialog.", { id: feedbackId });
     } catch (error) {
-      closePrintWindow(printWindow);
-      toast.error(error instanceof Error ? error.message : "Unable to prepare the consultation OP.");
+      toast.error(error instanceof Error ? error.message : "Unable to prepare the consultation OP.", { id: feedbackId });
     }
   };
 
@@ -400,8 +401,8 @@ export default function PatientRecords() {
                                                                                     onClick={() => printConsultationOP(consultation.consultationId)}
                                                                                     title="Print this consultation's consultant-branded OP"
                                                                                   >
-                                                                                    <Printer className="h-3.5 w-3.5" />
-                                                                                    Print OP
+                                                                                    {brandedPrint.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5" />}
+                                                                                    {brandedPrint.isPending ? "Preparing…" : "Print OP"}
                                                                                   </Button>
                                                                                 </div>
                                                                                 <Badge variant={consultation.isFinalized ? "default" : "outline"}>{consultation.isFinalized ? "Finalized" : "Draft"}</Badge>

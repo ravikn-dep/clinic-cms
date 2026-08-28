@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus, Stethoscope } from "lucide-react";
+import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus, Stethoscope, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { toast } from "sonner";
@@ -21,6 +21,7 @@ export default function Appointments() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [isBookingOpen, setIsBookingOpen] = useState(false);
+  const [printingAppointmentId, setPrintingAppointmentId] = useState<string | null>(null);
   const [bookingData, setBookingData] = useState({
     patientId: "",
     consultantId: 0,
@@ -108,21 +109,27 @@ export default function Appointments() {
 
   const startConsultationMutation = trpc.visits.generateOp.useMutation();
   const generateOpAndPrint = async (appointmentId: string) => {
+    if (printingAppointmentId) return;
+
+    setPrintingAppointmentId(appointmentId);
+    const feedbackId = toast.loading("Generating OP and opening print preview…");
     try {
       const didOpenPrintPreview = await openAndPrintWhenReady(async () => {
         const result = await startConsultationMutation.mutateAsync({ appointmentId });
-        toast.success(result.created ? "Consultation started" : "Existing consultation reopened");
+        toast.message(result.created ? "Consultation generated. Preparing print…" : "Existing consultation reopened. Preparing print…", { id: feedbackId });
         void appointmentsQuery.refetch();
         const printData = await brandedPrint.mutateAsync({ consultationId: result.consultation.consultationId });
         return generateConsultationOPHTML(printData);
       });
       if (!didOpenPrintPreview) {
-        toast.error("Unable to open print window. Please check your browser settings.");
+        toast.error("Unable to open print window. Please allow pop-ups and try again.", { id: feedbackId });
         return;
       }
-      toast.success("Consultant-branded OP prepared for printing.");
+      toast.success("Consultant-branded OP sent to the print dialog.", { id: feedbackId });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to generate the consultation OP");
+      toast.error(error instanceof Error ? error.message : "Unable to generate the consultation OP.", { id: feedbackId });
+    } finally {
+      setPrintingAppointmentId(null);
     }
   };
 
@@ -380,11 +387,14 @@ export default function Appointments() {
                             </div>
                           </div>
                         )}
-						{apt.status === "Checked-in" && (
-							<div className="flex gap-2">
-									<Button size="sm" onClick={() => void generateOpAndPrint(apt.appointmentId)} disabled={startConsultationMutation.isPending || brandedPrint.isPending}><Stethoscope className="mr-1 h-4 w-4" />Generate OP & Print</Button>
-							</div>
-						)}
+							{apt.status === "Checked-in" && (
+								<div className="flex gap-2">
+										<Button size="sm" onClick={() => void generateOpAndPrint(apt.appointmentId)} disabled={Boolean(printingAppointmentId) || startConsultationMutation.isPending || brandedPrint.isPending}>
+											{printingAppointmentId === apt.appointmentId ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Stethoscope className="mr-1 h-4 w-4" />}
+											{printingAppointmentId === apt.appointmentId ? "Generating OP…" : "Generate OP & Print"}
+										</Button>
+								</div>
+							)}
                       </div>
                     </div>
                   </CardContent>

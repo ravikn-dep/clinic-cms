@@ -1290,3 +1290,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Replace the New Visit page’s duplicate print-window sequence with the shared tested user-gesture-safe orchestration after the controlled Preview check remained in its localized Preparing state without dispatching branded print-data retrieval.
 - [x] Re-run the controlled New Visit print action and confirm its branded-data request completes successfully before the native print dialog blocks browser automation, without changing encounter lifecycle semantics.
 - [x] Restore the existing consultation print context when Create or Resume Patient Visit returns an OP-generated encounter, so a refreshed New Visit workspace can safely enable Print OP without creating another encounter or consultation.
+
+## Attachment 68 — Live Generate OP Interaction Reliability — 2026-08-28
+- [x] Trace the real authenticated Appointments Generate OP click through event binding, synchronous popup creation, `visits.generateOp`, consultation ID handoff, branded print-data retrieval, HTML injection, and print invocation before editing code.
+- [x] Audit the actual Generate OP control for disabled, overlay, pointer-event, stale-mutation, form-submit, and closure issues; reproduce popup-blocked and provider-failure behavior without changing the OP template, lifecycle, schema, auth, RBAC, dashboard, or unrelated modules.
+- [x] Apply only the smallest shared orchestration and user-feedback correction required to make pending, popup-block, provider, HTML, and print failures visible for Appointments, New Visit, and Patient Records.
+- [x] Add focused interaction regression coverage; verify each print entry point in the authenticated Preview; run type, full test, build, and diff-hygiene validation; record the result and save a checkpoint without deployment or production changes.

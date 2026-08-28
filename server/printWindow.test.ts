@@ -44,6 +44,7 @@ describe("shared print-window orchestration", () => {
     expect(popup.document.open).toHaveBeenCalledOnce();
     expect(popup.document.write).toHaveBeenCalledWith(expect.stringContaining("Preparing the consultant-branded OP"));
     expect(popup.document.close).toHaveBeenCalledOnce();
+    expect(popup.focus).toHaveBeenCalledOnce();
   });
 
   it("renders the final OP and starts printing after branded data resolves", () => {
@@ -79,11 +80,27 @@ describe("shared print-window orchestration", () => {
     expect(popup.print).toHaveBeenCalledOnce();
   });
 
-  it("closes an opened popup safely when branded data fails", () => {
+  it("reports a popup-blocked attempt without starting asynchronous data work", async () => {
+    const open = vi.fn().mockReturnValue(null);
+    runtime.window = { open } as unknown as Window;
+    const loadHtml = vi.fn().mockResolvedValue("<html><body>OP</body></html>");
+
+    await expect(openAndPrintWhenReady(loadHtml)).resolves.toBe(false);
+    expect(loadHtml).not.toHaveBeenCalled();
+  });
+
+  it("closes an opened popup and preserves the failure when branded data fails", async () => {
     const popup = makePrintWindow();
+    runtime.window = { open: vi.fn().mockReturnValue(popup) } as unknown as Window;
+
+    await expect(openAndPrintWhenReady(async () => {
+      throw new Error("safe provider failure");
+    })).rejects.toThrow("safe provider failure");
+
+    expect(popup.close).toHaveBeenCalledOnce();
 
     closePrintWindow(popup as unknown as Window);
 
-    expect(popup.close).toHaveBeenCalledOnce();
+    expect(popup.close).toHaveBeenCalledTimes(2);
   });
 });
