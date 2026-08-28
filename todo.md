@@ -1273,3 +1273,8 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Capture the consultation ID from the reported Appointments failure and inspect only its development appointment, encounter, patient, consultant, and consultation linkage.
 - [x] Correct the demonstrated cause with the narrowest safe code or development-data action, preserving strict RBAC, audit logging, and no production changes. The failure was an orphaned legacy row whose patient and consultant had been removed; the operational appointment list now omits only rows lacking either required reference, while raw history helpers remain unchanged.
 - [x] Add or update regression coverage, re-verify Appointments and Patient Records printing, run validation, and save a checkpoint.
+
+## Development PAT Data Cleanup — 2026-08-28
+- [x] Inventory all development-database rows linked to patient IDs beginning with `PAT`, including dependent clinical, appointment, encounter, billing, notification, enquiry, audit, and storage-reference metadata where a relational patient key exists.
+- [x] Hard-delete only the approved `PAT%` development records in dependency order, preserving all `DOCM%` patient records and their linked data without changing schema or production.
+- [x] Verify zero remaining relational `PAT%` patient rows, verify `DOCM%` preservation, and record the completed cleanup.
