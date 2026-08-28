@@ -3040,12 +3040,11 @@ export const appRouter = router({
           const effectiveConsultantId = ctx.user.role === "consultant" ? ctx.user.id : requestedConsultantId;
 
           if (effectiveConsultantId) {
-            appointments = await db.getAppointmentsByConsultant(effectiveConsultantId);
-            if (input.patientId) appointments = appointments.filter((appointment) => appointment.patientId === input.patientId);
+            appointments = await db.getOperationalAppointments({ consultantId: effectiveConsultantId, patientId: input.patientId });
           } else if (input.patientId) {
-            appointments = await db.getAppointmentsByPatient(input.patientId);
+            appointments = await db.getOperationalAppointments({ patientId: input.patientId });
           } else {
-            appointments = await db.getAllAppointments();
+            appointments = await db.getOperationalAppointments();
           }
           
           if (input.status) {

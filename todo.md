@@ -1268,3 +1268,8 @@ This section records the user-authorized GitHub governance action; the migration
 ## Branded Print-data Resolution Follow-up — 2026-08-28
 - [x] Diagnose the reproduced `Consultation print data not found` response without changing production data or weakening authorization. The failed ID was a stale orphaned development consultation; the valid canonical Patient Records consultation resolves with HTTP 200 and branded data, so no unsafe resolver fallback was added.
 - [x] Preserve regression coverage for the resolver’s valid consultation path and re-run the appointment and Patient Records Preview checks, including user-gesture popup orchestration.
+
+## Appointments OP Print-data Error — 2026-08-28
+- [x] Capture the consultation ID from the reported Appointments failure and inspect only its development appointment, encounter, patient, consultant, and consultation linkage.
+- [x] Correct the demonstrated cause with the narrowest safe code or development-data action, preserving strict RBAC, audit logging, and no production changes. The failure was an orphaned legacy row whose patient and consultant had been removed; the operational appointment list now omits only rows lacking either required reference, while raw history helpers remain unchanged.
+- [x] Add or update regression coverage, re-verify Appointments and Patient Records printing, run validation, and save a checkpoint.

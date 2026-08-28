@@ -1836,6 +1836,29 @@ export async function getAppointmentsByPatient(patientId: string) {
   return await db.select().from(appointments).where(eq(appointments.patientId, patientId));
 }
 
+/**
+ * The appointment workspace must not expose historical rows whose referenced
+ * patient or consultant was removed. Such rows cannot safely generate a
+ * branded OP and are retained only as legacy audit history.
+ */
+export async function getOperationalAppointments(filters: { consultantId?: number; patientId?: string } = {}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const query = db.select({ appointment: appointments })
+    .from(appointments)
+    .innerJoin(patients, eq(appointments.patientId, patients.patientId))
+    .innerJoin(users, eq(appointments.consultantId, users.id));
+  const rows = filters.consultantId && filters.patientId
+    ? await query.where(and(eq(appointments.consultantId, filters.consultantId), eq(appointments.patientId, filters.patientId)))
+    : filters.consultantId
+      ? await query.where(eq(appointments.consultantId, filters.consultantId))
+      : filters.patientId
+        ? await query.where(eq(appointments.patientId, filters.patientId))
+        : await query;
+  return rows.map((row) => row.appointment);
+}
+
 export async function getAllAppointments() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

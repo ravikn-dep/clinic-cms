@@ -131,10 +131,15 @@ describe("Phase 4 Step 2 unified consultant visit router", () => {
   });
 
   it("returns all appointments to authorized administration while preserving consultant-specific list filtering", async () => {
-    vi.spyOn(db, "getAllAppointments").mockResolvedValue([{ appointmentId: "APT-100", consultantId: 21, status: "Scheduled" }] as any);
-    vi.spyOn(db, "getAppointmentsByConsultant").mockResolvedValue([{ appointmentId: "APT-200", consultantId: 21, status: "Scheduled" }] as any);
+    const operationalAppointments = vi.spyOn(db, "getOperationalAppointments").mockImplementation(async ({ consultantId } = {}) => (
+      consultantId
+        ? [{ appointmentId: "APT-200", consultantId: 21, status: "Scheduled" }]
+        : [{ appointmentId: "APT-100", consultantId: 21, status: "Scheduled" }]
+    ) as any);
 
     await expect(caller("admin").appointments.list({})).resolves.toEqual([expect.objectContaining({ appointmentId: "APT-100" })]);
     await expect(caller("consultant", 21).appointments.list({})).resolves.toEqual([expect.objectContaining({ appointmentId: "APT-200" })]);
+    expect(operationalAppointments).toHaveBeenNthCalledWith(1);
+    expect(operationalAppointments).toHaveBeenNthCalledWith(2, { consultantId: 21, patientId: undefined });
   });
 });
