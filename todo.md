@@ -1296,3 +1296,9 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Audit the actual Generate OP control for disabled, overlay, pointer-event, stale-mutation, form-submit, and closure issues; reproduce popup-blocked and provider-failure behavior without changing the OP template, lifecycle, schema, auth, RBAC, dashboard, or unrelated modules.
 - [x] Apply only the smallest shared orchestration and user-feedback correction required to make pending, popup-block, provider, HTML, and print failures visible for Appointments, New Visit, and Patient Records.
 - [x] Add focused interaction regression coverage; verify each print entry point in the authenticated Preview; run type, full test, build, and diff-hygiene validation; record the result and save a checkpoint without deployment or production changes.
+
+## Attachment 69 — Consultant Authorization Scope for Generate OP — 2026-08-28
+- [ ] Capture the authenticated user role and ID, exact appointment, generated consultation, patient, and consultant record linkage from the real failing Appointments request, together with the precise server-side authorization helper and deny branch.
+- [ ] Confirm whether existing RBAC policy authorizes this CMS admin to print for the linked consultant; stop for a user decision if the policy, record linkage, or required correction is ambiguous or invalid.
+- [ ] Apply only a server-side least-privilege correction authorized by the existing RBAC model; preserve consultant self-scope, unauthorized staff denial, valid-consultant checks, and non-sensitive user-facing failure messages.
+- [ ] Add focused authorization, linkage, invalid-consultant, and Generate OP regression coverage; verify the authorized browser path and a denied test path; run full validation and save a checkpoint with no schema, migration, renderer, storage, production, deployment, or Git publication change.

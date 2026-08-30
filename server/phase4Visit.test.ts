@@ -148,6 +148,29 @@ describe("Phase 4 Step 2 unified consultant visit router", () => {
     expect(audit).not.toHaveBeenCalled();
   });
 
+  it("allows an administrator to generate and print a valid linked consultant OP while preserving consultant self-scope, staff denial, and missing-consultant refusal", async () => {
+    const appointment = { appointmentId: "APT-PRINT", consultantId: 21, patientId: "PAT-100", status: "Checked-in" };
+    const consultation = { consultationId: "CON-PRINT", appointmentId: "APT-PRINT", patientId: "PAT-100", consultantId: 21 };
+    vi.spyOn(db, "getAppointmentById").mockResolvedValue(appointment as any);
+    vi.spyOn(db, "startAppointmentConsultationWithAudit").mockResolvedValue({ consultation, created: true } as any);
+    const printData = vi.spyOn(db, "getConsultationPrintData").mockResolvedValue({
+      consultationId: "CON-PRINT", consultantId: 21, patientId: "PAT-100", consultantName: "Dr Active",
+      firstName: "Asha", lastName: "Patient", consultantLogoKey: null, signatureKey: null,
+    } as any);
+    vi.spyOn(db, "createAuditLog").mockResolvedValue(undefined);
+
+    const generated = await caller("admin").visits.generateOp({ appointmentId: "APT-PRINT" });
+    expect(generated.consultation).toMatchObject({ consultationId: "CON-PRINT", appointmentId: appointment.appointmentId, patientId: appointment.patientId, consultantId: appointment.consultantId });
+
+    await expect(caller("admin").consultations.getBrandedPrintData({ consultationId: "CON-PRINT" })).resolves.toMatchObject({ consultantId: 21 });
+    await expect(caller("consultant", 21).consultations.getBrandedPrintData({ consultationId: "CON-PRINT" })).resolves.toMatchObject({ consultantId: 21 });
+    await expect(caller("consultant", 22).consultations.getBrandedPrintData({ consultationId: "CON-PRINT" })).rejects.toThrow("not authorized");
+    await expect(caller("staff").consultations.getBrandedPrintData({ consultationId: "CON-PRINT" })).rejects.toThrow("not authorized");
+
+    printData.mockResolvedValueOnce(null);
+    await expect(caller("admin").consultations.getBrandedPrintData({ consultationId: "CON-MISSING-CONSULTANT" })).rejects.toThrow("print data not found");
+  });
+
   it("returns all appointments to authorized administration while preserving consultant-specific list filtering", async () => {
     const operationalAppointments = vi.spyOn(db, "getOperationalAppointments").mockImplementation(async ({ consultantId } = {}) => (
       consultantId
