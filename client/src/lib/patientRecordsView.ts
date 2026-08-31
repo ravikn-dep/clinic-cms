@@ -6,3 +6,11 @@ export function keepExpandedPatientVisible(expandedId: string | null, visibleIds
   if (!expandedId || visibleIds.includes(expandedId)) return expandedId;
   return null;
 }
+
+export function refreshBillingContextAfterFinalization(
+  refreshConsultations: () => unknown,
+  refreshVisitChain: () => unknown,
+): void {
+  void refreshConsultations();
+  void refreshVisitChain();
+}

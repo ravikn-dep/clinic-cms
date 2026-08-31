@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
 import { getPrintErrorMessage, openAndPrintWhenReady } from "@/lib/printWindow";
 import { useLocation } from "wouter";
-import { keepExpandedPatientVisible, toggleExpandedPatientId } from "@/lib/patientRecordsView";
+import { keepExpandedPatientVisible, refreshBillingContextAfterFinalization, toggleExpandedPatientId } from "@/lib/patientRecordsView";
 
 function formatDate(value: unknown) {
   if (!value) return "—";
@@ -121,7 +121,7 @@ export default function PatientRecords() {
   const completeConsultation = trpc.visits.completeConsultation.useMutation({
     onSuccess: () => {
       toast.success("Consultation marked ready for billing.");
-      void consultationsQuery.refetch();
+      refreshBillingContextAfterFinalization(consultationsQuery.refetch, visitChainQuery.refetch);
     },
     onError: (error) => toast.error(error.message || "Unable to complete consultation."),
   });

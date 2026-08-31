@@ -25,8 +25,8 @@ describe("master OP template", () => {
     const html = generateConsultationOPHTML({ ...baseOp, consultantLogoUrl: "https://example.test/logo-wide.png" });
     expect(html).toContain('@page { size: A4 portrait;');
     expect(html).toContain('.page { width:194mm; height:282mm;');
-    expect(html).toContain('width:42mm; height:22mm; display:flex; align-items:center; justify-content:center;');
-    expect(html).toContain('height:11mm; width:auto;');
+    expect(html).toContain('width:48mm; height:22mm; display:flex; align-items:center; justify-content:center;');
+    expect(html).toContain('width:42mm; height:auto; max-width:48mm; max-height:20mm;');
     const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
     expect(header).toContain('class="consultant-logo"');
     expect(header).not.toContain("Dr Deepthi");

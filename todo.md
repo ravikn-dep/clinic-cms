@@ -1298,10 +1298,10 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Add focused interaction regression coverage; verify each print entry point in the authenticated Preview; run type, full test, build, and diff-hygiene validation; record the result and save a checkpoint without deployment or production changes.
 
 ## Attachment 69 — Consultant Authorization Scope for Generate OP — 2026-08-28
-- [ ] Capture the authenticated user role and ID, exact appointment, generated consultation, patient, and consultant record linkage from the real failing Appointments request, together with the precise server-side authorization helper and deny branch.
-- [ ] Confirm whether existing RBAC policy authorizes this CMS admin to print for the linked consultant; stop for a user decision if the policy, record linkage, or required correction is ambiguous or invalid.
-- [ ] Apply only a server-side least-privilege correction authorized by the existing RBAC model; preserve consultant self-scope, unauthorized staff denial, valid-consultant checks, and non-sensitive user-facing failure messages.
-- [ ] Add focused authorization, linkage, invalid-consultant, and Generate OP regression coverage; verify the authorized browser path and a denied test path; run full validation and save a checkpoint with no schema, migration, renderer, storage, production, deployment, or Git publication change.
+- [x] Capture the authenticated user role and ID, exact appointment, generated consultation, patient, and consultant record linkage from the real failing Appointments request, together with the precise server-side authorization helper and deny branch.
+- [x] Confirm whether existing RBAC policy authorizes this CMS admin to print for the linked consultant; stop for a user decision if the policy, record linkage, or required correction is ambiguous or invalid.
+- [x] Apply only a server-side least-privilege correction authorized by the existing RBAC model; preserve consultant self-scope, unauthorized staff denial, valid-consultant checks, and non-sensitive user-facing failure messages. Existing policy was correct, so no runtime authorization change was applied.
+- [x] Add focused authorization, linkage, invalid-consultant, and Generate OP regression coverage; verify the authorized browser path and a denied test path; run full validation and save a checkpoint with no schema, migration, renderer, storage, production, deployment, or Git publication change.
 
 ## Attachment 70 — Billing Flow and OP Rendering Reliability — 2026-08-31
 - [x] Reproduce and trace the valid development Billing flow, including the source of any `key=null` warning, canonical bill ID propagation, and existing View Bill/PDF context.
@@ -1314,18 +1314,42 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] In the existing single Master OP renderer, center the configured consultant logo inside a top-right header brand zone and constrain it to approximately half the header height without changing the rest of the A4 geometry, data contract, or print lifecycle.
 - [x] Update focused renderer assertions and re-verify configured-logo print output after the geometry refinement.
 
+## Master OP Header Logo Scale Follow-up — 2026-08-31
+- [x] Increase the configured consultant logo within the existing top-right header brand zone to occupy the available header space while preserving intrinsic aspect ratio, safe margins, and the sole A4 renderer.
+- [x] Update renderer coverage and visually re-verify the enlarged configured-logo output before resuming Attachment 72 runtime checks.
+
 ## Shared OP Print Asset Resolution Follow-up — 2026-08-31
 - [x] Resolve relative managed-storage logo paths against the active Preview origin inside the existing print popup and close the post-write image event-listener race, so asset readiness is bounded and configured logos do not leave Generate OP pending.
 - [x] Add focused print-helper coverage for popup-relative asset resolution and already-completed load/error events, then re-verify the existing Generate OP path.
 
+## Configured Logo Print Completion Follow-up — 2026-08-31
+- [x] Diagnose the reproduced shared print-helper wait state. The confirmed valid print flow reaches the native browser print dialog after branded data and configured-logo readiness, so the originating control remains pending until that dialog is dismissed by design; no speculative storage or renderer change was made.
+- [x] Add a regression that reproduces the real post-write configured-image readiness path and re-verify the enlarged-logo print flow without changing the OP renderer contract or storage architecture.
+
 ## Attachment 71 — Queued DEV Migration and Real Runtime Verification
-- [ ] After Attachment 70 is checkpointed, inspect the current migration chain, development migration history, users schema, `consultantLocation` compatibility, migration-number conflicts, and predecessor state before any DEV-only migration action.
-- [ ] If and only if the repository’s normal DEV migration path is coherent, apply or reconcile only the approved nullable `users.consultantLocation` schema state; otherwise stop with migration evidence and seek a user decision.
-- [ ] Configure the active Dr Deepthi development consultant through the normal User Management path, then verify Appointment → OP Print, cold/warm configured-logo output, Patient Records printing, and the prescribed Billing flow using valid development data.
-- [ ] Capture console/network results, run validation, update the execution record, and checkpoint without production access, schema expansion, historical migration rewriting, deployment, push, merge, or tagging.
+- [x] After Attachment 70 is checkpointed, inspect the current migration chain, development migration history, users schema, `consultantLocation` compatibility, migration-number conflicts, and predecessor state before any DEV-only migration action.
+- [x] If and only if the repository’s normal DEV migration path is coherent, apply or reconcile only the approved nullable `users.consultantLocation` schema state; otherwise stop with migration evidence and seek a user decision. Attachment 72 authorized the compatible existing 0028 state; no migration action was necessary or performed.
+- [x] Configure the active Dr Deepthi development consultant through the normal User Management path, then verify Appointment → OP Print, cold/warm configured-logo output, Patient Records printing, and the prescribed Billing flow using valid development data.
+- [x] Capture console/network results, run validation, update the execution record, and checkpoint without production access, schema expansion, historical migration rewriting, deployment, push, merge, or tagging.
+
+## Direct Encounter Billing Eligibility Follow-up — 2026-08-31
+- [x] Trace the demonstrated mismatch where a finalized unbilled direct encounter with `Ready for Billing` status is present in the development database but Patient Records reports no visits ready for billing; preserve the encounter-first billing model and do not alter data until the eligibility source is confirmed.
+- [x] Apply only the smallest authorized candidate-query or client-context correction, then verify the user-authorized development Billing flow with two line items and exact generated-bill context.
+
+## Contextual Direct-Encounter Billing Date Follow-up — 2026-08-31
+- [x] Correct the demonstrated Billing hydration gap in which Patient Records passes a valid historical direct-encounter consultation and encounter ID but Billing queries only today’s candidates, so its form does not open.
+- [x] Add a focused regression for historical direct-encounter billing context and verify the existing patient record opens the matching bill form without changing billing eligibility rules or data.
+
+### Attachment 72 Authority and Verification Conditions
+- [x] Treat existing `drizzle/0028_messy_puff_adder.sql` as the user-authorized consultant-location migration only after confirming the nullable `TEXT` field, repository schema, 0028 provenance, and absence of duplicate pending migration; do not rename, renumber, rewrite, manually reconcile, or duplicate the alteration.
+- [x] Complete the authorized development-only consultant, cold/warm OP print, Patient Records print, billing interaction, console/network, and validation evidence; stop on any out-of-boundary defect rather than make speculative fixes.
 
 ## Appointments List and Calendar Visibility — 2026-08-31
 - [x] Compare valid booked development appointments with `appointments.list` output and the client’s list/calendar date matching, including role-scoped visibility and timezone-safe date normalization.
 - [x] Correct only the demonstrated query, list, or calendar mapping cause that hides booked appointments; preserve scheduled/check-in/OP lifecycle, orphan safeguards, RBAC, schema, and production boundaries.
 - [x] Add focused regressions and verify booked appointments appear in both list and calendar views with no print-flow regression; run full validation and save a checkpoint.
 - [x] Harden the new native list-date control against incomplete or malformed browser input so it cannot put the appointment view into an invalid date state.
+
+## Appointment Date State Hardening Follow-up — 2026-08-31
+- [x] Correct the demonstrated invalid-date state path where browser input can still reach `format(selectedDate, ...)`, ensuring malformed input preserves the last valid appointment date rather than crashing the page or interrupting OP print completion.
+- [x] Add a regression that exercises the component-adjacent date-state guard and re-run the cold/warm configured-logo print verification after the fix.

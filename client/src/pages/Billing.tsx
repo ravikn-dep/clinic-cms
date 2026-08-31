@@ -12,6 +12,7 @@ import { downloadCsvFile } from "@/lib/downloadCsv";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
 import { createBillingItemId, getBillingCandidateKey } from "@/lib/billingRowIdentity";
+import { getBillingContextDate, getBillingContextParams } from "@/lib/billingContext";
 
 type PaymentStatus = "Pending" | "Paid" | "Partial";
 
@@ -88,14 +89,11 @@ export default function Billing() {
   const [location] = useLocation();
   const [selectedBillingDate, setSelectedBillingDate] = useState(() => clinicToday());
   const [highlightedBillId, setHighlightedBillId] = useState<string | null>(null);
+  const locationSearch = typeof window === "undefined" ? "" : window.location.search;
 
   // Handle query parameters from Patient Records "Generate Bill" button
   useEffect(() => {
-    const params = new URLSearchParams(location.split('?')[1]);
-    const consultationId = params.get('consultationId');
-    const encounterId = params.get('encounterId');
-    const patientId = params.get('patientId');
-    const billId = params.get('billId');
+    const { consultationId, encounterId, patientId, billId } = getBillingContextParams(locationSearch);
 
     if (billId) {
       setHighlightedBillId(billId);
@@ -110,7 +108,7 @@ export default function Billing() {
       }));
       setShowNewBill(true);
     }
-  }, [location]);
+  }, [location, locationSearch]);
 
   // Fetch available templates
   const templatesQuery = trpc.billTemplates.getAll.useQuery();
@@ -140,6 +138,7 @@ export default function Billing() {
     if (consultationData) {
       setConsultationNotes(consultationData);
       setForm((current) => ({ ...current, patientId: consultationData.patientId }));
+      setSelectedBillingDate((currentDate) => getBillingContextDate(consultationData.consultationDate, currentDate));
     } else if (consultationNotesQuery.isError) {
       setConsultationNotes(null);
     }
