@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
-import { openAndPrintWhenReady } from "@/lib/printWindow";
+import { getPrintErrorMessage, openAndPrintWhenReady } from "@/lib/printWindow";
 import { canSearchPatientCandidates, PATIENT_SEARCH_DEBOUNCE_MS } from "@/lib/patientSearch";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -101,7 +101,7 @@ export default function NewVisit() {
       }
       toast.success("OP print preview opened.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to prepare OP print preview");
+      toast.error(getPrintErrorMessage(error, "Unable to prepare OP print preview"));
     }
   };
 

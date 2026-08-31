@@ -350,8 +350,8 @@ export function generateConsultationOPHTML(op: BrandedConsultationOP): string {
     body { font-family: Arial, 'Times New Roman', serif; font-size:10pt; }
     .page { width:194mm; height:282mm; margin:0 auto; padding:0; display:flex; flex-direction:column; overflow:hidden; }
     .master-header { height:22mm; flex:none; position:relative; padding:0 0 2mm; border-bottom:1px solid #64748b; }
-    .consultant-brand { position:absolute; top:0; right:0; height:20mm; display:flex; align-items:flex-start; justify-content:flex-end; }
-    .consultant-logo { display:block; height:16mm; width:auto; max-width:30mm; object-fit:contain; flex:0 1 auto; }
+    .consultant-brand { position:absolute; top:0; right:0; width:42mm; height:22mm; display:flex; align-items:center; justify-content:center; }
+    .consultant-logo { display:block; height:11mm; width:auto; max-width:30mm; object-fit:contain; flex:0 1 auto; }
     .patient-block { height:25mm; flex:none; margin-top:2mm; border:1px solid #94a3b8; display:grid; grid-template-columns:1.7fr .8fr 1.2fr; grid-template-rows:8mm 8mm 8mm; font-size:8.5pt; }
     .patient-field { min-width:0; padding:1.1mm 2mm; border-right:1px solid #cbd5e1; border-bottom:1px solid #cbd5e1; overflow:hidden; }
     .patient-field:nth-child(3n) { border-right:0; }
@@ -388,7 +388,9 @@ export function generateConsultationOPHTML(op: BrandedConsultationOP): string {
 }
 
 export function formatOPDateTime(value: string): string {
-  const parts = new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }).formatToParts(new Date(value));
+  const mysqlTimestamp = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
+  const instant = new Date(mysqlTimestamp.test(value) ? `${value.replace(" ", "T")}Z` : value);
+  const parts = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }).formatToParts(instant);
   const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
   return `${lookup.day} ${lookup.month} ${lookup.year}, ${lookup.hour}:${lookup.minute} ${lookup.dayPeriod?.toUpperCase()}`;
 }

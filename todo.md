@@ -1302,3 +1302,30 @@ This section records the user-authorized GitHub governance action; the migration
 - [ ] Confirm whether existing RBAC policy authorizes this CMS admin to print for the linked consultant; stop for a user decision if the policy, record linkage, or required correction is ambiguous or invalid.
 - [ ] Apply only a server-side least-privilege correction authorized by the existing RBAC model; preserve consultant self-scope, unauthorized staff denial, valid-consultant checks, and non-sensitive user-facing failure messages.
 - [ ] Add focused authorization, linkage, invalid-consultant, and Generate OP regression coverage; verify the authorized browser path and a denied test path; run full validation and save a checkpoint with no schema, migration, renderer, storage, production, deployment, or Git publication change.
+
+## Attachment 70 — Billing Flow and OP Rendering Reliability — 2026-08-31
+- [x] Reproduce and trace the valid development Billing flow, including the source of any `key=null` warning, canonical bill ID propagation, and existing View Bill/PDF context.
+- [x] Trace the Master OP timestamp from the server-provided print data into the sole renderer and prove it represents the actual generation time in the intended clinic timezone rather than a random or stale client-derived time.
+- [x] Trace configured consultant logo resolution through protected print data, HTML injection, image request, load/decode readiness, timeout/error handling, and print invocation using cache-independent checks.
+- [x] Apply only the smallest stable billing-row identity, returned-bill focus, server-authoritative OP timestamp, and shared print-asset readiness correction; preserve the current OP layout, lifecycle, auth, RBAC, schema, migrations, storage model, and production boundaries.
+- [x] Add focused regression coverage, verify valid billing and OP paths in Preview, run type, full tests, build, and diff hygiene, update the execution record, and save a checkpoint without deployment or production changes.
+
+## Master OP Logo Geometry Refinement — 2026-08-31
+- [x] In the existing single Master OP renderer, center the configured consultant logo inside a top-right header brand zone and constrain it to approximately half the header height without changing the rest of the A4 geometry, data contract, or print lifecycle.
+- [x] Update focused renderer assertions and re-verify configured-logo print output after the geometry refinement.
+
+## Shared OP Print Asset Resolution Follow-up — 2026-08-31
+- [x] Resolve relative managed-storage logo paths against the active Preview origin inside the existing print popup and close the post-write image event-listener race, so asset readiness is bounded and configured logos do not leave Generate OP pending.
+- [x] Add focused print-helper coverage for popup-relative asset resolution and already-completed load/error events, then re-verify the existing Generate OP path.
+
+## Attachment 71 — Queued DEV Migration and Real Runtime Verification
+- [ ] After Attachment 70 is checkpointed, inspect the current migration chain, development migration history, users schema, `consultantLocation` compatibility, migration-number conflicts, and predecessor state before any DEV-only migration action.
+- [ ] If and only if the repository’s normal DEV migration path is coherent, apply or reconcile only the approved nullable `users.consultantLocation` schema state; otherwise stop with migration evidence and seek a user decision.
+- [ ] Configure the active Dr Deepthi development consultant through the normal User Management path, then verify Appointment → OP Print, cold/warm configured-logo output, Patient Records printing, and the prescribed Billing flow using valid development data.
+- [ ] Capture console/network results, run validation, update the execution record, and checkpoint without production access, schema expansion, historical migration rewriting, deployment, push, merge, or tagging.
+
+## Appointments List and Calendar Visibility — 2026-08-31
+- [x] Compare valid booked development appointments with `appointments.list` output and the client’s list/calendar date matching, including role-scoped visibility and timezone-safe date normalization.
+- [x] Correct only the demonstrated query, list, or calendar mapping cause that hides booked appointments; preserve scheduled/check-in/OP lifecycle, orphan safeguards, RBAC, schema, and production boundaries.
+- [x] Add focused regressions and verify booked appointments appear in both list and calendar views with no print-flow regression; run full validation and save a checkpoint.
+- [x] Harden the new native list-date control against incomplete or malformed browser input so it cannot put the appointment view into an invalid date state.

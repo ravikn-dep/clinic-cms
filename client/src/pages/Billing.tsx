@@ -11,6 +11,7 @@ import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
+import { createBillingItemId, getBillingCandidateKey } from "@/lib/billingRowIdentity";
 
 type PaymentStatus = "Pending" | "Paid" | "Partial";
 
@@ -86,6 +87,7 @@ export default function Billing() {
   const utils = trpc.useUtils();
   const [location] = useLocation();
   const [selectedBillingDate, setSelectedBillingDate] = useState(() => clinicToday());
+  const [highlightedBillId, setHighlightedBillId] = useState<string | null>(null);
 
   // Handle query parameters from Patient Records "Generate Bill" button
   useEffect(() => {
@@ -93,7 +95,12 @@ export default function Billing() {
     const consultationId = params.get('consultationId');
     const encounterId = params.get('encounterId');
     const patientId = params.get('patientId');
-    
+    const billId = params.get('billId');
+
+    if (billId) {
+      setHighlightedBillId(billId);
+    }
+
     if (consultationId || patientId) {
       setForm((current) => ({
         ...current,
@@ -146,12 +153,20 @@ export default function Billing() {
     { enabled: showNewBill, refetchOnWindowFocus: false },
   );
 
+  const focusGeneratedBill = (billId: string) => {
+    setHighlightedBillId(billId);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`bill-${billId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
+
   const createBill = trpc.bills.create.useMutation({
     onSuccess: (bill) => {
       toast.success(`Invoice ${bill.billId} created.`);
       setForm(initialBillForm);
       setShowNewBill(false);
-      utils.bills.getAll.invalidate();
+      focusGeneratedBill(bill.billId);
+      void utils.bills.getAll.invalidate();
     },
     onError: (error) => {
       toast.error(error.message || "Unable to create invoice.");
@@ -163,6 +178,7 @@ export default function Billing() {
       toast.success(`Encounter bill ${result.bill.billId} created and visit closed.`);
       setForm(initialBillForm);
       setShowNewBill(false);
+      focusGeneratedBill(result.bill.billId);
       void utils.bills.getAll.invalidate();
       void utils.consultations.getByPatientId.invalidate();
     },
@@ -219,6 +235,16 @@ export default function Billing() {
   });
 
   const bills = billsQuery.data ?? [];
+
+  useEffect(() => {
+    if (!highlightedBillId || billsQuery.isFetching) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`bill-${highlightedBillId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [bills, billsQuery.isFetching, highlightedBillId]);
+
+  const highlightedBill = highlightedBillId ? bills.find((bill) => bill.billId === highlightedBillId) : undefined;
 
   const summary = useMemo(() => {
     return bills.reduce(
@@ -326,7 +352,7 @@ export default function Billing() {
 
   const addItem = () => {
     const newItem: BillItem = {
-      id: `item-${Date.now()}`,
+      id: createBillingItemId(),
       itemType: "Medicine",
       description: "",
       quantity: "1",
@@ -355,7 +381,7 @@ export default function Billing() {
 
     // Convert template items to bill items
     const templateItems = (template.itemsJson as any[]).map((item, idx) => ({
-      id: `item-${Date.now()}-${idx}`,
+      id: `${createBillingItemId()}-${idx}`,
       itemType: item.itemType,
       description: item.description,
       quantity: item.quantity.toString(),
@@ -526,7 +552,7 @@ export default function Billing() {
                   <p className="py-3 text-sm text-muted-foreground">No visits recorded for this date.</p>
                 ) : (
                   billingCandidatesQuery.data?.map((candidate) => (
-                    <div key={candidate.appointmentId} className="flex flex-col gap-3 rounded-lg border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div key={getBillingCandidateKey(candidate)} className="flex flex-col gap-3 rounded-lg border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0 text-sm">
                         <p className="font-semibold text-teal-950">{candidate.patientName} <span className="font-mono text-xs font-normal text-muted-foreground">{candidate.patientId}</span></p>
                         <p className="text-xs text-muted-foreground">{candidate.appointmentTime} · {candidate.consultantName} · {candidate.age ?? "Age not recorded"}{candidate.gender ? ` · ${candidate.gender}` : ""}</p>
@@ -744,6 +770,18 @@ export default function Billing() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {highlightedBill ? (
+            <div className="mb-4 flex flex-col gap-3 rounded-lg border border-teal-200 bg-teal-50 p-4 sm:flex-row sm:items-center sm:justify-between" role="status">
+              <div>
+                <p className="font-semibold text-teal-950">Invoice {highlightedBill.billId} is ready</p>
+                <p className="text-sm text-teal-800">The generated invoice is highlighted below. Open its protected PDF from this context.</p>
+              </div>
+              <Button type="button" size="sm" className="gap-1 bg-teal-600 text-white hover:bg-teal-700" onClick={() => openInvoicePdf(highlightedBill)} disabled={getInvoiceLink.isPending || !highlightedBill.invoicePdfKey && !highlightedBill.invoicePdfUrl}>
+                {getInvoiceLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                View invoice PDF
+              </Button>
+            </div>
+          ) : null}
           {billsQuery.isLoading ? (
             <div className="flex items-center justify-center rounded-lg border border-dashed py-12 text-muted-foreground">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading invoices...
@@ -781,7 +819,7 @@ export default function Billing() {
                 </thead>
                 <tbody>
                   {bills.map((bill) => (
-                    <tr key={bill.billId} className="border-b transition-colors hover:bg-accent/70">
+                    <tr id={`bill-${bill.billId}`} key={bill.billId} className={`border-b transition-colors hover:bg-accent/70 ${highlightedBillId === bill.billId ? "bg-teal-50 ring-2 ring-inset ring-teal-200" : ""}`}>
                       <td className="py-3 px-4 font-mono text-xs">{bill.billId}</td>
                       <td className="py-3 px-4">
                         <div>

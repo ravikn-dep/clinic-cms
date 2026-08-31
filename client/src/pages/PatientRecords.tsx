@@ -11,7 +11,7 @@ import { downloadCsvFile } from "@/lib/downloadCsv";
 import { CalendarDays, Copy, Download, ExternalLink, FileAudio, FileText, Loader2, Printer, Receipt, Search, UserRound, FileCheck, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
-import { openAndPrintWhenReady } from "@/lib/printWindow";
+import { getPrintErrorMessage, openAndPrintWhenReady } from "@/lib/printWindow";
 import { useLocation } from "wouter";
 import { keepExpandedPatientVisible, toggleExpandedPatientId } from "@/lib/patientRecordsView";
 
@@ -139,7 +139,7 @@ export default function PatientRecords() {
       }
       toast.success("Consultant-branded OP sent to the print dialog.", { id: feedbackId });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to prepare the consultation OP.", { id: feedbackId });
+      toast.error(getPrintErrorMessage(error, "Unable to prepare the consultation OP."), { id: feedbackId });
     }
   };
 
@@ -369,7 +369,7 @@ export default function PatientRecords() {
                                                                                     onClick={() => {
                                                                                                         const chain = visitChains.find((candidate) => candidate.consultation?.consultationId === consultation.consultationId);
                                                                                                         if (chain?.bill) {
-                                                                                                          setLocation(`/billing?consultationId=${encodeURIComponent(consultation.consultationId)}&patientId=${encodeURIComponent(selectedPatientId || "")}`);
+                                                                                                          setLocation(`/billing?consultationId=${encodeURIComponent(consultation.consultationId)}&patientId=${encodeURIComponent(selectedPatientId || "")}&billId=${encodeURIComponent(chain.bill.billId)}`);
                                                                                                           return;
                                                                                                         }
                                                                                                         openEncounterBilling(consultation.consultationId, selectedPatientId || "", chain?.encounter?.encounterId);

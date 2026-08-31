@@ -25,7 +25,8 @@ describe("master OP template", () => {
     const html = generateConsultationOPHTML({ ...baseOp, consultantLogoUrl: "https://example.test/logo-wide.png" });
     expect(html).toContain('@page { size: A4 portrait;');
     expect(html).toContain('.page { width:194mm; height:282mm;');
-    expect(html).toContain('height:16mm; width:auto;');
+    expect(html).toContain('width:42mm; height:22mm; display:flex; align-items:center; justify-content:center;');
+    expect(html).toContain('height:11mm; width:auto;');
     const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
     expect(header).toContain('class="consultant-logo"');
     expect(header).not.toContain("Dr Deepthi");
@@ -63,6 +64,11 @@ describe("master OP template", () => {
   it("formats OP date/time in the required 12-hour display form", () => {
     const formatted = formatOPDateTime("2026-08-27T12:45:00.000Z");
     expect(formatted).toMatch(/^\d{2} [A-Z][a-z]{2} \d{4}, (?:0[1-9]|1[0-2]):\d{2} (?:AM|PM)$/);
+  });
+
+  it("formats stored MySQL UTC timestamps in the fixed clinic timezone", () => {
+    expect(formatOPDateTime("2026-08-30 05:12:52")).toBe("30 Aug 2026, 10:42 AM");
+    expect(formatOPDateTime("2026-08-30T05:12:52.000Z")).toBe("30 Aug 2026, 10:42 AM");
   });
 
   it("derives compact human-readable timings from consultant availability", () => {

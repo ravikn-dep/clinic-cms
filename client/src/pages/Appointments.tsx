@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { format, parseISO, isSameDay, addDays, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek } from "date-fns";
+import { format, isSameDay, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,8 @@ import { trpc } from "@/lib/trpc";
 import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { toast } from "sonner";
 import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
-import { openAndPrintWhenReady } from "@/lib/printWindow";
+import { getPrintErrorMessage, openAndPrintWhenReady } from "@/lib/printWindow";
+import { appointmentDateToLocalDate, appointmentOccursOnDate, toAppointmentDate } from "@/lib/appointmentView";
 
 export default function Appointments() {
   const { user } = useAuth();
@@ -47,9 +48,12 @@ export default function Appointments() {
 
   // Create appointment mutation
   const createMutation = trpc.appointments.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (_appointment, variables) => {
       toast.success("Appointment booked successfully");
       setIsBookingOpen(false);
+      const bookedDate = appointmentDateToLocalDate(variables.appointmentDate);
+      if (bookedDate) setSelectedDate(bookedDate);
+      setViewMode("list");
       setBookingData({
         patientId: "",
         consultantId: 0,
@@ -127,7 +131,7 @@ export default function Appointments() {
       }
       toast.success("Consultant-branded OP sent to the print dialog.", { id: feedbackId });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to generate the consultation OP.", { id: feedbackId });
+      toast.error(getPrintErrorMessage(error, "Unable to generate the consultation OP."), { id: feedbackId });
     } finally {
       setPrintingAppointmentId(null);
     }
@@ -138,9 +142,7 @@ export default function Appointments() {
     if (!appointmentsQuery.data) return [];
     
     if (viewMode === "list") {
-      return appointmentsQuery.data.filter((apt: any) => 
-        isSameDay(parseISO(apt.appointmentDate), selectedDate)
-      );
+      return appointmentsQuery.data.filter((apt: any) => appointmentOccursOnDate(apt.appointmentDate, selectedDate));
     }
     
     return appointmentsQuery.data;
@@ -327,9 +329,15 @@ export default function Appointments() {
       {/* Content */}
       {viewMode === "list" ? (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 text-sm text-slate-600">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
             <Calendar className="w-4 h-4" />
-            <span>{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
+            <Label htmlFor="appointment-list-date" className="sr-only">Appointment list date</Label>
+            <Input id="appointment-list-date" type="date" value={toAppointmentDate(selectedDate)} onChange={(event) => {
+              const nextDate = appointmentDateToLocalDate(event.target.value);
+              if (nextDate) setSelectedDate(nextDate);
+            }} className="h-9 w-auto" />
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedDate(new Date())}>Today</Button>
+            <span className="w-full sm:w-auto">{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
           </div>
 
           {appointmentsQuery.isLoading ? (
@@ -412,7 +420,7 @@ export default function Appointments() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setSelectedDate(addDays(selectedDate, -1))}
+                  onClick={() => setSelectedDate(addMonths(selectedDate, -1))}
                 >
                   ←
                 </Button>
@@ -426,7 +434,7 @@ export default function Appointments() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+                  onClick={() => setSelectedDate(addMonths(selectedDate, 1))}
                 >
                   →
                 </Button>
@@ -441,9 +449,7 @@ export default function Appointments() {
                 </div>
               ))}
               {calendarDays.map((day) => {
-                const dayAppointments = appointmentsQuery.data?.filter((apt: any) =>
-                  isSameDay(parseISO(apt.appointmentDate), day)
-                ) || [];
+                const dayAppointments = appointmentsQuery.data?.filter((apt: any) => appointmentOccursOnDate(apt.appointmentDate, day)) || [];
                 const isCurrentMonth = day.getMonth() === selectedDate.getMonth();
 
                 return (
