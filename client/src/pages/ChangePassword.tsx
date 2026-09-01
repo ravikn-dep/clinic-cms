@@ -21,10 +21,13 @@ export default function ChangePassword() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  const hasLocalPassword = Boolean(user?.passwordHash);
   const changePasswordMutation = trpc.auth.changePassword.useMutation();
+  const setPasswordMutation = trpc.auth.setPassword.useMutation();
+  const isPending = changePasswordMutation.isPending || setPasswordMutation.isPending;
 
   const validateForm = () => {
-    if (!currentPassword) {
+    if (hasLocalPassword && !currentPassword) {
       setError("Current password is required");
       return false;
     }
@@ -57,10 +60,14 @@ export default function ChangePassword() {
     }
 
     try {
-      await changePasswordMutation.mutateAsync({
-        currentPassword,
-        newPassword,
-      });
+      if (hasLocalPassword) {
+        await changePasswordMutation.mutateAsync({
+          currentPassword,
+          newPassword,
+        });
+      } else {
+        await setPasswordMutation.mutateAsync({ password: newPassword });
+      }
       setSuccess(true);
       setCurrentPassword("");
       setNewPassword("");
@@ -69,7 +76,7 @@ export default function ChangePassword() {
         navigate("/");
       }, 2000);
     } catch (err: any) {
-      setError(err.message || "Failed to change password");
+      setError(err.message || (hasLocalPassword ? "Failed to change password" : "Failed to set password"));
     }
   };
 
@@ -83,10 +90,10 @@ export default function ChangePassword() {
                 <Lock className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-teal-950">Change Password</CardTitle>
-                <CardDescription className="text-teal-700 mt-1">
-                  Update your login password
-                </CardDescription>
+              <CardTitle className="text-teal-950">{hasLocalPassword ? "Change Password" : "Set Password"}</CardTitle>
+              <CardDescription className="text-teal-700 mt-1">
+                  {hasLocalPassword ? "Update your login password" : "Create a password for direct sign-in"}
+              </CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -96,7 +103,7 @@ export default function ChangePassword() {
               <Alert className="mb-6 border-emerald-200 bg-emerald-50">
                 <CheckCircle className="h-4 w-4 text-emerald-600" />
                 <AlertDescription className="text-emerald-800 ml-2">
-                  Password changed successfully! Redirecting to dashboard...
+                  {hasLocalPassword ? "Password changed successfully!" : "Password set successfully!"} Redirecting to dashboard...
                 </AlertDescription>
               </Alert>
             )}
@@ -112,7 +119,7 @@ export default function ChangePassword() {
 
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Current Password */}
-              <div className="space-y-2">
+              {hasLocalPassword && <div className="space-y-2">
                 <Label htmlFor="current-password" className="text-sm font-medium text-teal-950">
                   Current Password
                 </Label>
@@ -124,7 +131,7 @@ export default function ChangePassword() {
                     onChange={(e) => setCurrentPassword(e.target.value)}
                     placeholder="Enter your current password"
                     className="pr-10 border-teal-200 focus:border-teal-500 focus:ring-teal-500"
-                    disabled={changePasswordMutation.isPending}
+                    disabled={isPending}
                   />
                   <button
                     type="button"
@@ -138,7 +145,7 @@ export default function ChangePassword() {
                     )}
                   </button>
                 </div>
-              </div>
+              </div>}
 
               {/* New Password */}
               <div className="space-y-2">
@@ -153,7 +160,7 @@ export default function ChangePassword() {
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="Enter your new password"
                     className="pr-10 border-teal-200 focus:border-teal-500 focus:ring-teal-500"
-                    disabled={changePasswordMutation.isPending}
+                    disabled={isPending}
                   />
                   <button
                     type="button"
@@ -183,7 +190,7 @@ export default function ChangePassword() {
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm your new password"
                     className="pr-10 border-teal-200 focus:border-teal-500 focus:ring-teal-500"
-                    disabled={changePasswordMutation.isPending}
+                    disabled={isPending}
                   />
                   <button
                     type="button"
@@ -205,17 +212,17 @@ export default function ChangePassword() {
                   type="button"
                   variant="outline"
                   onClick={() => navigate("/")}
-                  disabled={changePasswordMutation.isPending}
+                  disabled={isPending}
                   className="flex-1 border-teal-200 text-teal-800 hover:bg-teal-50"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
-                  disabled={changePasswordMutation.isPending}
+                  disabled={isPending}
                   className="flex-1 bg-teal-600 text-white hover:bg-teal-700"
                 >
-                  {changePasswordMutation.isPending ? "Updating..." : "Update Password"}
+                  {isPending ? (hasLocalPassword ? "Updating..." : "Setting...") : (hasLocalPassword ? "Update Password" : "Set Password")}
                 </Button>
               </div>
             </form>

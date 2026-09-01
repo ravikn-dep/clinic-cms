@@ -45,12 +45,26 @@ export async function storagePut(
   });
 
   if (!presignResp.ok) {
-    const msg = await presignResp.text().catch(() => presignResp.statusText);
-    throw new Error(`Storage presign failed (${presignResp.status}): ${msg}`);
+    const detail = await presignResp.text().catch(() => "");
+    console.error("[Storage] Consultant asset presign failed", {
+      status: presignResp.status,
+      detail: detail.slice(0, 500),
+    });
+    throw new Error("Unable to prepare consultant image upload");
   }
 
-  const { url: s3Url } = (await presignResp.json()) as { url: string };
-  if (!s3Url) throw new Error("Forge returned empty presign URL");
+  let presignBody: { url?: string };
+  try {
+    presignBody = (await presignResp.json()) as { url?: string };
+  } catch (error) {
+    console.error("[Storage] Consultant asset presign returned invalid JSON", error);
+    throw new Error("Unable to prepare consultant image upload");
+  }
+  const { url: s3Url } = presignBody;
+  if (!s3Url) {
+    console.error("[Storage] Consultant asset presign returned no upload URL");
+    throw new Error("Unable to prepare consultant image upload");
+  }
 
   // 2. PUT file directly to S3
   const blob =

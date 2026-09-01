@@ -53,20 +53,20 @@ describe("paper-first workflow policy", () => {
 
 describe("paper OP rendering", () => {
   const html = generateConsultationOPHTML(op);
-  it("25. renders consultant on the left identity block", () => expect(html.indexOf("Consultant A")).toBeLessThan(html.indexOf("MAX DIAGNOSTICS")));
-  it("26. renders facility name", () => expect(html).toContain("MAX DIAGNOSTICS"));
-  it("27. renders facility location", () => expect(html).toContain("Punjagutta"));
+  it("25. renders consultant identity in the upper-right master header", () => expect(html).toContain("Consultant A"));
+  it("26. keeps the approved master layout free of a facility identity block", () => expect(html).not.toContain('class="facility"'));
+  it("27. renders the exact validity statement", () => expect(html).toContain("OP valid only upto 4 weeks or one visit within."));
   it("28. renders patient ID", () => expect(html).toContain("PAT-1"));
   it("29. renders patient name", () => expect(html).toContain("Paper Patient"));
   it("30. renders age", () => expect(html).toContain("42"));
   it("31. renders gender", () => expect(html).toContain("Other"));
   it("32. renders contact number", () => expect(html).toContain("9999999999"));
-  it("33. renders handwriting areas", () => expect(html.match(/<div class="handwriting-lines"/g)?.length).toBe(6));
-  it("34. renders chief complaints heading", () => expect(html).toContain("Chief complaints / history"));
-  it("35. renders clinical examination heading", () => expect(html).toContain("Clinical examination / findings"));
-  it("36. renders diagnosis heading", () => expect(html).toContain("Diagnosis / assessment"));
-  it("37. renders treatment heading", () => expect(html).toContain("Treatment / prescription"));
-  it("38. renders follow-up heading", () => expect(html).toContain("Advice / follow-up"));
+  it("33. renders one dominant blank handwriting area", () => expect(html.match(/class="writing-space"/g)?.length).toBe(1));
+  it("34. renders the Clinical Notes heading", () => expect(html).toContain("Clinical Notes"));
+  it("35. renders the bottom-right signature area", () => expect(html).toContain("signature-block"));
+  it("36. uses A4 portrait geometry", () => expect(html).toContain("size: A4 portrait"));
+  it("37. keeps the footer compact", () => expect(html).toContain("height:9mm"));
+  it("38. preserves a single-page overflow boundary", () => expect(html).toContain("height:282mm"));
   it("39. does not print digital clinical history", () => expect(html).not.toContain("DIGITAL HISTORY MUST NOT PRINT"));
   it("40. does not print digital treatment", () => expect(html).not.toContain("DIGITAL TREATMENT MUST NOT PRINT"));
 });

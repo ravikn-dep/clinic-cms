@@ -32,18 +32,17 @@ export async function registerPatientWithTracking(
   }
 
   const registrationDate = new Date();
-  const patientIdPrefix = utils.generatePatientIdPrefix(registrationDate);
-  let dailySequence = (await db.countPatientsByPatientIdPrefix(patientIdPrefix)) + 1;
+  const dateParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(registrationDate);
+  const sequenceDate = `${dateParts.find((part) => part.type === "year")?.value}-${dateParts.find((part) => part.type === "month")?.value}-${dateParts.find((part) => part.type === "day")?.value}`;
+  let dailySequence = await db.reserveDailyPatientSequence(sequenceDate);
   let patientId = utils.generatePatientId(dailySequence, registrationDate);
 
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const existingPatient = await db.getPatientById(patientId);
     if (!existingPatient) break;
-    dailySequence += 1;
+    dailySequence = await db.reserveDailyPatientSequence(sequenceDate);
     patientId = utils.generatePatientId(dailySequence, registrationDate);
-    if (attempt === 99) {
-      throw new Error("Unable to allocate a unique daily Patient ID. Please retry registration.");
-    }
+    if (attempt === 99) throw new Error("Unable to allocate a unique daily Patient ID. Please retry registration.");
   }
 
   const barcodeData = utils.generateBarcodeData(patientId);

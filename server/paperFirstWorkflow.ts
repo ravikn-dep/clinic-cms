@@ -1,4 +1,17 @@
 export type PaperAppointmentStatus = "Scheduled" | "Checked-in" | "Completed" | "Cancelled" | "No-show" | "Rescheduled";
+export type EncounterStatus = "Present" | "Checked-in" | "OP Generated" | "Ready for Billing" | "Closed";
+
+export function canCheckInEncounter(status: string | null | undefined) {
+  return status === "Present";
+}
+
+export function canGenerateEncounterOp(status: string | null | undefined) {
+  return status === "Checked-in" || status === "OP Generated";
+}
+
+export function encounterIsClosed(status: string | null | undefined) {
+  return status === "Closed";
+}
 
 export function canGeneratePaperOp(status: PaperAppointmentStatus) {
   return status === "Checked-in";

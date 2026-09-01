@@ -67,6 +67,25 @@ describe("User Management security and lifecycle", () => {
     } as any)).rejects.toThrow();
   });
 
+  it("persists consultant OP location through the admin-only profile procedures", async () => {
+    vi.spyOn(db, "getNextUserSequence").mockResolvedValue(3);
+    vi.spyOn(db, "getUserByUsername").mockResolvedValue(null);
+    vi.spyOn(db, "getUserByEmail").mockResolvedValue(null);
+    const create = vi.spyOn(db, "createStaffUser").mockResolvedValue(undefined as any);
+    vi.spyOn(db, "getStaffUserById").mockResolvedValue({ ...target, consultantLocation: "Banjara Hills, Hyderabad" } as any);
+    vi.spyOn(db, "createAuditLog").mockResolvedValue(undefined);
+
+    await appRouter.createCaller(ctx("admin")).rbac.createStaffUser({
+      role: "consultant", name: "Dr Location", password: "safe-pass-123", consultantLocation: "Banjara Hills, Hyderabad",
+    });
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ consultantLocation: "Banjara Hills, Hyderabad" }));
+
+    const update = vi.spyOn(db, "updateStaffUser").mockResolvedValue(undefined);
+    vi.spyOn(db, "getStaffUserById").mockResolvedValue(target as any);
+    await appRouter.createCaller(ctx("admin")).rbac.updateStaffUser({ userId: "CONS-001", consultantLocation: "Jubilee Hills, Hyderabad" });
+    expect(update).toHaveBeenCalledWith("CONS-001", expect.objectContaining({ consultantLocation: "Jubilee Hills, Hyderabad" }));
+  });
+
   it("rejects duplicate email before creating an account", async () => {
     vi.spyOn(db, "getNextUserSequence").mockResolvedValue(2);
     vi.spyOn(db, "getUserByUsername").mockResolvedValue(null);

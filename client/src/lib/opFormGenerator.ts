@@ -310,6 +310,7 @@ export type BrandedConsultationOP = {
   age?: number | null;
   gender?: string | null;
   contactNumber: string;
+  address?: string | null;
   clinicalHistory?: string | null;
   presentComplaints?: string | null;
   advisedInvestigations?: string | null;
@@ -323,14 +324,12 @@ export type BrandedConsultationOP = {
   prescriptionHeaderText?: string | null;
   consultantLogoUrl?: string | null;
   signatureUrl?: string | null;
+  consultantLocation?: string | null;
+  consultantTimings?: string | null;
   facility: { name: string; location: string; logoUrl?: string };
 };
 
-/**
- * Generates a printable clinical OP only from the server-authoritative
- * consultation print-data route. The caller never supplies consultant identity
- * or image URLs independently of the consultation.
- */
+/** One canonical master OP template for browser preview and print output. */
 export function generateConsultationOPHTML(op: BrandedConsultationOP): string {
   const escapeHtml = (value?: string | number | null) => String(value ?? "—")
     .replace(/&/g, "&amp;")
@@ -338,77 +337,60 @@ export function generateConsultationOPHTML(op: BrandedConsultationOP): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
-  const blankSection = (title: string) => `
-    <section class="clinical-section paper-blank">
-      <h3>${escapeHtml(title)}</h3>
-      <div class="handwriting-lines" aria-label="Blank handwriting area"></div>
-    </section>`;
-  const consultantLogo = op.consultantLogoUrl
-    ? `<img class="identity-image" src="${escapeHtml(op.consultantLogoUrl)}" alt="Consultant logo" />`
-    : "";
-  const facilityLogo = op.facility.logoUrl
-    ? `<img class="identity-image facility-image" src="${escapeHtml(op.facility.logoUrl)}" alt="Max Diagnostics logo" />`
-    : "";
   const signature = op.signatureUrl
     ? `<img class="signature-image" src="${escapeHtml(op.signatureUrl)}" alt="Consultant signature" />`
-    : "";
-  const consultationDate = new Date(op.consultationDate).toLocaleString("en-IN");
+    : `<div class="signature-line"></div>`;
 
   return `<!doctype html>
   <html><head><title>OP Prescription — ${escapeHtml(op.consultationId)}</title>
   <style>
-    @page { size: A4 portrait; margin: 10mm; }
+    @page { size: A4 portrait; margin: 7mm 8mm 8mm; }
     * { box-sizing: border-box; }
-    body { margin:0; color:#172033; font:12px Arial, 'Times New Roman', serif; background:#fff; }
-    .page { min-height:277mm; border:1px solid #cbd5e1; padding:8mm; }
-    .brand-header { display:grid; grid-template-columns:1fr 1fr; gap:8mm; padding-bottom:5mm; border-bottom:2px solid #0f766e; }
-    .identity { min-height:33mm; display:flex; gap:4mm; align-items:flex-start; }
-    .facility { justify-content:flex-end; text-align:right; border-left:1px solid #d1d5db; padding-left:7mm; }
-    .identity-image { width:23mm; height:23mm; object-fit:contain; flex:none; }
-    .facility-image { order:2; }
-    .identity h1 { font-size:16px; margin:0 0 1.2mm; line-height:1.15; color:#0f172a; }
-    .identity p { margin:.6mm 0; line-height:1.35; }
-    .facility h2 { margin:0 0 1.5mm; color:#0f766e; font-size:15px; letter-spacing:.04em; }
-    .muted { color:#475569; }
-    .patient-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:3mm; margin:5mm 0; border:1px solid #cbd5e1; padding:4mm; background:#f8fafc; }
-    .field-label { display:block; font-size:9px; text-transform:uppercase; color:#64748b; letter-spacing:.04em; }
-    .field-value { display:block; margin-top:.8mm; font-weight:700; min-height:4mm; }
-    .clinical-section { border-top:1px solid #dbe3ea; padding:3mm 0; }
-    .clinical-section h3 { font-size:11px; letter-spacing:.06em; color:#0f766e; margin:0 0 1.5mm; text-transform:uppercase; }
-    .clinical-section p { white-space:pre-wrap; margin:0; line-height:1.5; min-height:6mm; }
-    .paper-blank { min-height:25mm; }
-    .handwriting-lines { min-height:17mm; background: repeating-linear-gradient(to bottom, transparent 0, transparent 7mm, #cbd5e1 7.2mm, transparent 7.6mm); }
-    .signature-block { margin-top:7mm; margin-left:auto; width:64mm; min-height:28mm; text-align:center; border-top:1px solid #94a3b8; padding-top:2mm; }
-    .signature-image { max-width:50mm; max-height:15mm; object-fit:contain; display:block; margin:0 auto 1mm; }
-    .signature-name { font-weight:700; margin:1mm 0; }
-    .footer { margin-top:5mm; padding-top:2mm; border-top:1px solid #cbd5e1; color:#64748b; font-size:9px; display:flex; justify-content:space-between; }
+    html, body { margin:0; padding:0; background:#fff; color:#111827; }
+    body { font-family: Arial, 'Times New Roman', serif; font-size:10pt; }
+    .page { width:194mm; height:282mm; margin:0 auto; padding:0; display:flex; flex-direction:column; overflow:hidden; }
+    .master-header { height:22mm; flex:none; position:relative; padding:0 0 2mm; border-bottom:1px solid #64748b; }
+    .consultant-brand { position:absolute; top:0; right:0; width:48mm; height:22mm; display:flex; align-items:center; justify-content:center; }
+    .consultant-logo { display:block; width:42mm; height:auto; max-width:48mm; max-height:20mm; object-fit:contain; flex:0 1 auto; }
+    .patient-block { height:25mm; flex:none; margin-top:2mm; border:1px solid #94a3b8; display:grid; grid-template-columns:1.7fr .8fr 1.2fr; grid-template-rows:8mm 8mm 8mm; font-size:8.5pt; }
+    .patient-field { min-width:0; padding:1.1mm 2mm; border-right:1px solid #cbd5e1; border-bottom:1px solid #cbd5e1; overflow:hidden; }
+    .patient-field:nth-child(3n) { border-right:0; }
+    .patient-field.address { grid-column:1 / -1; border-bottom:0; }
+    .label { display:block; color:#64748b; font-size:7pt; line-height:1; margin-bottom:.8mm; }
+    .value { display:block; color:#111827; font-size:9pt; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .clinical-area { flex:1; min-height:0; margin-top:4mm; position:relative; border-top:1px solid #334155; padding-top:2mm; }
+    .clinical-title { margin:0; font-size:9pt; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#0f172a; }
+    .writing-space { position:absolute; inset:8mm 0 23mm; }
+    .signature-block { position:absolute; right:0; bottom:2mm; width:48mm; height:18mm; text-align:center; }
+    .signature-image { display:block; width:auto; max-width:42mm; height:10mm; margin:0 auto 1mm; object-fit:contain; }
+    .signature-line { width:100%; height:10mm; border-bottom:1px solid #334155; }
+    .signature-label { margin-top:1mm; font-size:7pt; color:#334155; }
+    .footer { flex:none; height:9mm; margin-top:2mm; border-top:1px solid #94a3b8; display:grid; grid-template-columns:minmax(0, 1fr) max-content; grid-template-rows:auto auto; column-gap:4mm; align-content:center; overflow:hidden; color:#334155; font-size:7pt; line-height:1.1; }
+    .footer-meta, .footer-timings { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .footer-meta { grid-column:1; grid-row:1; }
+    .footer-timings { grid-column:1; grid-row:2; }
+    .footer .validity { grid-column:2; grid-row:1 / span 2; max-width:58mm; text-align:right; }
+    @media print { .page { margin:0; } }
   </style></head><body><main class="page">
-    <header class="brand-header">
-      <section class="identity consultant">${consultantLogo}<div>
-        <h1>${escapeHtml(op.consultantName)}</h1>
-        ${op.qualifications ? `<p>${escapeHtml(op.qualifications)}</p>` : ""}
-        ${op.designation ? `<p class="muted">${escapeHtml(op.designation)}</p>` : ""}
-        ${op.specialization ? `<p class="muted">${escapeHtml(op.specialization)}</p>` : ""}
-        ${(op.registrationCouncil || op.registrationNumber) ? `<p class="muted">${escapeHtml(op.registrationCouncil)}${op.registrationCouncil && op.registrationNumber ? " · " : ""}${escapeHtml(op.registrationNumber)}</p>` : ""}
-        ${op.prescriptionHeaderText ? `<p>${escapeHtml(op.prescriptionHeaderText)}</p>` : ""}
-      </div></section>
-      <section class="identity facility"><div><h2>${escapeHtml(op.facility.name)}</h2><p>${escapeHtml(op.facility.location)}</p></div>${facilityLogo}</section>
-    </header>
-    <section class="patient-grid">
-      <div><span class="field-label">Patient name</span><span class="field-value">${escapeHtml(`${op.firstName} ${op.lastName}`)}</span></div>
-      <div><span class="field-label">Patient ID</span><span class="field-value">${escapeHtml(op.patientId)}</span></div>
-      <div><span class="field-label">Visit / date</span><span class="field-value">${escapeHtml(consultationDate)}</span></div>
-      <div><span class="field-label">Age</span><span class="field-value">${escapeHtml(op.age)}</span></div>
-      <div><span class="field-label">Gender</span><span class="field-value">${escapeHtml(op.gender)}</span></div>
-      <div><span class="field-label">Contact number</span><span class="field-value">${escapeHtml(op.contactNumber)}</span></div>
+    <header class="master-header"><section class="consultant-brand">${op.consultantLogoUrl ? `<img class="consultant-logo" src="${escapeHtml(op.consultantLogoUrl)}" alt="Consultant logo" />` : ""}</section></header>
+    <section class="patient-block" aria-label="Patient information">
+      <div class="patient-field"><span class="label">Patient Name</span><span class="value">${escapeHtml(`${op.firstName} ${op.lastName}`)}</span></div>
+      <div class="patient-field"><span class="label">Age / Gender</span><span class="value">${escapeHtml([op.age, op.gender].filter(Boolean).join(" / "))}</span></div>
+      <div class="patient-field"><span class="label">Phone Number</span><span class="value">${escapeHtml(op.contactNumber)}</span></div>
+      <div class="patient-field"><span class="label">Patient ID</span><span class="value">${escapeHtml(op.patientId)}</span></div>
+      <div class="patient-field"><span class="label">Consultant</span><span class="value">${escapeHtml(op.consultantName)}</span></div>
+      <div class="patient-field"><span class="label">Date / Time</span><span class="value">${escapeHtml(formatOPDateTime(op.consultationDate))}</span></div>
+      <div class="patient-field address"><span class="label">Address</span><span class="value">${escapeHtml(op.address)}</span></div>
     </section>
-    ${blankSection("Chief complaints / history")}
-    ${blankSection("Clinical examination / findings")}
-    ${blankSection("Investigations")}
-    ${blankSection("Diagnosis / assessment")}
-    ${blankSection("Treatment / prescription")}
-    ${blankSection("Advice / follow-up")}
-    <section class="signature-block">${signature}<p class="signature-name">${escapeHtml(op.consultantName)}</p><p>${escapeHtml(op.qualifications)}</p><p>${escapeHtml(op.registrationNumber)}</p></section>
-    <footer class="footer"><span>${escapeHtml(op.facility.name)} · ${escapeHtml(op.facility.location)}</span><span>Consultation ${escapeHtml(op.consultationId)}</span></footer>
+    <section class="clinical-area" aria-label="Clinical Notes"><h2 class="clinical-title">Clinical Notes</h2><div class="writing-space" aria-label="Blank handwriting area"></div><div class="signature-block">${signature}<div class="signature-label">Signature</div></div></section>
+    <footer class="footer"><span class="footer-meta">Location: ${escapeHtml(op.consultantLocation)} · Date &amp; Time: ${escapeHtml(formatOPDateTime(op.consultationDate))}</span><span class="footer-timings">Timings: ${escapeHtml(op.consultantTimings)}</span><span class="validity">OP valid only upto 4 weeks or one visit within.</span></footer>
   </main></body></html>`;
+}
+
+export function formatOPDateTime(value: string): string {
+  const mysqlTimestamp = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
+  const instant = new Date(mysqlTimestamp.test(value) ? `${value.replace(" ", "T")}Z` : value);
+  const parts = new Intl.DateTimeFormat("en-IN", { timeZone: "Asia/Kolkata", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }).formatToParts(instant);
+  const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${lookup.day} ${lookup.month} ${lookup.year}, ${lookup.hour}:${lookup.minute} ${lookup.dayPeriod?.toUpperCase()}`;
 }

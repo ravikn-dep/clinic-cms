@@ -1065,3 +1065,313 @@ This section records the user-authorized GitHub governance action; the migration
 
 ## Main-side PRD Publication Review
 - [x] Preserve the canonical PRD and reconciliation evidence already reviewed through PR #15.
+
+## User Lookup Schema Drift Fix
+- [x] Trace the failing user lookup fields against current schema, migrations, Preview logs, and development database state.
+- [x] Apply the smallest safe development-only schema reconciliation or compatible fix; preserve authentication and RBAC semantics.
+- [x] Add or update regression coverage for consultant profile lookup and validate check, tests, build, and Preview response.
+
+## Change-Password OAuth Identity Fix
+- [x] Trace the change-password route and confirm the OAuth user has no local password hash.
+- [x] Implement the smallest secure UX/API correction that distinguishes OAuth-only users from local-password users without weakening authentication.
+- [x] Add regression coverage for OAuth-only rejection guidance and local-password change behavior.
+- [x] Validate type-check, focused auth tests, full suite, build, Preview behavior, and save a checkpoint.
+
+## Attached Report Review and Application
+- [x] Read and summarize the newly attached report or instructions.
+- [x] Verify its claims against the current repository, database-safe boundaries, and existing implementation.
+- [x] Apply only explicitly supported and safe changes from the attachment.
+- [x] Run required tests, type-check, build, and diff validation; document any blocked or unapplied items.
+
+## New Attached Report Review
+- [x] Read and summarize the newly attached report or instructions.
+- [x] Verify its claims and requested scope against the current Clinic CMS implementation.
+- [x] Apply only safe, authorized changes from the attachment.
+- [x] Validate tests, type-check, build, diff hygiene, and Preview behavior; checkpoint the result.
+- [x] Add focused pure-policy coverage for one-expanded-patient behavior, toggle collapse, and stale selection safety.
+
+## Sign-in Button Responsiveness
+- [x] Reproduce and diagnose why clicking Sign In produces no visible response in Preview.
+- [x] Apply a minimal safe authentication UI/server correction without using or persisting chat-shared credentials.
+- [x] Add or update regression coverage for sign-in pending, success, and error feedback.
+- [x] Validate type-check, focused tests, full suite, build, diff hygiene, and Preview behavior; checkpoint the fix.
+
+## Attachment 52 Continuation
+- [x] Re-read attachment 52 and confirm its inline-preview requirements against current Patient Records source.
+- [x] Complete immediate-below-row preview behavior with one expanded patient and stale-filter collapse.
+- [x] Complete focused, full, build, diff, and visual validation for attachment 52.
+- [x] Update PRD, save the local checkpoint, and report the final classification.
+
+## Recurring Sign-in No-Response Report
+- [x] Recheck whether Preview Sign In submits, remains pending, or returns a visible authentication error.
+- [x] Correct any remaining sign-in feedback or interaction defect without changing credential/OAuth security semantics.
+- [x] Re-run focused authentication tests and Preview validation, then checkpoint if changed.
+
+## Attachment 52 Continued Review
+- [x] Re-read attachment 52 and identify any remaining requested Patient Records behavior.
+- [x] Verify the current inline preview implementation against each remaining requirement.
+- [x] Complete only safe, in-scope changes and validation, then update the checkpoint/report.
+
+## Patient Records React Key Warning
+- [x] Audit every mapped list in PatientRecords.tsx, including fragment-wrapped table rows and preview content.
+- [x] Add stable keys to the actual list elements without changing billing or patient behavior.
+- [x] Add focused regression coverage where practical and run type-check, tests, build, diff, and Preview validation.
+
+## User Management HTML-as-JSON Mutation Failure
+- [x] Trace the `/users` mutation, request URL, and latest server/network response to identify the HTML response source.
+- [x] Apply the smallest safe fix while preserving admin-only authorization and audit behavior.
+- [x] Add or update focused User Management regression coverage and validate type-check, tests, build, diff, and Preview behavior.
+
+## Attachment 53 Review and Application
+- [x] Read and summarize attachment 53.
+- [x] Verify attachment 53 claims and requested scope against the current Clinic CMS.
+- [x] Apply only safe, explicitly authorized changes from attachment 53.
+- [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.
+
+## Attachment 54 Review and Application
+- [x] Read and summarize attachment 54.
+- [x] Verify attachment 54 claims and requested scope against the current Clinic CMS.
+- [x] Apply only safe, explicitly authorized changes from attachment 54.
+- [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.
+
+## Attachment 55 Review and Application
+- [x] Read and summarize attachment 55.
+- [x] Verify attachment 55 claims and requested scope against the current Clinic CMS.
+- [x] Apply only safe, explicitly authorized changes from attachment 55.
+- [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.
+
+## Attachment 52 Approved Workflow Re-execution
+- [x] Re-read attachment 52 and inspect the current workflow ledger/state.
+- [x] Map each approved attachment 52 step to completed, pending, or blocked status.
+- [x] Execute only genuinely pending approved steps; do not repeat completed changes.
+- [x] Validate the executed steps, update documentation if required, and save a checkpoint.
+
+## New Visit Contact Number Validation
+- [x] Trace the contact-number field, normalization, and register-patient submission path.
+- [x] Apply the smallest safe Indian mobile-number normalization and user-facing validation correction.
+- [x] Add regression coverage and run New Visit-focused tests, type-check, full suite, build, diff, and Preview validation.
+
+## Attachment 56 Review and Application
+- [x] Read and summarize attachment 56.
+- [x] Verify attachment 56 claims and requested scope against the current Clinic CMS.
+- [x] Apply only safe, explicitly authorized changes from attachment 56.
+- [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.
+
+## Appointment Consultation Print Data Failure
+- [x] Trace the Generate OP and branded print-data lookup path, including consultant/patient joins and current appointment state.
+- [x] Apply the smallest safe correction without weakening consultant authorization or paper-first lifecycle rules.
+- [x] Add regression coverage and run focused appointment/OP tests, full suite, type-check, build, diff, and Preview validation.
+
+## New Visit to Generate OP No-Response Flow
+- [x] Trace test-patient registration, appointment confirmation, redirect, and Generate OP interaction from current logs and source.
+- [x] Apply the smallest safe response/navigation/loading-state correction without changing paper-first business rules.
+- [x] Add regression coverage and run focused workflow tests, full suite, type-check, build, diff, and Preview validation.
+
+## Attachment 57 Review and Application
+- [x] Read and summarize attachment 57.
+- [x] Verify attachment 57 claims and requested scope against the current Clinic CMS.
+- [x] Apply only safe, explicitly authorized changes from attachment 57.
+- [x] Run required tests, type-check, build, diff, and Preview validation; save a checkpoint and report the result.
+
+## Attachment 57 — Unified Patient Visit Reconciliation (2026-08-27)
+- [x] Reviewed attachment 57 requirements, evidence, constraints, and stop rules.
+- [x] Added additive first-class encounters and daily patient-ID sequence schema with forward migration 0027.
+- [x] Added deterministic-baseline coverage for encounters and patientIdSequences.
+- [x] Added concurrency-safe daily DOCM Patient ID allocation while preserving historical IDs.
+- [x] Added direct and appointment-linked encounter convergence for check-in, OP generation, Patient Records, and Billing.
+- [x] Replaced the New Visit appointment-only funnel with a unified Patient Visit workspace and optional appointment scheduling.
+- [x] Added focused encounter/paper-first regression tests.
+- [x] Updated PRD with validated unified Encounter architecture and optional-appointment workflow.
+- [x] Completed validation: pnpm check passed, full suite 350/350 passed across 46 files, pnpm build passed, git diff --check passed, and Preview screenshots verified New Visit, Patient Records, and Billing.
+
+## Attachment 58 — Unified Patient Intake Publication and Protected Validation
+- [x] Verify exact source commit/checkpoint 637a312b and canonical ancestry.
+- [x] Verify complete Attachment 57 delta and exclude unrelated procurement, inventory, ThreeUI, credentials, deployment, and production changes.
+- [ ] Validate fresh deterministic baseline and canonical pre-Attachment-57 forward migration against disposable isolated MySQL 8. BLOCKED: no isolated MySQL 8 server/container is available in the sandbox; the connected development database is excluded by Attachment 58.
+- [x] Run focused workflow, Encounter, Patient-ID, paper-first, appointment compatibility, Patient Records, Billing, RBAC/security, full tests, check, build, and diff validation.
+- [x] Verify DOCM sequence expansion, date reset, concurrency uniqueness, returning-patient ID preservation, and historical ID immutability.
+- [ ] Push the exact feature branch normally and open a protected PR without merging, tagging, deploying, or touching production. BLOCKED: remote Git credentials are unavailable in this session.
+- [ ] Verify protected CI against the exact PR head and report the final classification only if all gates pass.
+
+## Attachment 59 — Exact Attachment 57 Git Bundle Export
+- [x] Verify commit graph, canonical comparison, exact delta, and worktree status without modifying source or history.
+- [x] Create and verify `/home/ubuntu/upload/unified-patient-intake-637a312b.bundle` from the exact feature branch.
+- [x] Create `/home/ubuntu/upload/unified-patient-intake-637a312b-MANIFEST.txt` with exact commit list, changed files, diff stat, and prior validation evidence.
+- [x] Deliver both export artifacts and report bundle verification, size, and exact commit list.
+
+## Attachment 60 — Master OP Template Visual Refinement
+- [x] Read all attachment 60 requirements and inspect the approved OP reference image. The supplied `/mnt/data/ChatGPT Image Aug 27, 2026, 09_56_16 PM.png` path is unavailable in this sandbox, so visual inspection could not be performed.
+- [x] Verify durable consultant location and timing data sources; timings are available through `consultantAvailability`, but no durable consultant/location field exists. Per attachment 60, stop with `BLOCKED — CONSULTANT LOCATION FIELD REQUIRED`.
+- [x] Refactor the single master OP view model/template without creating consultant-specific markup or changing clinical business behavior.
+- [x] Match A4 one-page geometry, compact three-row patient block, upper-right proportional logo, dominant blank handwriting area, bottom-right signature area, compact footer, and exact OP validity text.
+- [x] Add/update renderer tests for dynamic branding, missing optional assets, 12-hour date/time, exact validity text, and one-page geometry.
+- [x] Run focused/full tests, type-check, build, diff hygiene, Preview print rendering, and save a checkpoint.
+
+## Attachment 61 — Approved Master OP Location and Template Implementation
+- [x] Add only nullable consultantLocation to the existing consultant/user schema through the smallest additive migration; do not modify unrelated tables or production.
+- [x] Add the smallest User Management consultant-profile input for OP Location without redesigning the page or changing RBAC.
+- [x] Derive consultant timings from consultantAvailability and normalize them for compact 12-hour footer text.
+- [x] Refactor the single master OP template to the approved A4 geometry with dynamic consultant/patient/visit data, proportional logo, optional signature, compact footer, and exact validity text.
+- [x] Add focused tests for location persistence/print data, consultant-specific values, missing optional data, timing/date formatting, master-template behavior, and migration correctness.
+- [x] Run migration/schema validation, focused/full tests, type-check, build, diff hygiene, and browser verification; do not deploy, push, merge, or run production migration. Development evidence: consultantLocation column exists as nullable TEXT; fresh-baseline execution was not attempted because the repository baseline artifact is stale and the operation would be destructive on the connected development database.
+
+## Generate OP No-Response Regression
+- [x] Reproduce the no-response Generate OP action in an authenticated Preview session and capture the exact identifier and tRPC payload.
+- [x] Trace appointment, encounter, consultation, and print-data linkage for the failed record without creating fake fallback data.
+- [ ] Apply only the narrow lifecycle/data-resolution correction required; BLOCKED because the failed development record has a consultation and encounter but no canonical patient or consultant row; no fake fallback, historical backfill, or production data action is authorized.
+- [ ] Add focused regression coverage and run check, tests, build, diff hygiene, and real browser verification. BLOCKED pending an authorized valid development record or data-repair decision.
+
+## Attachment 63 — Development-Only Orphan Repair and OP Re-Verification
+- [x] Inspect foreign-key and dependent business rows for the specifically authorized appointment, encounter, and consultation IDs before deletion; no FK dependents, bills, enquiries, or unexpected clinical/business dependents were found, and three audit-log rows were retained.
+- [x] Delete only the authorized orphaned synthetic development rows in dependency-safe order, stopping if unexpected dependents exist. Removed exactly consultation `CON-YKFOLLJ-5L8LBD2R`, encounter `ENC--WEEJSWONLWU8HFN`, and appointment `APT-012THZCM6SKTPUZF`; post-delete counts are zero.
+- [ ] Select an existing valid development patient and active consultant with canonical branding, location, and availability; BLOCKED because the development database has one active consultant with logo/location (`DR. DEEPTHI S`, id `4260027`) but zero active availability rows, and no existing consultant satisfies all requirements.
+- [ ] Create a fresh appointment through the normal application workflow and execute Check In → Generate OP & Print. BLOCKED pending an existing valid consultant availability schedule; no appointment or synthetic branding data was created.
+- [ ] Verify the appointment → consultation → branded print-data → master renderer chain and compare the rendered OP against every approved visual requirement. BLOCKED because no valid all-requirements test record is available after authorized cleanup.
+- [ ] Verify Patient Records produces the same OP; BLOCKED for the same missing active availability prerequisite. Source changes: none. Production impact: none.
+
+## Attachment 64 — Development Availability and Master OP Re-Verification
+- [x] Audit whether multiple active intervals on the same consultant/day are supported by the schema, procedures, validation, and UI. Schema permits multiple intervals because no consultant/day unique constraint exists, but no canonical router/UI configuration path exists.
+- [ ] If supported, configure Dr. Deepthi’s Monday–Saturday 17:30–20:30 and Sunday 10:00–12:00 plus 15:00–17:00 schedule through the canonical UI only. BLOCKED — SPLIT-SHIFT AVAILABILITY DECISION REQUIRED because the canonical UI/procedure path is absent; no direct SQL rows were inserted.
+- [ ] Verify the timing formatter preserves the Sunday split and compacts identical weekday schedules. BLOCKED until valid split-shift rows can be configured through an approved path.
+- [ ] Create a valid appointment through the normal UI using an existing canonical patient and Dr. Deepthi, then run Check In → Generate OP & Print. BLOCKED because Dr. Deepthi has zero active availability and no valid all-requirements consultant exists.
+- [ ] Visually verify every approved Master OP requirement and verify the same renderer from Patient Records; BLOCKED because the valid runtime prerequisite cannot be created without an approved schedule configuration path.
+
+## Attachment 65 — Canonical Consultant Availability CRUD
+- [ ] Confirm existing consultantAvailability schema/source-of-truth and admin authorization conventions; no schema or migration changes allowed.
+- [ ] Add narrow protected admin availability read/update procedures using existing conventions and server-enforced authorization.
+- [ ] Validate day/time ranges, duplicate intervals, active overlap, multiple same-day intervals, and atomic full-schedule replacement.
+- [ ] Add a compact Availability editor inside the existing consultant edit surface with add/remove intervals, validation feedback, success toast, and refetch.
+- [ ] Add focused tests for authorization, persistence, atomicity, split Sunday sessions, overlap rejection, formatter grouping, and appointment availability regression.
+- [ ] Configure Dr. Deepthi’s approved development schedule through the authenticated UI only.
+- [ ] Re-verify the valid appointment → encounter → consultation → branded print-data → Master OP and Patient Records flows, then run full validation without deployment or production changes.
+
+## Generate OP No-Response After Availability Configuration
+- [x] Reproduce Generate OP with the configured consultant schedule in authenticated Preview.
+- [x] Trace appointment, encounter, consultation, branded print-data, timing formatter, and print-window behavior. The current appointment reaches `visits.generateOp` successfully, then `consultations.getBrandedPrintData` fails because its patient `PAT-1787326515063` and consultant `26610571` rows are absent.
+- [ ] Apply only a narrow runtime correction if a genuine application defect is confirmed; no application defect was found. The current blocker is orphaned development data, so no fallback or source change is authorized.
+- [ ] Validate Patient Records OP generation, focused/full tests, type-check, build, diff hygiene, and browser behavior. End-to-end validation is blocked until a valid appointment uses an existing patient and active consultant.
+
+## Attachment 66 — Fresh Valid Appointment and OP Acceptance
+- [ ] Verify Dr. Deepthi user `4260027` has active status, logo, location, and actual active availability rows.
+- [ ] Select and verify an existing canonical patient row; do not use orphaned appointment references.
+- [ ] Create a fresh appointment for that patient and Dr. Deepthi through the authenticated UI only.
+- [ ] Check in the appointment and verify patient, consultant, encounter, and appointment linkage.
+- [ ] Generate OP & Print; capture consultation ID, branded print-data response, and master renderer output.
+- [ ] Verify every listed Master OP visual requirement and repeat OP generation from Patient Records.
+- [ ] Run full tests, build, diff check, and focused availability validation; do not deploy, push, merge, migrate, or access production.
+
+## Generate OP Print Window Follow-up — 2026-08-28
+- [x] Make the appointment Generate OP & Print flow open its print window from the user gesture before asynchronous tRPC work, then populate it after branded print data resolves; preserve safe error cleanup, duplicate-submit protection, and the existing encounter/consultation workflow.
+- [x] Add regression coverage for the appointment print orchestration and preserve Patient Records behavior.
+- [x] Re-verify Preview appointment and Patient Records printing, OP HTML rendering, type-check, full tests, build, diff hygiene, and save a checkpoint.
+
+## Branded Print-data Resolution Follow-up — 2026-08-28
+- [x] Diagnose the reproduced `Consultation print data not found` response without changing production data or weakening authorization. The failed ID was a stale orphaned development consultation; the valid canonical Patient Records consultation resolves with HTTP 200 and branded data, so no unsafe resolver fallback was added.
+- [x] Preserve regression coverage for the resolver’s valid consultation path and re-run the appointment and Patient Records Preview checks, including user-gesture popup orchestration.
+
+## Appointments OP Print-data Error — 2026-08-28
+- [x] Capture the consultation ID from the reported Appointments failure and inspect only its development appointment, encounter, patient, consultant, and consultation linkage.
+- [x] Correct the demonstrated cause with the narrowest safe code or development-data action, preserving strict RBAC, audit logging, and no production changes. The failure was an orphaned legacy row whose patient and consultant had been removed; the operational appointment list now omits only rows lacking either required reference, while raw history helpers remain unchanged.
+- [x] Add or update regression coverage, re-verify Appointments and Patient Records printing, run validation, and save a checkpoint.
+
+## Development PAT Data Cleanup — 2026-08-28
+- [x] Inventory all development-database rows linked to patient IDs beginning with `PAT`, including dependent clinical, appointment, encounter, billing, notification, enquiry, audit, and storage-reference metadata where a relational patient key exists.
+- [x] Hard-delete only the approved `PAT%` development records in dependency order, preserving all `DOCM%` patient records and their linked data without changing schema or production.
+- [x] Verify zero remaining relational `PAT%` patient rows, verify `DOCM%` preservation, and record the completed cleanup.
+
+## Attachment 67 — Responsive Shell, Workflow Continuity, and Master OP Fidelity — 2026-08-28
+- [x] Audit the current dashboard shell, sidebar positioning, responsive breakpoints, main-content geometry, and overlap behavior at the required viewport matrix without changing code.
+- [x] Trace the authenticated New Visit → Appointment → Check In → Generate OP → Print OP request sequence, measure baseline latency, and identify only proven redundant or serial work without changing lifecycle semantics.
+- [x] Audit the sole master OP renderer, logo resolution, consultant location, grouped availability timing, 12-hour timestamp, A4 CSS, header, patient block, handwriting area, signature, and footer against the approved specification.
+- [x] Apply only scoped responsive shell changes, proven workflow cache/loading improvements, and single-renderer OP fidelity corrections; do not modify auth, RBAC, CMS-admin separation, procurement, inventory, OCR, billing architecture, integrations, schema, production data, or deployment.
+- [x] Add focused regression coverage; re-run required responsive, workflow, OP HTML, type, test, build, and diff-hygiene verification; record results and save a checkpoint without pushing, merging, deploying, or migrating.
+
+## Attachment 67 New Visit Print Orchestration Follow-up — 2026-08-28
+- [x] Replace the New Visit page’s duplicate print-window sequence with the shared tested user-gesture-safe orchestration after the controlled Preview check remained in its localized Preparing state without dispatching branded print-data retrieval.
+- [x] Re-run the controlled New Visit print action and confirm its branded-data request completes successfully before the native print dialog blocks browser automation, without changing encounter lifecycle semantics.
+- [x] Restore the existing consultation print context when Create or Resume Patient Visit returns an OP-generated encounter, so a refreshed New Visit workspace can safely enable Print OP without creating another encounter or consultation.
+
+## Attachment 68 — Live Generate OP Interaction Reliability — 2026-08-28
+- [x] Trace the real authenticated Appointments Generate OP click through event binding, synchronous popup creation, `visits.generateOp`, consultation ID handoff, branded print-data retrieval, HTML injection, and print invocation before editing code.
+- [x] Audit the actual Generate OP control for disabled, overlay, pointer-event, stale-mutation, form-submit, and closure issues; reproduce popup-blocked and provider-failure behavior without changing the OP template, lifecycle, schema, auth, RBAC, dashboard, or unrelated modules.
+- [x] Apply only the smallest shared orchestration and user-feedback correction required to make pending, popup-block, provider, HTML, and print failures visible for Appointments, New Visit, and Patient Records.
+- [x] Add focused interaction regression coverage; verify each print entry point in the authenticated Preview; run type, full test, build, and diff-hygiene validation; record the result and save a checkpoint without deployment or production changes.
+
+## Attachment 69 — Consultant Authorization Scope for Generate OP — 2026-08-28
+- [x] Capture the authenticated user role and ID, exact appointment, generated consultation, patient, and consultant record linkage from the real failing Appointments request, together with the precise server-side authorization helper and deny branch.
+- [x] Confirm whether existing RBAC policy authorizes this CMS admin to print for the linked consultant; stop for a user decision if the policy, record linkage, or required correction is ambiguous or invalid.
+- [x] Apply only a server-side least-privilege correction authorized by the existing RBAC model; preserve consultant self-scope, unauthorized staff denial, valid-consultant checks, and non-sensitive user-facing failure messages. Existing policy was correct, so no runtime authorization change was applied.
+- [x] Add focused authorization, linkage, invalid-consultant, and Generate OP regression coverage; verify the authorized browser path and a denied test path; run full validation and save a checkpoint with no schema, migration, renderer, storage, production, deployment, or Git publication change.
+
+## Attachment 70 — Billing Flow and OP Rendering Reliability — 2026-08-31
+- [x] Reproduce and trace the valid development Billing flow, including the source of any `key=null` warning, canonical bill ID propagation, and existing View Bill/PDF context.
+- [x] Trace the Master OP timestamp from the server-provided print data into the sole renderer and prove it represents the actual generation time in the intended clinic timezone rather than a random or stale client-derived time.
+- [x] Trace configured consultant logo resolution through protected print data, HTML injection, image request, load/decode readiness, timeout/error handling, and print invocation using cache-independent checks.
+- [x] Apply only the smallest stable billing-row identity, returned-bill focus, server-authoritative OP timestamp, and shared print-asset readiness correction; preserve the current OP layout, lifecycle, auth, RBAC, schema, migrations, storage model, and production boundaries.
+- [x] Add focused regression coverage, verify valid billing and OP paths in Preview, run type, full tests, build, and diff hygiene, update the execution record, and save a checkpoint without deployment or production changes.
+
+## Master OP Logo Geometry Refinement — 2026-08-31
+- [x] In the existing single Master OP renderer, center the configured consultant logo inside a top-right header brand zone and constrain it to approximately half the header height without changing the rest of the A4 geometry, data contract, or print lifecycle.
+- [x] Update focused renderer assertions and re-verify configured-logo print output after the geometry refinement.
+
+## Master OP Header Logo Scale Follow-up — 2026-08-31
+- [x] Increase the configured consultant logo within the existing top-right header brand zone to occupy the available header space while preserving intrinsic aspect ratio, safe margins, and the sole A4 renderer.
+- [x] Update renderer coverage and visually re-verify the enlarged configured-logo output before resuming Attachment 72 runtime checks.
+
+## Shared OP Print Asset Resolution Follow-up — 2026-08-31
+- [x] Resolve relative managed-storage logo paths against the active Preview origin inside the existing print popup and close the post-write image event-listener race, so asset readiness is bounded and configured logos do not leave Generate OP pending.
+- [x] Add focused print-helper coverage for popup-relative asset resolution and already-completed load/error events, then re-verify the existing Generate OP path.
+
+## Configured Logo Print Completion Follow-up — 2026-08-31
+- [x] Diagnose the reproduced shared print-helper wait state. The confirmed valid print flow reaches the native browser print dialog after branded data and configured-logo readiness, so the originating control remains pending until that dialog is dismissed by design; no speculative storage or renderer change was made.
+- [x] Add a regression that reproduces the real post-write configured-image readiness path and re-verify the enlarged-logo print flow without changing the OP renderer contract or storage architecture.
+
+## Attachment 71 — Queued DEV Migration and Real Runtime Verification
+- [x] After Attachment 70 is checkpointed, inspect the current migration chain, development migration history, users schema, `consultantLocation` compatibility, migration-number conflicts, and predecessor state before any DEV-only migration action.
+- [x] If and only if the repository’s normal DEV migration path is coherent, apply or reconcile only the approved nullable `users.consultantLocation` schema state; otherwise stop with migration evidence and seek a user decision. Attachment 72 authorized the compatible existing 0028 state; no migration action was necessary or performed.
+- [x] Configure the active Dr Deepthi development consultant through the normal User Management path, then verify Appointment → OP Print, cold/warm configured-logo output, Patient Records printing, and the prescribed Billing flow using valid development data.
+- [x] Capture console/network results, run validation, update the execution record, and checkpoint without production access, schema expansion, historical migration rewriting, deployment, push, merge, or tagging.
+
+## Direct Encounter Billing Eligibility Follow-up — 2026-08-31
+- [x] Trace the demonstrated mismatch where a finalized unbilled direct encounter with `Ready for Billing` status is present in the development database but Patient Records reports no visits ready for billing; preserve the encounter-first billing model and do not alter data until the eligibility source is confirmed.
+- [x] Apply only the smallest authorized candidate-query or client-context correction, then verify the user-authorized development Billing flow with two line items and exact generated-bill context.
+
+## Contextual Direct-Encounter Billing Date Follow-up — 2026-08-31
+- [x] Correct the demonstrated Billing hydration gap in which Patient Records passes a valid historical direct-encounter consultation and encounter ID but Billing queries only today’s candidates, so its form does not open.
+- [x] Add a focused regression for historical direct-encounter billing context and verify the existing patient record opens the matching bill form without changing billing eligibility rules or data.
+
+### Attachment 72 Authority and Verification Conditions
+- [x] Treat existing `drizzle/0028_messy_puff_adder.sql` as the user-authorized consultant-location migration only after confirming the nullable `TEXT` field, repository schema, 0028 provenance, and absence of duplicate pending migration; do not rename, renumber, rewrite, manually reconcile, or duplicate the alteration.
+- [x] Complete the authorized development-only consultant, cold/warm OP print, Patient Records print, billing interaction, console/network, and validation evidence; stop on any out-of-boundary defect rather than make speculative fixes.
+
+## Appointments List and Calendar Visibility — 2026-08-31
+- [x] Compare valid booked development appointments with `appointments.list` output and the client’s list/calendar date matching, including role-scoped visibility and timezone-safe date normalization.
+- [x] Correct only the demonstrated query, list, or calendar mapping cause that hides booked appointments; preserve scheduled/check-in/OP lifecycle, orphan safeguards, RBAC, schema, and production boundaries.
+- [x] Add focused regressions and verify booked appointments appear in both list and calendar views with no print-flow regression; run full validation and save a checkpoint.
+- [x] Harden the new native list-date control against incomplete or malformed browser input so it cannot put the appointment view into an invalid date state.
+
+## Appointment Date State Hardening Follow-up — 2026-08-31
+- [x] Correct the demonstrated invalid-date state path where browser input can still reach `format(selectedDate, ...)`, ensuring malformed input preserves the last valid appointment date rather than crashing the page or interrupting OP print completion.
+- [x] Add a regression that exercises the component-adjacent date-state guard and re-run the cold/warm configured-logo print verification after the fix.
+
+## Post-login Navigation Reliability — 2026-08-31
+- [x] Trace password-login request completion, session/cookie creation, auth query/cache propagation, client routing, protected-page rendering, and existing logout/back-navigation behavior before changing code.
+- [x] Reproduce the demonstrated successful-login/no-navigation state, identify its actual root cause, and correct only the smallest auth-state invalidation/refetch or router transition seam; do not use forced reloads or artificial timeouts.
+- [x] Add focused regressions for invalid credentials, pending/double-submit protection, exact-once success redirect, persisted refresh, logout state clearing, back-navigation blocking, inactive/unauthorized denial, and existing admin/consultant/staff routing/RBAC.
+- [x] Verify the real browser login transition and run TypeScript, full tests, production build, and diff hygiene; save a checkpoint without schema, production, credential, deployment, or unrelated UI changes. The user confirmed the real credential login now enters the authenticated CMS immediately without a refresh or delay.
+
+## Attachment 73 — Publish Validated Development State to Review Branch
+- [x] Review pasted_content_73.txt and reconcile its claims against the current clean Manus worktree and Attachment 71/72 evidence.
+- [x] Create the review branch from the current appropriate repository baseline without modifying main; preserve drizzle/0028_messy_puff_adder.sql as the sole consultantLocation migration authority.
+- [x] Audit and stage only the validated billing, branded OP, print, availability, consultantLocation, User Management, and directly required test/config changes; exclude secrets, generated junk, obsolete migrations, duplicate 0027 consultant-location artifacts, and unrelated refactors.
+- [x] Re-run pnpm test, pnpm check, pnpm build, and git diff --check on the exact candidate; stop for user decision if results materially differ from Attachment 71/72.
+- [x] Create one coherent review-branch commit, push only that branch without force-push or main changes, and verify the remote contains 0028 with no duplicate 0027 consultant-location migration.
+- [x] Record the baseline, branch, commit, remote verification, validation, changed-file groups, and production/main safety outcome in the final report; do not deploy or alter production data.
+
+## Attachment 74 — Authoritative Main/Review Integration
+- [x] Verify GitHub main, validated review branch, merge-base, clean starting state, and review-branch validation evidence; stop if materially different from the attachment.
+- [x] Create integration/op-billing-main-reconciliation from the validated review branch and merge origin/main without modifying or merging into main.
+- [x] Resolve conflicts semantically, preserving current-main functionality, validated billing/print/OP improvements, migration authority, security boundaries, and meaningful tests; do not use global ours/theirs choices or weaken coverage.
+- [x] Reconcile schema/migration metadata and documentation, fix only the specified trailing whitespace, and prove consultantLocation is introduced by exactly one migration with no conflict markers, secrets, credentials, debug logging, skipped tests, or synthetic data.
+- [x] Run static checks, full DB-connected validation, runtime smoke checks on development data only, and final diff review; stop for user decision on unexplained regressions or ambiguity.
+- [x] Commit and push only the integration branch after all acceptance gates pass; verify main and production remain untouched and record the final reconciliation evidence.

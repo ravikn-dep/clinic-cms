@@ -190,6 +190,20 @@
       "when": 1787746835691,
       "tag": "0026_past_ironclad",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "5",
+      "when": 1787847721745,
+      "tag": "0027_mature_wrecker",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "5",
+      "when": 1787850133453,
+      "tag": "0028_messy_puff_adder",
+      "breakpoints": true
     }
   ]
 }

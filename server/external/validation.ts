@@ -5,14 +5,7 @@ const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 export const EXTERNAL_LANGUAGE_CODES = ["en-IN", "hi-IN", "te-IN", "mixed"] as const;
 
-export function normalizeIndianMobile(value: string): string | null {
-  const digits = value.replace(/\D/g, "");
-  const nationalNumber = digits.length === 12 && digits.startsWith("91")
-    ? digits.slice(2)
-    : digits;
-
-  return /^[6-9]\d{9}$/.test(nationalNumber) ? nationalNumber : null;
-}
+export { normalizeIndianMobile } from "../../shared/indianMobile";
 
 export function isValidDate(value: string): boolean {
   if (!DATE_PATTERN.test(value)) return false;

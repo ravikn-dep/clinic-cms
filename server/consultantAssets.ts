@@ -61,5 +61,10 @@ export async function storeConsultantImage(input: {
   const image = validateConsultantImageDataUrl(input.dataUrl);
   const keyPrefix = `consultants/${input.consultantId}/${input.assetType}`;
   const uploaded = await storagePut(`${keyPrefix}.${image.extension}`, image.bytes, image.mimeType);
-  return { key: uploaded.key, mimeType: image.mimeType, sizeBytes: image.bytes.length };
+  return {
+    key: uploaded.key,
+    url: uploaded.url,
+    mimeType: image.mimeType,
+    sizeBytes: image.bytes.length,
+  };
 }

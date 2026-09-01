@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { getLoginUrl } from "@/const";
+import { getPasswordLoginErrorMessage } from "@/lib/passwordLogin";
+import { confirmCredentialLoginAndNavigate } from "@/lib/credentialLoginNavigation";
 
 export default function PasswordLogin() {
   const [, setLocation] = useLocation();
@@ -13,30 +16,34 @@ export default function PasswordLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-
-  const loginMutation = trpc.auth.loginWithPassword.useMutation({
-    onSuccess: () => {
-      setIsLoading(false);
-      window.location.href = "/";
-    },
-    onError: (err) => {
-      setIsLoading(false);
-      setError(err.message || "Login failed. Please check your credentials.");
-    },
-  });
+  const [successMessage, setSuccessMessage] = useState("");
+  const submissionInProgress = useRef(false);
+  const utils = trpc.useUtils();
+  const loginMutation = trpc.auth.loginWithPassword.useMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading || submissionInProgress.current || loginMutation.isPending) return;
     setError("");
+    setSuccessMessage("");
     setIsLoading(true);
+    submissionInProgress.current = true;
 
     try {
       await loginMutation.mutateAsync({
         email: userIdOrEmail.trim(),
         password: password.trim(),
       });
+      setSuccessMessage("Signed in successfully. Opening your workspace…");
+      await confirmCredentialLoginAndNavigate({
+        refreshAuthenticatedUser: () => utils.auth.me.fetch(),
+        navigate: setLocation,
+      });
     } catch (err) {
       setIsLoading(false);
+      setError(getPasswordLoginErrorMessage(err instanceof Error ? err.message : undefined));
+    } finally {
+      submissionInProgress.current = false;
     }
   };
 
@@ -57,8 +64,15 @@ export default function PasswordLogin() {
 
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            {successMessage && (
+              <div role="status" aria-live="polite" className="flex items-start gap-2 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <span className="text-emerald-700" aria-hidden="true">✓</span>
+                <p className="text-sm text-emerald-700">{successMessage}</p>
+              </div>
+            )}
+
             {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div role="alert" aria-live="polite" className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <AlertCircle className="h-4 w-4 text-red-600" />
                 <p className="text-sm text-red-700">{error}</p>
               </div>
@@ -105,6 +119,7 @@ export default function PasswordLogin() {
             <Button
               type="submit"
               disabled={isLoading || !userIdOrEmail || !password}
+              aria-busy={isLoading}
               className="w-full bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 text-white font-medium"
             >
               {isLoading ? (
@@ -115,6 +130,20 @@ export default function PasswordLogin() {
               ) : (
                 "Sign In"
               )}
+            </Button>
+
+            <div className="relative py-1" aria-hidden="true">
+              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-200" /></div>
+              <div className="relative flex justify-center"><span className="bg-white px-2 text-xs text-slate-500">or</span></div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { window.location.href = getLoginUrl(); }}
+              disabled={isLoading}
+              className="w-full border-teal-200 text-teal-800 hover:bg-teal-50"
+            >
+              Continue with Microsoft
             </Button>
 
             {/* Help Text */}

@@ -11,6 +11,8 @@ import { trpc } from "@/lib/trpc";
 import { downloadCsvFile } from "@/lib/downloadCsv";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { useLocation } from "wouter";
+import { createBillingItemId, getBillingCandidateKey } from "@/lib/billingRowIdentity";
+import { getBillingContextDate, getBillingContextParams } from "@/lib/billingContext";
 
 type PaymentStatus = "Pending" | "Paid" | "Partial";
 
@@ -25,6 +27,7 @@ type BillItem = {
 type BillFormState = {
   patientId: string;
   consultationId: string;
+  encounterId: string;
   selectedTemplateId?: string;
   items: BillItem[];
   discountAmount: string;
@@ -34,6 +37,7 @@ type BillFormState = {
 const initialBillForm: BillFormState = {
   patientId: "",
   consultationId: "",
+  encounterId: "",
   items: [
     {
       id: "item-1",
@@ -48,6 +52,7 @@ const initialBillForm: BillFormState = {
 };
 
 const parseCurrency = (value: unknown) => Number.parseFloat(String(value ?? "0")) || 0;
+const clinicToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
 
 type PatientDetails = {
   patientId: string;
@@ -82,22 +87,28 @@ export default function Billing() {
   const isAdmin = user?.role === "admin";
   const utils = trpc.useUtils();
   const [location] = useLocation();
+  const [selectedBillingDate, setSelectedBillingDate] = useState(() => clinicToday());
+  const [highlightedBillId, setHighlightedBillId] = useState<string | null>(null);
+  const locationSearch = typeof window === "undefined" ? "" : window.location.search;
 
   // Handle query parameters from Patient Records "Generate Bill" button
   useEffect(() => {
-    const params = new URLSearchParams(location.split('?')[1]);
-    const consultationId = params.get('consultationId');
-    const patientId = params.get('patientId');
-    
+    const { consultationId, encounterId, patientId, billId } = getBillingContextParams(locationSearch);
+
+    if (billId) {
+      setHighlightedBillId(billId);
+    }
+
     if (consultationId || patientId) {
       setForm((current) => ({
         ...current,
         consultationId: consultationId || current.consultationId,
+        encounterId: encounterId || current.encounterId,
         patientId: patientId || current.patientId,
       }));
       setShowNewBill(true);
     }
-  }, [location]);
+  }, [location, locationSearch]);
 
   // Fetch available templates
   const templatesQuery = trpc.billTemplates.getAll.useQuery();
@@ -127,6 +138,7 @@ export default function Billing() {
     if (consultationData) {
       setConsultationNotes(consultationData);
       setForm((current) => ({ ...current, patientId: consultationData.patientId }));
+      setSelectedBillingDate((currentDate) => getBillingContextDate(consultationData.consultationDate, currentDate));
     } else if (consultationNotesQuery.isError) {
       setConsultationNotes(null);
     }
@@ -135,13 +147,25 @@ export default function Billing() {
   const billsQuery = trpc.bills.getAll.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
+  const billingCandidatesQuery = trpc.bills.getEncounterCandidatesByDate.useQuery(
+    { date: selectedBillingDate },
+    { enabled: showNewBill, refetchOnWindowFocus: false },
+  );
+
+  const focusGeneratedBill = (billId: string) => {
+    setHighlightedBillId(billId);
+    window.requestAnimationFrame(() => {
+      document.getElementById(`bill-${billId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
 
   const createBill = trpc.bills.create.useMutation({
     onSuccess: (bill) => {
       toast.success(`Invoice ${bill.billId} created.`);
       setForm(initialBillForm);
       setShowNewBill(false);
-      utils.bills.getAll.invalidate();
+      focusGeneratedBill(bill.billId);
+      void utils.bills.getAll.invalidate();
     },
     onError: (error) => {
       toast.error(error.message || "Unable to create invoice.");
@@ -153,6 +177,7 @@ export default function Billing() {
       toast.success(`Encounter bill ${result.bill.billId} created and visit closed.`);
       setForm(initialBillForm);
       setShowNewBill(false);
+      focusGeneratedBill(result.bill.billId);
       void utils.bills.getAll.invalidate();
       void utils.consultations.getByPatientId.invalidate();
     },
@@ -210,6 +235,16 @@ export default function Billing() {
 
   const bills = billsQuery.data ?? [];
 
+  useEffect(() => {
+    if (!highlightedBillId || billsQuery.isFetching) return;
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(`bill-${highlightedBillId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [bills, billsQuery.isFetching, highlightedBillId]);
+
+  const highlightedBill = highlightedBillId ? bills.find((bill) => bill.billId === highlightedBillId) : undefined;
+
   const summary = useMemo(() => {
     return bills.reduce(
       (acc, bill) => {
@@ -231,8 +266,8 @@ export default function Billing() {
   const handleCreateBill = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (form.consultationId.trim() && (!consultationNotes || !consultationNotes.appointmentId)) {
-      toast.error("This consultation is not linked to an appointment.");
+    if (form.consultationId.trim() && (!consultationNotes || (!consultationNotes.appointmentId && !form.encounterId.trim()))) {
+      toast.error("This consultation is not linked to a valid encounter.");
       return;
     }
     if (form.consultationId.trim() && consultationNotes && consultationNotes.isFinalized !== 1) {
@@ -265,10 +300,11 @@ export default function Billing() {
       quantity: Number.parseInt(item.quantity, 10),
       unitPrice: parseCurrency(item.unitPrice).toString(),
     }));
-    if (form.consultationId.trim() && consultationNotes?.appointmentId) {
+    if (form.consultationId.trim() && (consultationNotes?.appointmentId || form.encounterId.trim())) {
       createEncounterBill.mutate({
-        consultationId: consultationNotes.consultationId,
-        appointmentId: consultationNotes.appointmentId,
+        consultationId: consultationNotes!.consultationId,
+        appointmentId: consultationNotes!.appointmentId || undefined,
+        encounterId: form.encounterId.trim() || undefined,
         items,
         discountAmount: parseCurrency(form.discountAmount).toString(),
         taxAmount: parseCurrency(form.taxAmount).toString(),
@@ -282,6 +318,14 @@ export default function Billing() {
       discountAmount: parseCurrency(form.discountAmount).toString(),
       taxAmount: parseCurrency(form.taxAmount).toString(),
     });
+  };
+
+  const selectEncounter = (candidate: NonNullable<typeof billingCandidatesQuery.data>[number]) => {
+    const consultationId = candidate.consultationId;
+    if (!candidate.canRaiseBill || !consultationId) return;
+    setForm((current) => ({ ...current, patientId: candidate.patientId, consultationId, encounterId: candidate.encounterId || "" }));
+    setPatientDetails(null);
+    setConsultationNotes(null);
   };
 
   const setField = (field: keyof BillFormState, value: string | BillItem[]) => {
@@ -307,7 +351,7 @@ export default function Billing() {
 
   const addItem = () => {
     const newItem: BillItem = {
-      id: `item-${Date.now()}`,
+      id: createBillingItemId(),
       itemType: "Medicine",
       description: "",
       quantity: "1",
@@ -336,7 +380,7 @@ export default function Billing() {
 
     // Convert template items to bill items
     const templateItems = (template.itemsJson as any[]).map((item, idx) => ({
-      id: `item-${Date.now()}-${idx}`,
+      id: `${createBillingItemId()}-${idx}`,
       itemType: item.itemType,
       description: item.description,
       quantity: item.quantity.toString(),
@@ -486,6 +530,45 @@ export default function Billing() {
             <CardDescription className="text-teal-700 mt-1">Generate a bill for consultation, procedure, or medicine charges.</CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="mb-6 rounded-xl border border-teal-100 bg-teal-50/60 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="font-semibold text-teal-950">Select a visit to bill</p>
+                  <p className="text-sm text-teal-700">Choose the clinic visit date, then raise a bill only for a finalized encounter.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant={selectedBillingDate === clinicToday() ? "default" : "outline"} onClick={() => setSelectedBillingDate(clinicToday())}>Today</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => { const date = new Date(); date.setDate(date.getDate() - 1); setSelectedBillingDate(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(date)); }}>Yesterday</Button>
+                  <Input aria-label="Billing visit date" type="date" value={selectedBillingDate} onChange={(event) => setSelectedBillingDate(event.target.value)} className="w-[150px] bg-white" />
+                </div>
+              </div>
+              <div className="mt-4 space-y-2">
+                {billingCandidatesQuery.isLoading ? (
+                  <div className="flex items-center gap-2 py-3 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading visits...</div>
+                ) : billingCandidatesQuery.isError ? (
+                  <div className="flex items-center gap-2 py-3 text-sm text-destructive"><AlertCircle className="h-4 w-4" /> Unable to load visits for this date.</div>
+                ) : billingCandidatesQuery.data?.length === 0 ? (
+                  <p className="py-3 text-sm text-muted-foreground">No visits recorded for this date.</p>
+                ) : (
+                  billingCandidatesQuery.data?.map((candidate) => (
+                    <div key={getBillingCandidateKey(candidate)} className="flex flex-col gap-3 rounded-lg border bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 text-sm">
+                        <p className="font-semibold text-teal-950">{candidate.patientName} <span className="font-mono text-xs font-normal text-muted-foreground">{candidate.patientId}</span></p>
+                        <p className="text-xs text-muted-foreground">{candidate.appointmentTime} · {candidate.consultantName} · {candidate.age ?? "Age not recorded"}{candidate.gender ? ` · ${candidate.gender}` : ""}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={candidate.canRaiseBill ? "default" : "outline"}>{candidate.displayStatus}</Badge>
+                        {candidate.canRaiseBill ? (
+                          <Button type="button" size="sm" className="gap-1 bg-teal-600 text-white hover:bg-teal-700" onClick={() => selectEncounter(candidate)}><Plus className="h-3.5 w-3.5" /> Raise Bill</Button>
+                        ) : candidate.billId ? (
+                          <span className="text-xs text-muted-foreground">View in billing history</span>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
             <form className="space-y-6" onSubmit={handleCreateBill}>
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
@@ -686,6 +769,18 @@ export default function Billing() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {highlightedBill ? (
+            <div className="mb-4 flex flex-col gap-3 rounded-lg border border-teal-200 bg-teal-50 p-4 sm:flex-row sm:items-center sm:justify-between" role="status">
+              <div>
+                <p className="font-semibold text-teal-950">Invoice {highlightedBill.billId} is ready</p>
+                <p className="text-sm text-teal-800">The generated invoice is highlighted below. Open its protected PDF from this context.</p>
+              </div>
+              <Button type="button" size="sm" className="gap-1 bg-teal-600 text-white hover:bg-teal-700" onClick={() => openInvoicePdf(highlightedBill)} disabled={getInvoiceLink.isPending || !highlightedBill.invoicePdfKey && !highlightedBill.invoicePdfUrl}>
+                {getInvoiceLink.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
+                View invoice PDF
+              </Button>
+            </div>
+          ) : null}
           {billsQuery.isLoading ? (
             <div className="flex items-center justify-center rounded-lg border border-dashed py-12 text-muted-foreground">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Loading invoices...
@@ -723,7 +818,7 @@ export default function Billing() {
                 </thead>
                 <tbody>
                   {bills.map((bill) => (
-                    <tr key={bill.billId} className="border-b transition-colors hover:bg-accent/70">
+                    <tr id={`bill-${bill.billId}`} key={bill.billId} className={`border-b transition-colors hover:bg-accent/70 ${highlightedBillId === bill.billId ? "bg-teal-50 ring-2 ring-inset ring-teal-200" : ""}`}>
                       <td className="py-3 px-4 font-mono text-xs">{bill.billId}</td>
                       <td className="py-3 px-4">
                         <div>

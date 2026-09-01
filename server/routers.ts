@@ -30,6 +30,7 @@ import { storeConsultantImage } from "./consultantAssets";
 import { FIXED_CLINIC_BRANDING } from "../shared/clinicBranding";
 import { normalizeIndianMobile } from "./external/validation";
 import { hasStrongDuplicate, rankPatientCandidates } from "./visitWorkflow";
+import { isReadyForBilling } from "./paperFirstWorkflow";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -770,10 +771,17 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         try {
-          const user = await db.getUserByEmail(ctx.user.email || "");
-          
-          if (!user || !user.passwordHash) {
-            throw new Error("User not found or password not set");
+          // Bind the password change to the authenticated session identity, not
+          // a caller-controlled or nullable email value. OAuth-only accounts may
+          // legitimately have no local password hash yet; those accounts must use
+          // setPassword instead of pretending a current password exists.
+          const user = await db.getUserById(ctx.user.id as number);
+
+          if (!user) {
+            throw new Error("Authenticated user not found");
+          }
+          if (!user.passwordHash) {
+            throw new Error("No local password is set. Use Set Password to create one.");
           }
 
           const isValid = await db.verifyPassword(input.currentPassword, user.passwordHash);
@@ -1137,17 +1145,19 @@ export const appRouter = router({
         const consultantLogo = printData.consultantLogoKey ? await storageGet(printData.consultantLogoKey) : null;
         const signature = printData.signatureKey ? await storageGet(printData.signatureKey) : null;
         const { consultantLogoKey: _consultantLogoKey, signatureKey: _signatureKey, ...safePrintData } = printData;
+        const printableConsultantName = safePrintData.consultantName ?? `Consultant ${safePrintData.consultantId}`;
         await db.createAuditLog({
           logId: utils.generateAuditLogId(),
           userId: ctx.user.id.toString(),
           actionType: "CONSULTATION_OP_PRINT_VIEWED",
           tableName: "consultations",
           recordId: input.consultationId,
-          newValue: JSON.stringify({ consultantId: printData.consultantId, hasLogo: Boolean(consultantLogo), hasSignature: Boolean(signature) }),
+          newValue: JSON.stringify({ consultantId: printData.consultantId, hasLogo: Boolean(consultantLogo), hasSignature: Boolean(signature), hasLocation: Boolean(printData.consultantLocation), hasTimings: Boolean(printData.consultantTimings) }),
           timestamp: new Date().toISOString(),
         });
         return {
           ...safePrintData,
+          consultantName: printableConsultantName,
           consultantLogoUrl: consultantLogo?.url,
           signatureUrl: signature?.url,
           facility: FIXED_CLINIC_BRANDING,
@@ -1418,15 +1428,20 @@ export const appRouter = router({
     createEncounter: protectedProcedure
       .input(z.object({
         consultationId: z.string().trim().min(1),
-        appointmentId: z.string().trim().min(1),
+        appointmentId: z.string().trim().min(1).optional(),
+        encounterId: z.string().trim().min(1).optional(),
         items: z.array(z.object({ itemType: z.string().trim().min(1), description: z.string().trim().min(1), quantity: z.number().int().positive(), unitPrice: z.string().regex(/^\d+(\.\d{1,2})?$/) })).min(1),
         discountAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
         taxAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
       }))
       .mutation(async ({ input, ctx }) => {
         const consultation = await db.getConsultationById(input.consultationId);
-        if (!consultation || consultation.appointmentId !== input.appointmentId) throw new Error("Encounter billing context is invalid");
-        const appointment = await requireAccessibleAppointment(ctx, input.appointmentId);
+        if (!consultation) throw new Error("Encounter billing context is invalid");
+        if (!input.appointmentId && !input.encounterId) throw new Error("Encounter billing context is invalid");
+        const encounter = input.encounterId ? await db.getEncounterById(input.encounterId) : null;
+        if (input.encounterId && (!encounter || consultation.encounterId !== input.encounterId)) throw new Error("Encounter billing context is invalid");
+        const appointment = input.appointmentId ? await requireAccessibleAppointment(ctx, input.appointmentId) : null;
+        if (input.appointmentId && consultation.appointmentId !== input.appointmentId) throw new Error("Encounter billing context is invalid");
         if (ctx.user.role === "consultant" && consultation.consultantId !== ctx.user.id) throw new Error("Consultants cannot bill another consultant's encounter");
         const patient = await db.getPatientById(consultation.patientId);
         if (!patient) throw new Error("Patient not found");
@@ -1438,10 +1453,47 @@ export const appRouter = router({
         const result = await db.createEncounterBillAndCloseVisit({
           bill: { billId, patientId: consultation.patientId, consultationId: consultation.consultationId, totalAmount: totalAmount.toFixed(2) as any, discountAmount: discountAmount.toFixed(2) as any, taxAmount: taxAmount.toFixed(2) as any, finalAmount: finalAmount.toFixed(2) as any, paymentStatus: "Pending" },
           items: input.items.map((item) => ({ billItemId: utils.generateBillItemId(), billId, itemType: item.itemType, description: item.description, quantity: item.quantity, unitPrice: item.unitPrice as any, subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2) as any })),
-          appointmentId: appointment.appointmentId,
+          appointmentId: appointment?.appointmentId,
+          encounterId: encounter?.encounterId,
           actorId: String(ctx.user.id),
         });
-        return { ...result, patientId: consultation.patientId, consultationId: consultation.consultationId, appointmentId: appointment.appointmentId };
+        return { ...result, patientId: consultation.patientId, consultationId: consultation.consultationId, appointmentId: appointment?.appointmentId ?? null, encounterId: encounter?.encounterId ?? null };
+      }),
+
+    getEncounterCandidatesByDate: protectedProcedure
+      .input(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date must use YYYY-MM-DD") }))
+      .query(async ({ input, ctx }) => {
+        const rows = await db.getBillingCandidatesByDate(input.date);
+        return rows
+          .filter(({ appointment }) => ctx.user.role !== "consultant" || appointment.consultantId === ctx.user.id)
+          .map(({ appointment, patient, consultation, bill, consultant, encounter }) => {
+            const readyForBilling = Boolean(consultation && isReadyForBilling(consultation.isFinalized, Boolean(bill)));
+            const status = bill
+              ? "Billed"
+              : readyForBilling
+                ? "Ready for Billing"
+                : appointment.status === "Completed"
+                  ? "Completed"
+                  : appointment.status;
+            return {
+              appointmentId: appointment.appointmentId,
+              encounterId: encounter?.encounterId ?? null,
+              appointmentDate: appointment.appointmentDate,
+              appointmentTime: appointment.appointmentTime,
+              appointmentStatus: appointment.status,
+              patientId: appointment.patientId,
+              patientName: patient ? `${patient.firstName} ${patient.lastName}` : "Unknown Patient",
+              age: patient?.age ?? null,
+              gender: patient?.gender ?? null,
+              consultationId: consultation?.consultationId ?? null,
+              consultantId: appointment.consultantId,
+              consultantName: consultant?.name ?? `Consultant ${appointment.consultantId}`,
+              isFinalized: consultation?.isFinalized ?? null,
+              billId: bill?.billId ?? null,
+              displayStatus: status,
+              canRaiseBill: readyForBilling,
+            };
+          });
       }),
 
     getAll: protectedProcedure.query(async () => {
@@ -2137,6 +2189,7 @@ export const appRouter = router({
         stateCounsilSection: z.string().max(100).optional(),
         registrationNumber: z.string().max(100).optional(),
         prescriptionHeaderText: z.string().max(2_000).optional(),
+        consultantLocation: z.string().max(500).optional(),
         isActive: z.boolean().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -2165,6 +2218,37 @@ export const appRouter = router({
         return { success: true };
       }),
 
+    getAvailability: adminProcedure
+      .input(z.object({ consultantId: z.number().int().positive() }))
+      .query(async ({ input }) => {
+        const consultant = await db.getConsultantProfileById(input.consultantId);
+        if (!consultant) throw new Error("Consultant not found");
+        return db.getConsultantAvailability(input.consultantId);
+      }),
+
+    updateAvailability: adminProcedure
+      .input(z.object({
+        consultantId: z.number().int().positive(),
+        availability: z.array(z.object({
+          dayOfWeek: z.number().int().min(0).max(6),
+          startTime: z.string(),
+          endTime: z.string(),
+          active: z.boolean().optional(),
+          slotDuration: z.number().int().positive().max(240).optional(),
+          maxAppointmentsPerDay: z.number().int().positive().max(100).optional(),
+        })),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const consultant = await db.getConsultantProfileById(input.consultantId);
+        if (!consultant) throw new Error("Consultant not found");
+        const availability = await db.replaceConsultantAvailabilityWithAudit(
+          input.consultantId,
+          input.availability,
+          ctx.user.id.toString(),
+        );
+        return { success: true, availability };
+      }),
+
     uploadAsset: adminProcedure
       .input(z.object({
         consultantId: z.number().int().positive(),
@@ -2187,7 +2271,15 @@ export const appRouter = router({
           newValue: JSON.stringify({ assetType: input.assetType, mimeType: stored.mimeType, sizeBytes: stored.sizeBytes }),
           timestamp: new Date().toISOString(),
         });
-        return { success: true };
+        return {
+          success: true,
+          asset: {
+            key: stored.key,
+            url: stored.url,
+            mimeType: stored.mimeType,
+            sizeBytes: stored.sizeBytes,
+          },
+        };
       }),
   }),
 
@@ -2206,6 +2298,7 @@ export const appRouter = router({
         specialization: z.string().max(255).optional(),
         designation: z.string().max(255).optional(),
         prescriptionHeaderText: z.string().max(2_000).optional(),
+        consultantLocation: z.string().max(500).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         try {
@@ -2235,6 +2328,7 @@ export const appRouter = router({
             specialization: input.specialization,
             designation: input.designation,
             prescriptionHeaderText: input.prescriptionHeaderText,
+            consultantLocation: input.consultantLocation,
           };
 
           await db.createStaffUser(userData);
@@ -2272,7 +2366,7 @@ export const appRouter = router({
     listStaffUsers: adminProcedure.query(async () => {
       try {
         const staffUsers = await db.getAllStaffUsers();
-        return staffUsers.map(u => ({
+        return Promise.all(staffUsers.map(async u => ({
           id: u.id,
           userId: u.userId,
           name: u.name,
@@ -2287,8 +2381,11 @@ export const appRouter = router({
           specialization: u.specialization,
           designation: u.designation,
           prescriptionHeaderText: u.prescriptionHeaderText,
+          consultantLocation: u.consultantLocation,
+          consultantLogoUrl: u.consultantLogoKey ? (await storageGet(u.consultantLogoKey)).url : null,
+          signatureUrl: u.signatureKey ? (await storageGet(u.signatureKey)).url : null,
           createdAt: u.createdAt,
-        }));
+        })));
       } catch (error) {
         console.error("[RBAC] List staff users failed:", error);
         throw new Error("Failed to list staff users");
@@ -2309,6 +2406,7 @@ export const appRouter = router({
         specialization: z.string().max(255).optional(),
         designation: z.string().max(255).optional(),
         prescriptionHeaderText: z.string().max(2_000).optional(),
+        consultantLocation: z.string().max(500).optional(),
         isActive: z.boolean().optional(),
       }))
       .mutation(async ({ input, ctx }) => {
@@ -2331,6 +2429,7 @@ export const appRouter = router({
           if (input.specialization !== undefined) updates.specialization = input.specialization;
           if (input.designation !== undefined) updates.designation = input.designation;
           if (input.prescriptionHeaderText !== undefined) updates.prescriptionHeaderText = input.prescriptionHeaderText;
+          if (input.consultantLocation !== undefined) updates.consultantLocation = input.consultantLocation;
           if (input.isActive !== undefined) updates.isActive = input.isActive;
 
           await db.updateStaffUser(input.userId, updates);
@@ -2829,6 +2928,41 @@ export const appRouter = router({
         return { created: true as const, requiresResolution: false as const, patient: result.patient };
       }),
 
+    createEncounter: protectedProcedure
+      .input(z.object({ patientId: z.string().trim().min(1), consultantId: z.number().int().positive(), source: z.enum(["WALK_IN", "PHONE", "MANUAL"]) }))
+      .mutation(async ({ input, ctx }) => {
+        await assertAppointmentWorkflowAccess(ctx);
+        const patient = await db.getPatientById(input.patientId);
+        if (!patient) throw new Error("Selected patient was not found");
+        const consultantId = ctx.user.role === "consultant" ? ctx.user.id : input.consultantId;
+        if (ctx.user.role === "consultant" && input.consultantId !== ctx.user.id) throw new Error("Consultants cannot create an encounter for another consultant");
+        await requireActiveConsultant(consultantId);
+        const result = await db.createDirectEncounterWithAudit({ patientId: patient.patientId, consultantId, source: input.source, actorId: String(ctx.user.id) });
+        const consultation = result.encounter.status === "OP Generated"
+          ? await db.getConsultationByEncounterId(result.encounter.encounterId)
+          : null;
+        return { ...result, consultation };
+      }),
+
+    checkInEncounter: protectedProcedure
+      .input(z.object({ encounterId: z.string().trim().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const encounter = await db.getEncounterById(input.encounterId);
+        if (!encounter) throw new Error("Encounter not found");
+        if (ctx.user.role === "consultant" && encounter.consultantId !== ctx.user.id) throw new Error("Consultants can access only their own encounters");
+        return db.checkInEncounterWithAudit(input.encounterId, String(ctx.user.id));
+      }),
+
+    generateEncounterOp: protectedProcedure
+      .input(z.object({ encounterId: z.string().trim().min(1) }))
+      .mutation(async ({ input, ctx }) => {
+        const encounter = await db.getEncounterById(input.encounterId);
+        if (!encounter) throw new Error("Encounter not found");
+        if (ctx.user.role === "consultant" && encounter.consultantId !== ctx.user.id) throw new Error("Consultants can access only their own encounters");
+        const result = await db.startEncounterConsultationWithAudit(input.encounterId, String(ctx.user.id));
+        return { consultation: result.consultation, created: result.created, encounterId: input.encounterId };
+      }),
+
     createAppointment: protectedProcedure
       .input(z.object({ patientId: z.string().trim().min(1), consultantId: z.number().int().positive(), appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), appointmentTime: z.string().regex(/^\d{2}:\d{2}$/), appointmentSource: z.enum(["MANUAL", "WALK_IN", "PHONE"]), notes: z.string().trim().max(2000).optional() }))
       .mutation(async ({ input, ctx }) => {
@@ -2845,8 +2979,10 @@ export const appRouter = router({
     checkIn: protectedProcedure
       .input(z.object({ appointmentId: z.string().trim().min(1) }))
       .mutation(async ({ input, ctx }) => {
-        await requireAccessibleAppointment(ctx, input.appointmentId);
-        return db.checkInAppointmentWithAudit(input.appointmentId, String(ctx.user.id));
+        const appointment = await requireAccessibleAppointment(ctx, input.appointmentId);
+        const checkedIn = await db.checkInAppointmentWithAudit(input.appointmentId, String(ctx.user.id));
+        const encounter = await db.createEncounterForAppointmentWithAudit({ appointmentId: input.appointmentId, actorId: String(ctx.user.id), appointment });
+        return { ...checkedIn, encounterId: encounter.encounter.encounterId };
       }),
 
     startConsultation: protectedProcedure
@@ -2908,12 +3044,11 @@ export const appRouter = router({
           const effectiveConsultantId = ctx.user.role === "consultant" ? ctx.user.id : requestedConsultantId;
 
           if (effectiveConsultantId) {
-            appointments = await db.getAppointmentsByConsultant(effectiveConsultantId);
-            if (input.patientId) appointments = appointments.filter((appointment) => appointment.patientId === input.patientId);
+            appointments = await db.getOperationalAppointments({ consultantId: effectiveConsultantId, patientId: input.patientId });
           } else if (input.patientId) {
-            appointments = await db.getAppointmentsByPatient(input.patientId);
+            appointments = await db.getOperationalAppointments({ patientId: input.patientId });
           } else {
-            appointments = await db.getAllAppointments();
+            appointments = await db.getOperationalAppointments();
           }
           
           if (input.status) {

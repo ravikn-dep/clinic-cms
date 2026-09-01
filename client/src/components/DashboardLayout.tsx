@@ -25,6 +25,7 @@ import {
 import { useIsMobile } from "@/hooks/useMobile";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { DASHBOARD_NAVIGATION_GROUPS, getVisibleNavigationGroups } from "@/lib/dashboardNavigation";
+import { DASHBOARD_TABLET_DRAWER_BREAKPOINT } from "@/lib/dashboardShell";
 import { LayoutDashboard, LogOut, Lock } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -52,6 +53,7 @@ export default function DashboardLayout({
 
   return (
     <SidebarProvider
+      mobileBreakpoint={DASHBOARD_TABLET_DRAWER_BREAKPOINT}
       style=
         {{
           "--sidebar-width": `${sidebarWidth}px`,
@@ -128,25 +130,27 @@ function DashboardLayoutContent({
             </div>
           </div>
         </SidebarHeader>
-        <SidebarContent className="px-2 py-4">
-          <SidebarMenu className="gap-1">
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                isActive={location === "/"}
-                onClick={() => setLocation("/")}
-                className="cursor-pointer rounded-lg transition-all duration-200 hover:bg-teal-100/50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-teal-500 data-[active=true]:to-cyan-500 data-[active=true]:text-white data-[active=true]:shadow-md"
-              >
-                <a href="/" className="flex items-center gap-3">
-                  <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
-                  <span className="text-sm font-medium">Dashboard</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+        <SidebarContent className="min-h-0 overscroll-contain px-2 py-3">
+          <nav aria-label="Clinic CMS navigation" className="space-y-1">
+            <SidebarMenu className="gap-1">
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  asChild
+                  isActive={location === "/"}
+                  onClick={() => setLocation("/")}
+                  className="cursor-pointer rounded-lg transition-all duration-200 hover:bg-teal-100/50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-teal-500 data-[active=true]:to-cyan-500 data-[active=true]:text-white data-[active=true]:shadow-md"
+                >
+                  <a href="/" className="flex items-center gap-3">
+                    <LayoutDashboard className="h-5 w-5 flex-shrink-0" />
+                    <span className="text-sm font-medium">Dashboard</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
             {visibleNavigationGroups.map((group) => {
               const visibleItems = group.items;
               return (
-                <SidebarGroup key={group.label} className="px-0 pt-4 first:pt-2">
+                <SidebarGroup key={group.label} className="px-0 pt-5 first:pt-3">
                   <SidebarGroupLabel className="px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-teal-700/70 group-data-[collapsible=icon]:hidden">
                     {group.label}
                   </SidebarGroupLabel>
@@ -158,7 +162,7 @@ function DashboardLayoutContent({
                             asChild
                             isActive={location === item.path}
                             onClick={() => setLocation(item.path)}
-                            className="cursor-pointer rounded-lg transition-all duration-200 hover:bg-teal-100/50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-teal-500 data-[active=true]:to-cyan-500 data-[active=true]:text-white data-[active=true]:shadow-md"
+                            className="h-auto min-h-10 rounded-lg py-2.5 transition-all duration-200 hover:bg-teal-100/50 data-[active=true]:bg-gradient-to-r data-[active=true]:from-teal-500 data-[active=true]:to-cyan-500 data-[active=true]:text-white data-[active=true]:shadow-md [&>span:last-child]:whitespace-normal [&>span:last-child]:text-left [&>span:last-child]:leading-tight"
                           >
                             <a href={item.path} className="flex items-center gap-3">
                               <item.icon className="h-5 w-5 flex-shrink-0" />
@@ -172,7 +176,7 @@ function DashboardLayoutContent({
                 </SidebarGroup>
               );
             })}
-          </SidebarMenu>
+          </nav>
         </SidebarContent>
         <SidebarFooter className="border-t border-border/40 bg-gradient-to-r from-slate-50 to-teal-50/30 px-2 py-4">
           <div className="flex items-center justify-between gap-2 px-2">
@@ -198,7 +202,13 @@ function DashboardLayoutContent({
                   <Lock className="h-4 w-4 mr-2" />
                   Change Password
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => logout()} className="cursor-pointer text-red-600">
+                <DropdownMenuItem
+                  onClick={async () => {
+                    await logout();
+                    navigate("/direct-login", { replace: true });
+                  }}
+                  className="cursor-pointer text-red-600"
+                >
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
                 </DropdownMenuItem>

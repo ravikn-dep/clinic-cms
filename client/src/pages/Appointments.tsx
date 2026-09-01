@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { format, parseISO, isSameDay, addDays, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek } from "date-fns";
+import { format, isSameDay, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, startOfWeek, endOfWeek } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,11 +8,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus, Stethoscope } from "lucide-react";
+import { Calendar, Clock, User, AlertCircle, CheckCircle, XCircle, Plus, Stethoscope, Loader2 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useCredentialAuth as useAuth } from "@/_core/hooks/useCredentialAuth";
 import { toast } from "sonner";
 import { generateConsultationOPHTML } from "@/lib/opFormGenerator";
+import { getPrintErrorMessage, openAndPrintWhenReady } from "@/lib/printWindow";
+import { appointmentDateToLocalDate, appointmentOccursOnDate, toAppointmentDate } from "@/lib/appointmentView";
 
 export default function Appointments() {
   const { user } = useAuth();
@@ -20,6 +22,7 @@ export default function Appointments() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">("list");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [isBookingOpen, setIsBookingOpen] = useState(false);
+  const [printingAppointmentId, setPrintingAppointmentId] = useState<string | null>(null);
   const [bookingData, setBookingData] = useState({
     patientId: "",
     consultantId: 0,
@@ -45,9 +48,12 @@ export default function Appointments() {
 
   // Create appointment mutation
   const createMutation = trpc.appointments.create.useMutation({
-    onSuccess: () => {
+    onSuccess: (_appointment, variables) => {
       toast.success("Appointment booked successfully");
       setIsBookingOpen(false);
+      const bookedDate = appointmentDateToLocalDate(variables.appointmentDate);
+      if (bookedDate) setSelectedDate(bookedDate);
+      setViewMode("list");
       setBookingData({
         patientId: "",
         consultantId: 0,
@@ -97,24 +103,6 @@ export default function Appointments() {
 
   const brandedPrint = trpc.consultations.getBrandedPrintData.useMutation();
 
-  const printConsultationOP = async (consultationId: string) => {
-    try {
-      const printData = await brandedPrint.mutateAsync({ consultationId });
-      const printWindow = window.open("", "", "width=800,height=600");
-      if (!printWindow) {
-        toast.error("Unable to open print window. Please check your browser settings.");
-        return;
-      }
-      printWindow.document.write(generateConsultationOPHTML(printData));
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      toast.success("Consultant-branded OP prepared for printing.");
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Unable to prepare the consultation OP.");
-    }
-  };
-
   const checkInMutation = trpc.visits.checkIn.useMutation({
     onSuccess: () => {
       toast.success("Patient checked in");
@@ -123,23 +111,38 @@ export default function Appointments() {
     onError: (error) => toast.error(error.message || "Failed to check in patient"),
   });
 
-  const startConsultationMutation = trpc.visits.generateOp.useMutation({
-    onSuccess: (result) => {
-      toast.success(result.created ? "Consultation started" : "Existing consultation reopened");
-      appointmentsQuery.refetch();
-      void printConsultationOP(result.consultation.consultationId);
-    },
-    onError: (error) => toast.error(error.message || "Failed to start consultation"),
-  });
+  const startConsultationMutation = trpc.visits.generateOp.useMutation();
+  const generateOpAndPrint = async (appointmentId: string) => {
+    if (printingAppointmentId) return;
+
+    setPrintingAppointmentId(appointmentId);
+    const feedbackId = toast.loading("Generating OP and opening print preview…");
+    try {
+      const didOpenPrintPreview = await openAndPrintWhenReady(async () => {
+        const result = await startConsultationMutation.mutateAsync({ appointmentId });
+        toast.message(result.created ? "Consultation generated. Preparing print…" : "Existing consultation reopened. Preparing print…", { id: feedbackId });
+        void appointmentsQuery.refetch();
+        const printData = await brandedPrint.mutateAsync({ consultationId: result.consultation.consultationId });
+        return generateConsultationOPHTML(printData);
+      });
+      if (!didOpenPrintPreview) {
+        toast.error("Unable to open print window. Please allow pop-ups and try again.", { id: feedbackId });
+        return;
+      }
+      toast.success("Consultant-branded OP sent to the print dialog.", { id: feedbackId });
+    } catch (error) {
+      toast.error(getPrintErrorMessage(error, "Unable to generate the consultation OP."), { id: feedbackId });
+    } finally {
+      setPrintingAppointmentId(null);
+    }
+  };
 
   // Filter appointments by date if in list view
   const filteredAppointments = useMemo(() => {
     if (!appointmentsQuery.data) return [];
     
     if (viewMode === "list") {
-      return appointmentsQuery.data.filter((apt: any) => 
-        isSameDay(parseISO(apt.appointmentDate), selectedDate)
-      );
+      return appointmentsQuery.data.filter((apt: any) => appointmentOccursOnDate(apt.appointmentDate, selectedDate));
     }
     
     return appointmentsQuery.data;
@@ -326,9 +329,15 @@ export default function Appointments() {
       {/* Content */}
       {viewMode === "list" ? (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 text-sm text-slate-600">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
             <Calendar className="w-4 h-4" />
-            <span>{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
+            <Label htmlFor="appointment-list-date" className="sr-only">Appointment list date</Label>
+            <Input id="appointment-list-date" type="date" value={toAppointmentDate(selectedDate)} onChange={(event) => {
+              const nextDate = appointmentDateToLocalDate(event.target.value);
+              if (nextDate) setSelectedDate(nextDate);
+            }} className="h-9 w-auto" />
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSelectedDate(new Date())}>Today</Button>
+            <span className="w-full sm:w-auto">{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
           </div>
 
           {appointmentsQuery.isLoading ? (
@@ -363,8 +372,10 @@ export default function Appointments() {
                       <div className="flex flex-col items-end gap-2">
                         {getStatusBadge(apt.status)}
                         {apt.status === "Scheduled" && (
-                          <div className="flex gap-2">
-								<Button size="sm" onClick={() => checkInMutation.mutate({ appointmentId: apt.appointmentId })} disabled={checkInMutation.isPending}>Check In</Button>
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-xs text-slate-500">Check in to enable OP generation</span>
+                            <div className="flex gap-2">
+									<Button size="sm" onClick={() => checkInMutation.mutate({ appointmentId: apt.appointmentId })} disabled={checkInMutation.isPending}>Check In</Button>
                             <Button
                               size="sm"
                               variant="outline"
@@ -381,13 +392,17 @@ export default function Appointments() {
                             >
                               Cancel
                             </Button>
+                            </div>
                           </div>
                         )}
-						{apt.status === "Checked-in" && (
-							<div className="flex gap-2">
-									<Button size="sm" onClick={() => startConsultationMutation.mutate({ appointmentId: apt.appointmentId })} disabled={startConsultationMutation.isPending || brandedPrint.isPending}><Stethoscope className="mr-1 h-4 w-4" />Generate OP & Print</Button>
-							</div>
-						)}
+							{apt.status === "Checked-in" && (
+								<div className="flex gap-2">
+										<Button size="sm" onClick={() => void generateOpAndPrint(apt.appointmentId)} disabled={Boolean(printingAppointmentId) || startConsultationMutation.isPending || brandedPrint.isPending}>
+											{printingAppointmentId === apt.appointmentId ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Stethoscope className="mr-1 h-4 w-4" />}
+											{printingAppointmentId === apt.appointmentId ? "Generating OP…" : "Generate OP & Print"}
+										</Button>
+								</div>
+							)}
                       </div>
                     </div>
                   </CardContent>
@@ -405,7 +420,7 @@ export default function Appointments() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setSelectedDate(addDays(selectedDate, -1))}
+                  onClick={() => setSelectedDate(addMonths(selectedDate, -1))}
                 >
                   ←
                 </Button>
@@ -419,7 +434,7 @@ export default function Appointments() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setSelectedDate(addDays(selectedDate, 1))}
+                  onClick={() => setSelectedDate(addMonths(selectedDate, 1))}
                 >
                   →
                 </Button>
@@ -434,9 +449,7 @@ export default function Appointments() {
                 </div>
               ))}
               {calendarDays.map((day) => {
-                const dayAppointments = appointmentsQuery.data?.filter((apt: any) =>
-                  isSameDay(parseISO(apt.appointmentDate), day)
-                ) || [];
+                const dayAppointments = appointmentsQuery.data?.filter((apt: any) => appointmentOccursOnDate(apt.appointmentDate, day)) || [];
                 const isCurrentMonth = day.getMonth() === selectedDate.getMonth();
 
                 return (
