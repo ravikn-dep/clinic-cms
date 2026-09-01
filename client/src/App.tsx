@@ -1,4 +1,4 @@
-import { Route, Switch, Link } from "wouter";
+import { Route, Switch, Link, useLocation } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import DashboardLayout from "./components/DashboardLayout";
@@ -112,7 +112,7 @@ function AuthenticatedApp() {
 }
 
 function App() {
-  const location = typeof window !== 'undefined' ? window.location.pathname : '';
+  const [location] = useLocation();
   
   // Show public login pages immediately without any auth checks
   if (location === '/direct-login' || location === '/login' || location === '/password-login' || location === '/qr-login' || location === '/staff-login' || location === '/staff-consultant-login') {

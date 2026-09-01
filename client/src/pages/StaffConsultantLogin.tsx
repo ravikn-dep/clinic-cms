@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { confirmCredentialLoginAndNavigate } from "@/lib/credentialLoginNavigation";
 
 export default function StaffConsultantLogin() {
   const [userIdOrEmail, setUserIdOrEmail] = useState("");
@@ -11,69 +13,38 @@ export default function StaffConsultantLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-
-  const loginMutation = trpc.auth.loginWithPassword.useMutation({
-    onSuccess: () => {
-      setIsTransitioning(true);
-      // Wait for animation to complete before redirecting
-      setTimeout(() => {
-        window.location.href = "/";
-      }, 1500);
-    },
-    onError: (err) => {
-      setIsLoading(false);
-      setError(err.message || "Login failed. Please check your credentials.");
-    },
-  });
+  const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
+  const submissionInProgress = useRef(false);
+  const loginMutation = trpc.auth.loginWithPassword.useMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading || submissionInProgress.current || loginMutation.isPending) return;
     setError("");
     setIsLoading(true);
+    submissionInProgress.current = true;
 
     try {
       await loginMutation.mutateAsync({
         email: userIdOrEmail.trim(),
         password: password.trim(),
       });
+      await confirmCredentialLoginAndNavigate({
+        refreshAuthenticatedUser: () => utils.auth.me.fetch(),
+        navigate: setLocation,
+      });
     } catch (err) {
       setIsLoading(false);
+      setError(err instanceof Error ? err.message : "Login failed. Please check your credentials.");
+    } finally {
+      submissionInProgress.current = false;
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 via-white to-blue-50 p-4 relative overflow-hidden">
-      {/* Loading Overlay Animation */}
-      {isTransitioning && (
-        <>
-          <style>{`
-            @keyframes slideOut {
-              0% { transform: translateY(0); opacity: 1; }
-              100% { transform: translateY(-100vh); opacity: 0; }
-            }
-            .login-slide-out {
-              animation: slideOut 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-            }
-          `}</style>
-          <div className="fixed inset-0 bg-gradient-to-b from-teal-500 to-blue-600 login-slide-out z-50"></div>
-          <div className="fixed inset-0 flex items-center justify-center z-50">
-            <div className="text-center">
-              <div className="mb-4 flex justify-center">
-                <div className="relative">
-                  <div className="absolute inset-0 bg-white rounded-full animate-ping opacity-75"></div>
-                  <div className="relative h-16 w-16 rounded-full bg-white flex items-center justify-center">
-                    <div className="h-12 w-12 rounded-full border-4 border-teal-500 border-t-blue-600 animate-spin"></div>
-                  </div>
-                </div>
-              </div>
-              <p className="text-white font-medium text-lg">Loading your workspace...</p>
-            </div>
-          </div>
-        </>
-      )}
-
-      <div className={isTransitioning ? "login-slide-out" : ""}>
+      <div>
         <Card className="w-full max-w-md shadow-lg border-teal-100">
           <CardHeader className="space-y-2 bg-gradient-to-r from-teal-50 to-blue-50">
             <div className="flex items-center justify-center mb-4">

@@ -1353,3 +1353,9 @@ This section records the user-authorized GitHub governance action; the migration
 ## Appointment Date State Hardening Follow-up — 2026-08-31
 - [x] Correct the demonstrated invalid-date state path where browser input can still reach `format(selectedDate, ...)`, ensuring malformed input preserves the last valid appointment date rather than crashing the page or interrupting OP print completion.
 - [x] Add a regression that exercises the component-adjacent date-state guard and re-run the cold/warm configured-logo print verification after the fix.
+
+## Post-login Navigation Reliability — 2026-08-31
+- [x] Trace password-login request completion, session/cookie creation, auth query/cache propagation, client routing, protected-page rendering, and existing logout/back-navigation behavior before changing code.
+- [x] Reproduce the demonstrated successful-login/no-navigation state, identify its actual root cause, and correct only the smallest auth-state invalidation/refetch or router transition seam; do not use forced reloads or artificial timeouts.
+- [x] Add focused regressions for invalid credentials, pending/double-submit protection, exact-once success redirect, persisted refresh, logout state clearing, back-navigation blocking, inactive/unauthorized denial, and existing admin/consultant/staff routing/RBAC.
+- [x] Verify the real browser login transition and run TypeScript, full tests, production build, and diff hygiene; save a checkpoint without schema, production, credential, deployment, or unrelated UI changes. The user confirmed the real credential login now enters the authenticated CMS immediately without a refresh or delay.

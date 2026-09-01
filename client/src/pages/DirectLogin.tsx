@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,27 +9,20 @@ import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { getLoginUrl } from "@/const";
+import { confirmCredentialLoginAndNavigate } from "@/lib/credentialLoginNavigation";
 
 export default function DirectLogin() {
   const [credential, setCredential] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [, setLocation] = useLocation();
+  const utils = trpc.useUtils();
+  const submissionInProgress = useRef(false);
+  const loginMutation = trpc.auth.loginWithPassword.useMutation();
 
-  const loginMutation = trpc.auth.loginWithPassword.useMutation({
-    onSuccess: () => {
-      toast.success("Login successful!");
-      setLocation("/");
-    },
-    onError: (err) => {
-      const message = err.message || "Login failed. Please try again.";
-      setError(message);
-      toast.error(message);
-    },
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submissionInProgress.current || loginMutation.isPending) return;
     setError("");
 
     if (!credential.trim()) {
@@ -42,7 +35,21 @@ export default function DirectLogin() {
       return;
     }
 
-    loginMutation.mutate({ email: credential, password });
+    submissionInProgress.current = true;
+    try {
+      await loginMutation.mutateAsync({ email: credential.trim(), password });
+      await confirmCredentialLoginAndNavigate({
+        refreshAuthenticatedUser: () => utils.auth.me.fetch(),
+        navigate: setLocation,
+      });
+      toast.success("Login successful!");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Login failed. Please try again.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      submissionInProgress.current = false;
+    }
   };
 
   return (

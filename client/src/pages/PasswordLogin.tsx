@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
 import { getPasswordLoginErrorMessage } from "@/lib/passwordLogin";
+import { confirmCredentialLoginAndNavigate } from "@/lib/credentialLoginNavigation";
 
 export default function PasswordLogin() {
   const [, setLocation] = useLocation();
@@ -16,33 +17,33 @@ export default function PasswordLogin() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
-
-  const loginMutation = trpc.auth.loginWithPassword.useMutation({
-    onSuccess: () => {
-      setSuccessMessage("Signed in successfully. Redirecting to your workspace…");
-      setIsLoading(false);
-      window.location.assign("/");
-    },
-    onError: (err) => {
-      setIsLoading(false);
-      setError(getPasswordLoginErrorMessage(err.message));
-    },
-  });
+  const submissionInProgress = useRef(false);
+  const utils = trpc.useUtils();
+  const loginMutation = trpc.auth.loginWithPassword.useMutation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isLoading) return;
+    if (isLoading || submissionInProgress.current || loginMutation.isPending) return;
     setError("");
     setSuccessMessage("");
     setIsLoading(true);
+    submissionInProgress.current = true;
 
     try {
       await loginMutation.mutateAsync({
         email: userIdOrEmail.trim(),
         password: password.trim(),
       });
+      setSuccessMessage("Signed in successfully. Opening your workspace…");
+      await confirmCredentialLoginAndNavigate({
+        refreshAuthenticatedUser: () => utils.auth.me.fetch(),
+        navigate: setLocation,
+      });
     } catch (err) {
       setIsLoading(false);
+      setError(getPasswordLoginErrorMessage(err instanceof Error ? err.message : undefined));
+    } finally {
+      submissionInProgress.current = false;
     }
   };
 
