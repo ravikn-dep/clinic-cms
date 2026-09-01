@@ -1,6 +1,17 @@
 import crypto from "crypto";
 import { nanoid } from "nanoid";
 
+/**
+ * MySQL `timestamp`/DATETIME columns reject ISO-8601 'T…Z' literals. Convert a
+ * UTC instant (Date or ISO-8601 string) to a MySQL-compatible UTC string
+ * 'YYYY-MM-DD HH:MM:SS' for the SAME wall-clock instant. Persistence stays UTC;
+ * render layers localise (Asia/Kolkata). Never emits local-timezone values.
+ */
+export function toMysqlDateTime(value: Date | string = new Date()): string {
+  const date = value instanceof Date ? value : new Date(value);
+  return date.toISOString().slice(0, 19).replace("T", " ");
+}
+
 const PATIENT_ID_TIME_ZONE = "Asia/Kolkata";
 
 function formatTwoDigitNumber(value: number): string {

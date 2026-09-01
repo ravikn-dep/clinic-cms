@@ -1,4 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// Provide deterministic test-only Forge config so storagePut reaches its presign
+// path in CI (where BUILT_IN_FORGE_* are unset). Real ENV is otherwise preserved;
+// production config validation in getForgeConfig() is unchanged. No real creds.
+vi.mock("./_core/env", async (importActual) => {
+  const actual = await importActual<typeof import("./_core/env")>();
+  return { ...actual, ENV: { ...actual.ENV, forgeApiUrl: "https://forge.test", forgeApiKey: "test-key" } };
+});
+
 import { storagePut } from "./storage";
 
 describe("storagePut error handling", () => {

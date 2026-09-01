@@ -9,6 +9,7 @@ import { normalizeIndianMobile } from "./external/validation";
 import { normalizeGstNumber, normalizeVendorName, receiptStateForLines, type VendorMasterRecord } from "./procurement";
 import { canCheckInAppointment, canStartAppointmentConsultation } from "./visitWorkflow";
 import { canCheckInEncounter, canGenerateEncounterOp } from "./paperFirstWorkflow";
+import { toMysqlDateTime } from "./utils";
 
 const SALT_ROUNDS = 10;
 type InsertUser = typeof users.$inferInsert;
@@ -73,11 +74,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     }
 
     if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date().toISOString();
+      values.lastSignedIn = toMysqlDateTime();
     }
 
     if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date().toISOString();
+      updateSet.lastSignedIn = toMysqlDateTime();
     }
 
     await db.insert(users).values(values).onDuplicateKeyUpdate({
@@ -107,7 +108,7 @@ export async function createPatient(patientData: typeof patients.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const now = new Date().toISOString();
+  const now = toMysqlDateTime();
   const dataWithTimestamps = {
     ...patientData,
     createdAt: patientData.createdAt || now,
@@ -198,13 +199,13 @@ export async function createEnquiry(data: typeof enquiries.$inferInsert) {
 export async function linkEnquiryToPatient(enquiryId: string, patientId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(enquiries).set({ patientId, updatedAt: new Date().toISOString() }).where(eq(enquiries.enquiryId, enquiryId));
+  await db.update(enquiries).set({ patientId, updatedAt: toMysqlDateTime() }).where(eq(enquiries.enquiryId, enquiryId));
 }
 
 export async function linkEnquiryToAppointment(enquiryId: string, appointmentId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(enquiries).set({ appointmentId, lifecycleStage: "BOOKED", updatedAt: new Date().toISOString() }).where(eq(enquiries.enquiryId, enquiryId));
+  await db.update(enquiries).set({ appointmentId, lifecycleStage: "BOOKED", updatedAt: toMysqlDateTime() }).where(eq(enquiries.enquiryId, enquiryId));
 }
 
 export async function updateEnquiryStageForAppointment(
@@ -213,7 +214,7 @@ export async function updateEnquiryStageForAppointment(
 ) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(enquiries).set({ lifecycleStage, updatedAt: new Date().toISOString() }).where(eq(enquiries.appointmentId, appointmentId));
+  await db.update(enquiries).set({ lifecycleStage, updatedAt: toMysqlDateTime() }).where(eq(enquiries.appointmentId, appointmentId));
 }
 
 export async function createExternalApiAuditLog(data: typeof externalApiAuditLogs.$inferInsert) {
@@ -769,7 +770,7 @@ export async function createGoodsReceipt(input: {
             unitPrice: unitPrice as any,
             sourcePurchaseOrderId: input.purchaseOrderId,
             sourceGoodsReceiptId: input.goodsReceiptId,
-            lastRestocked: new Date().toISOString(),
+            lastRestocked: toMysqlDateTime(),
           })
           .where(eq(inventory.itemId, currentInventory.itemId));
       } else {
@@ -784,7 +785,7 @@ export async function createGoodsReceipt(input: {
           reorderLevel: 10,
           sourcePurchaseOrderId: input.purchaseOrderId,
           sourceGoodsReceiptId: input.goodsReceiptId,
-          lastRestocked: new Date().toISOString(),
+          lastRestocked: toMysqlDateTime(),
         });
       }
 
@@ -849,7 +850,7 @@ export async function createGoodsReceipt(input: {
       tableName: "goodsReceipts",
       recordId: input.goodsReceiptId,
 		newValue: JSON.stringify({ purchaseOrderId: input.purchaseOrderId, goodsReceiptId: input.goodsReceiptId, lineCount: postedLines.length, actorId: input.receivedBy }),
-      timestamp: new Date().toISOString(),
+      timestamp: toMysqlDateTime(),
     });
 
     return {
@@ -893,7 +894,7 @@ export async function updateReceiptDelivery(billId: string, status: "Not Sent" |
   await db.update(bills).set({
     receiptDeliveryStatus: status,
     receiptDeliveryMethod: method,
-    receiptDeliveryTimestamp: status === "Sent" ? new Date().toISOString() : undefined,
+    receiptDeliveryTimestamp: status === "Sent" ? toMysqlDateTime() : undefined,
   }).where(eq(bills.billId, billId));
 }
 
@@ -904,7 +905,7 @@ export async function approvePurchaseOrder(poId: string, approvedBy: string) {
   await db.update(purchaseOrders).set({
     approvalStatus: "Approved",
     approvedBy,
-    approvalTimestamp: new Date().toISOString(),
+    approvalTimestamp: toMysqlDateTime(),
   }).where(eq(purchaseOrders.purchaseOrderId, poId));
 }
 
@@ -916,7 +917,7 @@ export async function rejectPurchaseOrder(poId: string, rejectionReason: string,
     approvalStatus: "Rejected",
     rejectionReason,
     approvedBy,
-    approvalTimestamp: new Date().toISOString(),
+    approvalTimestamp: toMysqlDateTime(),
 	}).where(eq(purchaseOrders.purchaseOrderId, poId));
 }
 
@@ -925,7 +926,7 @@ export type PurchaseOrderLifecycleActor = { actorId: string; actorName?: string 
 export async function approvePurchaseOrderWithAudit(purchaseOrderId: string, actor: PurchaseOrderLifecycleActor) {
 	const db = await getDb();
 	if (!db) throw new Error("Database not available");
-	const approvedAt = new Date().toISOString();
+	const approvedAt = toMysqlDateTime();
 	return db.transaction(async (transaction) => {
 		await lockPurchaseOrderForReceiptPosting(transaction, purchaseOrderId);
 		const rows = await transaction.select().from(purchaseOrders).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId)).limit(1);
@@ -954,7 +955,7 @@ export async function approvePurchaseOrderWithAudit(purchaseOrderId: string, act
 export async function rejectPurchaseOrderWithAudit(purchaseOrderId: string, rejectionReason: string, actor: PurchaseOrderLifecycleActor) {
 	const db = await getDb();
 	if (!db) throw new Error("Database not available");
-	const rejectedAt = new Date().toISOString();
+	const rejectedAt = toMysqlDateTime();
 	return db.transaction(async (transaction) => {
 		await lockPurchaseOrderForReceiptPosting(transaction, purchaseOrderId);
 		const rows = await transaction.select().from(purchaseOrders).where(eq(purchaseOrders.purchaseOrderId, purchaseOrderId)).limit(1);
@@ -1248,8 +1249,12 @@ export async function getBillItemsByBillId(billId: string) {
 export async function createAuditLog(logData: typeof auditLogs.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  
-  await db.insert(auditLogs).values(logData);
+
+  // Callers pass an ISO-8601 instant; normalize to a MySQL DATETIME string at the boundary.
+  await db.insert(auditLogs).values({
+    ...logData,
+    timestamp: logData.timestamp ? toMysqlDateTime(logData.timestamp as string | Date) : logData.timestamp,
+  });
   return logData;
 }
 
@@ -1411,7 +1416,7 @@ export async function updateRolePermission(role: "admin" | "consultant" | "staff
     // Update existing
     await db
       .update(rolePermissions)
-      .set({ isEnabled: isEnabled ? 1 : 0, updatedAt: new Date().toISOString() })
+      .set({ isEnabled: isEnabled ? 1 : 0, updatedAt: toMysqlDateTime() })
       .where(eq(rolePermissions.permissionId, existing.permissionId));
   } else {
     // Create new
@@ -1459,7 +1464,7 @@ export async function setFeaturePermission(role: "consultant" | "staff", feature
 
   if (existing.length > 0) {
     await db.update(rolePermissions)
-      .set({ isEnabled: isEnabled ? 1 : 0, updatedAt: new Date().toISOString() })
+      .set({ isEnabled: isEnabled ? 1 : 0, updatedAt: toMysqlDateTime() })
       .where(
         and(
           eq(rolePermissions.role, role),
@@ -1729,7 +1734,7 @@ export async function createVisitAppointmentWithAudit(data: {
 		});
 		await transaction.insert(auditLogs).values({
 			logId: nanoid(20), userId: data.actorId, actionType: "APPOINTMENT_CREATED", tableName: "appointments", recordId: appointmentId,
-			newValue: JSON.stringify({ patientId: data.patientId, consultantId: data.consultantId, appointmentSource: data.appointmentSource }), timestamp: new Date().toISOString(),
+			newValue: JSON.stringify({ patientId: data.patientId, consultantId: data.consultantId, appointmentSource: data.appointmentSource }), timestamp: toMysqlDateTime(),
 		});
 	});
 	return appointmentId;
@@ -1742,7 +1747,7 @@ export async function checkInAppointmentWithAudit(appointmentId: string, actorId
 		const appointment = (await transaction.select().from(appointments).where(eq(appointments.appointmentId, appointmentId)).limit(1))[0];
 		if (!appointment) throw new Error("Appointment not found");
 		if (!canCheckInAppointment(appointment.status)) throw new Error("Only booked appointments can be checked in");
-		const checkedInAt = new Date().toISOString();
+		const checkedInAt = toMysqlDateTime();
 		await transaction.update(appointments).set({ status: "Checked-in", checkedInAt, checkedInBy: actorId, updatedAt: checkedInAt }).where(eq(appointments.appointmentId, appointmentId));
 		await transaction.insert(auditLogs).values({
 			logId: nanoid(20), userId: actorId, actionType: "APPOINTMENT_CHECKED_IN", tableName: "appointments", recordId: appointmentId,
@@ -1763,7 +1768,7 @@ export async function startAppointmentConsultationWithAudit(appointmentId: strin
     const existing = (await transaction.select().from(consultations).where(eq(consultations.appointmentId, appointmentId)).limit(1))[0];
     if (existing) return { consultation: existing, created: false };
     const consultationId = `CON-${nanoid(16).toUpperCase()}`;
-		const consultationDate = new Date().toISOString();
+		const consultationDate = toMysqlDateTime();
     const consultation = { consultationId, appointmentId, encounterId: encounter?.encounterId, patientId: appointment.patientId, consultantId: appointment.consultantId, consultationDate };
     await transaction.insert(consultations).values(consultation);
     if (encounter) await transaction.update(encounters).set({ status: "OP Generated", updatedAt: consultationDate }).where(eq(encounters.encounterId, encounter.encounterId));
@@ -1782,7 +1787,7 @@ export async function createDirectEncounterWithAudit(data: { patientId: string; 
     const existing = (await transaction.select().from(encounters).where(sql`${encounters.patientId} = ${data.patientId} AND ${encounters.consultantId} = ${data.consultantId} AND DATE(${encounters.createdAt}) = CURDATE() AND ${encounters.status} <> 'Closed'`).limit(1))[0];
     if (existing) return { encounter: existing, created: false };
     const encounterId = `ENC-${nanoid(16).toUpperCase()}`;
-    const createdAt = new Date().toISOString();
+    const createdAt = toMysqlDateTime();
     const encounter = { encounterId, patientId: data.patientId, consultantId: data.consultantId, source: data.source, status: "Present" as const, createdBy: data.actorId, createdAt, updatedAt: createdAt };
     await transaction.insert(encounters).values(encounter);
     await transaction.insert(auditLogs).values({ logId: nanoid(20), userId: data.actorId, actionType: "ENCOUNTER_CREATED", tableName: "encounters", recordId: encounterId, newValue: JSON.stringify({ patientId: data.patientId, consultantId: data.consultantId, source: data.source }), timestamp: createdAt });
@@ -1797,7 +1802,7 @@ export async function checkInEncounterWithAudit(encounterId: string, actorId: st
     const encounter = (await transaction.select().from(encounters).where(eq(encounters.encounterId, encounterId)).limit(1))[0];
     if (!encounter) throw new Error("Encounter not found");
     if (!canCheckInEncounter(encounter.status)) return encounter;
-    const timestamp = new Date().toISOString();
+    const timestamp = toMysqlDateTime();
     await transaction.update(encounters).set({ status: "Checked-in", updatedAt: timestamp }).where(eq(encounters.encounterId, encounterId));
     await transaction.insert(auditLogs).values({ logId: nanoid(20), userId: actorId, actionType: "ENCOUNTER_CHECKED_IN", tableName: "encounters", recordId: encounterId, oldValue: JSON.stringify({ status: encounter.status }), newValue: JSON.stringify({ status: "Checked-in" }), timestamp });
     return { ...encounter, status: "Checked-in" as const, updatedAt: timestamp };
@@ -1814,7 +1819,7 @@ export async function startEncounterConsultationWithAudit(encounterId: string, a
     const existing = (await transaction.select().from(consultations).where(eq(consultations.encounterId, encounterId)).limit(1))[0];
     if (existing) return { consultation: existing, created: false };
     const consultationId = `CON-${nanoid(16).toUpperCase()}`;
-    const consultationDate = new Date().toISOString();
+    const consultationDate = toMysqlDateTime();
     const consultation = { consultationId, encounterId, patientId: encounter.patientId, consultantId: encounter.consultantId, consultationDate };
     await transaction.insert(consultations).values(consultation);
     await transaction.update(encounters).set({ status: "OP Generated", updatedAt: consultationDate }).where(eq(encounters.encounterId, encounterId));
@@ -1832,7 +1837,7 @@ export async function createEncounterForAppointmentWithAudit(data: { appointment
     const existing = (await transaction.select().from(encounters).where(eq(encounters.appointmentId, data.appointmentId)).limit(1))[0];
     if (existing) return { encounter: existing, created: false };
     const encounterId = `ENC-${nanoid(16).toUpperCase()}`;
-    const timestamp = new Date().toISOString();
+    const timestamp = toMysqlDateTime();
     const encounter = { encounterId, patientId: appointment.patientId, consultantId: appointment.consultantId, appointmentId: appointment.appointmentId, source: appointment.appointmentSource === "PHONE" ? "PHONE" as const : "APPOINTMENT" as const, status: "Present" as const, createdBy: data.actorId, createdAt: timestamp, updatedAt: timestamp };
     await transaction.insert(encounters).values(encounter);
     await transaction.insert(auditLogs).values({ logId: nanoid(20), userId: data.actorId, actionType: "ENCOUNTER_CREATED", tableName: "encounters", recordId: encounterId, newValue: JSON.stringify({ appointmentId: appointment.appointmentId, patientId: appointment.patientId, consultantId: appointment.consultantId, source: encounter.source }), timestamp });
@@ -1912,7 +1917,7 @@ export async function updateAppointmentStatus(appointmentId: string, status: "Sc
   if (!db) throw new Error("Database not available");
 
   await db.update(appointments)
-    .set({ status, updatedAt: new Date().toISOString() })
+    .set({ status, updatedAt: toMysqlDateTime() })
     .where(eq(appointments.appointmentId, appointmentId));
 }
 
@@ -1921,7 +1926,7 @@ export async function cancelAppointment(appointmentId: string) {
   if (!db) throw new Error("Database not available");
 
   await db.update(appointments)
-    .set({ status: "Cancelled", updatedAt: new Date().toISOString() })
+    .set({ status: "Cancelled", updatedAt: toMysqlDateTime() })
     .where(eq(appointments.appointmentId, appointmentId));
 }
 
@@ -1955,7 +1960,7 @@ export async function rescheduleAppointment(appointmentId: string, newDate: stri
         appointmentDate: newDate,
         appointmentTime: newTime,
         status: "Rescheduled",
-        updatedAt: new Date().toISOString(),
+        updatedAt: toMysqlDateTime(),
       })
       .where(eq(appointments.appointmentId, appointmentId));
   });
@@ -1987,9 +1992,9 @@ export async function checkInAppointment(appointmentId: string, checkedInBy: str
   }
 
   await db.update(appointments).set({
-    checkedInAt: new Date().toISOString(),
+    checkedInAt: toMysqlDateTime(),
     checkedInBy,
-    updatedAt: new Date().toISOString(),
+    updatedAt: toMysqlDateTime(),
   }).where(eq(appointments.appointmentId, appointmentId));
 }
 
@@ -2074,7 +2079,7 @@ export async function replaceConsultantAvailabilityWithAudit(
       recordId: consultantId.toString(),
       oldValue: JSON.stringify(previous.map(({ availabilityId: _id, createdAt: _created, updatedAt: _updated, ...row }) => row)),
       newValue: JSON.stringify(rows.map(({ availabilityId: _id, ...row }) => row)),
-      timestamp: new Date().toISOString(),
+      timestamp: toMysqlDateTime(),
     });
     return rows;
   });
@@ -2162,7 +2167,7 @@ export async function setUserPassword(userId: number, password: string): Promise
   const hashedPassword = await hashPassword(password);
   
   await db.update(users)
-    .set({ passwordHash: hashedPassword, updatedAt: new Date().toISOString() })
+    .set({ passwordHash: hashedPassword, updatedAt: toMysqlDateTime() })
     .where(eq(users.id, userId));
 }
 
@@ -2310,7 +2315,7 @@ export async function updateUserPassword(userId: number, passwordHash: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.update(users).set({ passwordHash, updatedAt: new Date().toISOString() }).where(eq(users.id, userId));
+  await db.update(users).set({ passwordHash, updatedAt: toMysqlDateTime() }).where(eq(users.id, userId));
 }
 
 export async function updateUserStatus(userId: number, isActive: boolean) {
@@ -2382,7 +2387,7 @@ export async function createVendorWithAudit(input: VendorMasterInput, actorId: s
 	)).limit(1);
 	if (duplicate[0]) throw new Error("A vendor with the same normalized name or GSTIN already exists");
 	const vendorId = `VENDOR-${nanoid(16).toUpperCase()}`;
-	const createdAt = new Date().toISOString();
+	const createdAt = toMysqlDateTime();
 	const vendor = { vendorId, ...values, isActive: 1, createdBy: Number(actorId), createdAt, updatedAt: createdAt };
 	await db.transaction(async (transaction) => {
 		await transaction.insert(vendors).values(vendor);
@@ -2405,7 +2410,7 @@ export async function updateVendorWithAudit(vendorId: string, input: VendorMaste
 		...(values.normalizedGstNumber ? [eq(vendors.normalizedGstNumber, values.normalizedGstNumber)] : []),
 	)).limit(10);
 	if (duplicate.some((vendor) => vendor.vendorId !== vendorId)) throw new Error("A vendor with the same normalized name or GSTIN already exists");
-	const updatedAt = new Date().toISOString();
+	const updatedAt = toMysqlDateTime();
 	await db.transaction(async (transaction) => {
 		await transaction.update(vendors).set({ ...values, updatedAt }).where(eq(vendors.vendorId, vendorId));
 		await transaction.insert(auditLogs).values({
@@ -2423,7 +2428,7 @@ export async function setVendorActiveWithAudit(vendorId: string, active: boolean
 	const current = await getVendorById(vendorId);
 	if (!current) throw new Error("Vendor not found");
 	if (Boolean(current.isActive) === active) return { ...current, isActive: active ? 1 : 0 };
-	const updatedAt = new Date().toISOString();
+	const updatedAt = toMysqlDateTime();
 	await db.transaction(async (transaction) => {
 		await transaction.update(vendors).set({ isActive: active ? 1 : 0, updatedAt }).where(eq(vendors.vendorId, vendorId));
 		await transaction.insert(auditLogs).values({
@@ -2481,7 +2486,7 @@ export async function updateVendor(vendorId: string, vendorData: any): Promise<a
     address: vendorData.address,
     dlNumber: vendorData.dlNumber ? JSON.stringify(vendorData.dlNumber) : null,
     email: vendorData.email,
-    updatedAt: new Date().toISOString(),
+    updatedAt: toMysqlDateTime(),
   }).where(eq(vendors.vendorId, vendorId));
   
   return { vendorId, ...vendorData };
@@ -2512,7 +2517,7 @@ export async function completeConsultationWithAudit(consultationId: string, acto
     const consultantId = encounter?.consultantId ?? appointment?.consultantId;
     if (!allowAdminOverride && consultantId !== Number(actorId)) throw new Error("Only the assigned consultant can complete this encounter");
     if (consultation.isFinalized) return { consultation, changed: false };
-    const timestamp = new Date().toISOString();
+    const timestamp = toMysqlDateTime();
     await transaction.update(consultations).set({ isFinalized: 1, updatedAt: timestamp }).where(eq(consultations.consultationId, consultationId));
     await transaction.insert(auditLogs).values({
       logId: nanoid(20), userId: actorId, actionType: allowAdminOverride ? "CONSULTATION_COMPLETED_ADMIN_OVERRIDE" : "CONSULTATION_COMPLETED",
@@ -2554,7 +2559,7 @@ export async function createEncounterBillAndCloseVisit(data: {
     if (existing) return { bill: existing, created: false };
     await transaction.insert(bills).values({ ...data.bill, encounterId: encounter?.encounterId ?? undefined });
     for (const item of data.items) await transaction.insert(billItems).values(item);
-    const timestamp = new Date().toISOString();
+    const timestamp = toMysqlDateTime();
     if (encounter) await transaction.update(encounters).set({ status: "Closed", closedAt: timestamp, updatedAt: timestamp }).where(eq(encounters.encounterId, encounter.encounterId));
     if (data.appointmentId) await transaction.update(appointments).set({ status: "Completed", updatedAt: timestamp }).where(eq(appointments.appointmentId, data.appointmentId));
     await transaction.insert(auditLogs).values({
