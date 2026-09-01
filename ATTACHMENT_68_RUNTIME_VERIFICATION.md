@@ -1,6 +1,6 @@
 # Attachment 68 — Generate OP Runtime Verification
 
-**Status:** Resolved and verified in the managed development Preview on 28 August 2026.  
+**Status:** Resolved and verified in the managed development Preview on 28 August 2026.
 **Scope:** The Generate OP / Print OP interaction only. No production environment, deployment, schema, migration, authentication, RBAC, billing, procurement, inventory, OCR, dashboard, or external-integration change was made.
 
 ## Reproduction and Root Cause

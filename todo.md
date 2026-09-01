@@ -1367,3 +1367,11 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Re-run pnpm test, pnpm check, pnpm build, and git diff --check on the exact candidate; stop for user decision if results materially differ from Attachment 71/72.
 - [x] Create one coherent review-branch commit, push only that branch without force-push or main changes, and verify the remote contains 0028 with no duplicate 0027 consultant-location migration.
 - [x] Record the baseline, branch, commit, remote verification, validation, changed-file groups, and production/main safety outcome in the final report; do not deploy or alter production data.
+
+## Attachment 74 — Authoritative Main/Review Integration
+- [x] Verify GitHub main, validated review branch, merge-base, clean starting state, and review-branch validation evidence; stop if materially different from the attachment.
+- [x] Create integration/op-billing-main-reconciliation from the validated review branch and merge origin/main without modifying or merging into main.
+- [x] Resolve conflicts semantically, preserving current-main functionality, validated billing/print/OP improvements, migration authority, security boundaries, and meaningful tests; do not use global ours/theirs choices or weaken coverage.
+- [x] Reconcile schema/migration metadata and documentation, fix only the specified trailing whitespace, and prove consultantLocation is introduced by exactly one migration with no conflict markers, secrets, credentials, debug logging, skipped tests, or synthetic data.
+- [x] Run static checks, full DB-connected validation, runtime smoke checks on development data only, and final diff review; stop for user decision on unexplained regressions or ambiguity.
+- [x] Commit and push only the integration branch after all acceptance gates pass; verify main and production remain untouched and record the final reconciliation evidence.

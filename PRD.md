@@ -663,18 +663,6 @@ Payment status may remain:
 
 without reopening the completed clinical visit.
 
-### 16.6 Visit-Date Billing Selection
-
-**Status: `IMPLEMENTED_VALIDATED`**
-
-The Billing page provides a read-only, clinic-local date selector that lists appointment-authoritative visits for the selected day. The normal encounter workflow is:
-
-```text
-Selected clinic date → eligible finalized visit → Raise Bill
-```
-
-The server derives patient, consultant, consultation, appointment, billing state, and eligibility from existing relationships. Only a finalized consultation without an existing encounter bill exposes `Raise Bill`; scheduled, unfinished, completed, or already-billed visits remain non-actionable or show their current state. Generic/manual billing remains available and the canonical encounter billing procedure remains responsible for authorization, patient-substitution protection, idempotency, and visit closure.
-
 ---
 
 ## 17. Generic / Manual Billing
@@ -738,13 +726,7 @@ Patient Records should be able to resolve:
 - bill;
 - completed state.
 
-### 19.2 Current Contextual Actions
-
-**Status: `IMPLEMENTED_VALIDATED`**
-
-The patient identity preview surfaces billing context near the patient identity when the user has billing access. One eligible finalized unbilled encounter opens Billing directly; multiple eligible encounters require explicit encounter selection; and zero eligible encounters displays an explanatory non-actionable state. Visit-level actions remain state-aware, including `Raise Bill` only for eligible encounters and `View Bill` for billed encounters. These actions do not create appointments, consultations, bills, or procurement records from Patient Records. The selected patient is presented as an inline expanded preview immediately beneath the selected patient row; only one patient preview is expanded at a time, and contextual patient/visit actions remain adjacent to the patient identity and relevant visit. This inline-preview refinement is `IMPLEMENTED_VALIDATED` after Preview acceptance.
-
-### 19.3 Future Actions
+### 19.2 Future Actions
 
 Approved direction:
 
@@ -2013,30 +1995,21 @@ Current PRD v1.0.0 was reconciled primarily against the merged repository state 
 Historical TODO claims were not automatically treated as current product truth when contradicted by later canonical source or explicit decisions.
 
 ---
-# PART XXVII — PHASE 4 STEP 3 WORKFLOW RECONCILIATION
-## 67. Unified Patient Visit Architecture
-The validated implementation now treats the **Encounter** as the first-class attendance record for a patient visit. Patient intake may search by Patient ID, normalized Indian mobile number, or name; register a patient when no safe match exists; select an active consultant; and create or resume a same-day encounter without requiring an appointment. Appointments remain an optional scheduling and reminder channel, and appointment check-in converges into the same encounter identity.
 
-The paper-first invariant remains unchanged and is enforced server-side: an encounter begins `Present`, explicit check-in transitions it to `Checked-in`, only a checked-in encounter may generate the paper OP, the consultant completes the paper consultation, and billing remains the `Ready for Billing` / closure boundary. Direct encounters and appointment-linked encounters share the same consultation, Patient Records, and Billing contracts. Encounter creation, check-in, OP generation, consultation completion, and billing closure are audited and consultant-scoped; no procurement or inventory mutation is part of the patient visit workflow.
+# PART XXVII — PRD CHANGE HISTORY
 
-Patient identifiers continue to use the clinic-local `DOCM-DD/MM/YYOP###` format. New registrations use a transactional daily sequence row to avoid count-and-retry collisions under concurrent registration, while historical Patient IDs remain immutable. The deterministic fresh-database baseline and forward migration both include the Encounter and daily sequence entities; existing installations continue through the historical forward-migration path.
----
-# PART XXVIII — PRD CHANGE HISTORY
-
-## 68. Change History
+## 67. Change History
 
 | Version | Date | Change | Approved By | Canonical Baseline |
 |---|---|---|---|---|
 | 1.0.0 | 2026-08-26 | Initial canonical reconstruction after Phase 4 Step 3; reconciles current source, stable milestones, retired workflows, and approved future direction. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
 | 1.0.1 | 2026-08-26 | Records the validated dashboard/navigation refinement: grouped role-aware navigation, New Visit as the principal front-desk entry point, appointment-authoritative Home queue, and no new analytics subsystem. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
-| 1.0.2 | 2026-08-27 | Records the validated Billing visit-date selection and Patient Records contextual-action refinement; preserves encounter billing safeguards, paper-first lifecycle boundaries, RBAC, and no-schema-change procurement isolation. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
-| 1.0.3 | 2026-08-27 | Records the visually accepted Patient Records inline expanded preview: one preview immediately beneath the selected row, state-aware actions adjacent to patient identity, and safe collapse during selection/filter changes. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
-| 1.0.4 | 2026-08-27 | Records the validated unified Patient Visit architecture: first-class Encounter records, optional appointments, direct and appointment-linked convergence, explicit check-in before paper OP generation, encounter-aware Records/Billing, deterministic daily Patient-ID sequencing, and additive baseline/migration coverage. | Product Authority | `210ef792919e588021e3fd6c6e13d35b28d58ed3` |
 
 ---
 
-# PART XXIX — FINAL CANONICAL SUMMARY
-## 69. Current Clinic CMS Product Definition
+# PART XXVIII — FINAL CANONICAL SUMMARY
+
+## 68. Current Clinic CMS Product Definition
 
 Clinic CMS currently operates around one central principle:
 
