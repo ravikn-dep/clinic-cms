@@ -1359,3 +1359,11 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Reproduce the demonstrated successful-login/no-navigation state, identify its actual root cause, and correct only the smallest auth-state invalidation/refetch or router transition seam; do not use forced reloads or artificial timeouts.
 - [x] Add focused regressions for invalid credentials, pending/double-submit protection, exact-once success redirect, persisted refresh, logout state clearing, back-navigation blocking, inactive/unauthorized denial, and existing admin/consultant/staff routing/RBAC.
 - [x] Verify the real browser login transition and run TypeScript, full tests, production build, and diff hygiene; save a checkpoint without schema, production, credential, deployment, or unrelated UI changes. The user confirmed the real credential login now enters the authenticated CMS immediately without a refresh or delay.
+
+## Attachment 73 — Publish Validated Development State to Review Branch
+- [ ] Review pasted_content_73.txt and reconcile its claims against the current clean Manus worktree and Attachment 71/72 evidence.
+- [ ] Create the review branch from the current appropriate repository baseline without modifying main; preserve drizzle/0028_messy_puff_adder.sql as the sole consultantLocation migration authority.
+- [ ] Audit and stage only the validated billing, branded OP, print, availability, consultantLocation, User Management, and directly required test/config changes; exclude secrets, generated junk, obsolete migrations, duplicate 0027 consultant-location artifacts, and unrelated refactors.
+- [ ] Re-run pnpm test, pnpm check, pnpm build, and git diff --check on the exact candidate; stop for user decision if results materially differ from Attachment 71/72.
+- [ ] Create one coherent review-branch commit, push only that branch without force-push or main changes, and verify the remote contains 0028 with no duplicate 0027 consultant-location migration.
+- [ ] Record the baseline, branch, commit, remote verification, validation, changed-file groups, and production/main safety outcome in the final report; do not deploy or alter production data.
