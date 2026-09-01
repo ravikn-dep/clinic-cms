@@ -515,7 +515,6 @@ ALTER TABLE `consultations` ADD CONSTRAINT `consultations_appointmentId_unique` 
 
 ALTER TABLE `bills` ADD CONSTRAINT `bills_consultationId_unique` UNIQUE(`consultationId`);
 
--- Phase 4 unified Patient Visit additive schema
 CREATE TABLE `encounters` (
   `encounterId` varchar(50) NOT NULL,
   `patientId` varchar(50) NOT NULL,
@@ -545,3 +544,4 @@ ALTER TABLE `bills` ADD `encounterId` varchar(50);
 ALTER TABLE `bills` ADD CONSTRAINT `bills_encounterId_unique` UNIQUE(`encounterId`);
 CREATE INDEX `encounters_patientId_idx` ON `encounters` (`patientId`);
 CREATE INDEX `encounters_consultantId_idx` ON `encounters` (`consultantId`);
+ALTER TABLE `users` ADD `consultantLocation` text;
