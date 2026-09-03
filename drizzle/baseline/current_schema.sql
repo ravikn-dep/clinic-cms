@@ -545,3 +545,25 @@ ALTER TABLE `bills` ADD CONSTRAINT `bills_encounterId_unique` UNIQUE(`encounterI
 CREATE INDEX `encounters_patientId_idx` ON `encounters` (`patientId`);
 CREATE INDEX `encounters_consultantId_idx` ON `encounters` (`consultantId`);
 ALTER TABLE `users` ADD `consultantLocation` text;
+
+CREATE TABLE `dispensingRecords` (
+	`dispensingId` varchar(50) NOT NULL,
+	`idempotencyKey` varchar(100) NOT NULL,
+	`billId` varchar(50) NOT NULL,
+	`billItemId` varchar(50) NOT NULL,
+	`catalogItemId` varchar(50),
+	`inventoryItemId` varchar(50) NOT NULL,
+	`batchNumber` varchar(100) NOT NULL,
+	`quantityDispensed` int NOT NULL,
+	`actorId` varchar(100) NOT NULL,
+	`movementType` varchar(50) NOT NULL DEFAULT 'DISPENSE',
+	`createdAt` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT `dispensingRecords_dispensingId` PRIMARY KEY(`dispensingId`),
+	CONSTRAINT `dispensingRecords_idempotency_unique` UNIQUE(`idempotencyKey`),
+	CONSTRAINT `dispensingRecords_dispensingId_unique` UNIQUE(`dispensingId`)
+);
+ALTER TABLE `billItems` ADD `catalogItemId` varchar(50);
+ALTER TABLE `billItems` ADD `inventoryItemId` varchar(50);
+ALTER TABLE `billItems` ADD `batchNumber` varchar(100);
+ALTER TABLE `billItems` ADD `expiryDate` varchar(10);
+CREATE INDEX `dispensingRecords_billId_idx` ON `dispensingRecords` (`billId`);

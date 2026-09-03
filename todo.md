@@ -1401,3 +1401,7 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Fix only a proven transactional/idempotency defect, preserving the unique constraint and existing UI/workflow boundaries; do not add features or redesign pharmacy/PO/Goods Receipt flows.
 - [x] Re-run pnpm check, pnpm test --run, pnpm build, git diff --check, and authenticated development UI acceptance; verify migration 0030 remains forward-only and deterministic.
 - [x] Save a checkpoint and report exact START/END HEAD, E2E evidence, transaction invariants, files changed, Git status, blockers, and GitHub-publication readiness; do not publish or deploy.
+
+## Attachment 75 + 76 Publication CI Repair
+- [ ] Reconcile the fresh-CI failure showing `server/pharmacyDispensing.db.test.ts` requires `dispensingRecords` while the CI bootstrap database lacks migration 0030; change only the publication branch’s migration/bootstrap validation path needed to include the already-validated migration.
+- [ ] Re-run `pnpm check`, `pnpm test --run`, `pnpm build`, `git diff --check`, and fresh-CI validation; update PR #18 without merging or deploying.
