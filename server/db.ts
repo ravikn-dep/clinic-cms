@@ -1,7 +1,7 @@
 import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, catalogItems, catalogItemAliases, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays, procurementPostingLocks, encounters, patientIdSequences } from "../drizzle/schema";
+import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, catalogItems, catalogItemAliases, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays, procurementPostingLocks, encounters, patientIdSequences, dispensingRecords } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 import { nanoid } from "nanoid";
@@ -1009,6 +1009,136 @@ export async function getLowStockItems() {
   if (!db) throw new Error("Database not available");
   
   return db.select().from(inventory).where(lte(inventory.quantityAvailable, inventory.reorderLevel));
+}
+
+export async function searchInventoryForBilling(query: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const normalizedQuery = query.trim();
+  const pattern = `%${normalizedQuery}%`;
+  const searchCondition = normalizedQuery
+    ? or(like(inventory.itemName, pattern), like(catalogItems.canonicalName, pattern), like(catalogItems.genericName, pattern))
+    : sql`1 = 1`;
+
+  return db
+    .select({
+      itemId: inventory.itemId,
+      itemName: inventory.itemName,
+      catalogItemId: inventory.catalogItemId,
+      canonicalName: catalogItems.canonicalName,
+      genericName: catalogItems.genericName,
+      batchNumber: inventory.batchNumber,
+      expiryDate: inventory.expiryDate,
+      quantityAvailable: inventory.quantityAvailable,
+      unitPrice: inventory.unitPrice,
+    })
+    .from(inventory)
+    .leftJoin(catalogItems, eq(inventory.catalogItemId, catalogItems.catalogItemId))
+    .where(and(
+      searchCondition,
+      sql`COALESCE(${inventory.quantityAvailable}, 0) > 0`,
+      sql`STR_TO_DATE(${inventory.expiryDate}, '%Y-%m-%d') >= CURRENT_DATE()`,
+    ))
+    .orderBy(sql`STR_TO_DATE(${inventory.expiryDate}, '%Y-%m-%d') ASC`, inventory.itemName)
+    .limit(50);
+}
+
+export type DispensedBillInput = {
+  bill: typeof bills.$inferInsert;
+  items: Array<typeof billItems.$inferInsert & {
+    inventoryItemId: string;
+    catalogItemId?: string | null;
+    batchNumber: string;
+    expiryDate: string;
+    dispensingId: string;
+    idempotencyKey: string;
+  }>;
+  actorId: string;
+  appointmentId?: string;
+  encounterId?: string;
+  consultationId?: string;
+};
+
+function isDuplicateIdempotencyError(error: unknown) {
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    const candidate = current as { code?: string; errno?: number; sqlState?: string; cause?: unknown };
+    if (candidate.code === "ER_DUP_ENTRY" || candidate.errno === 1062 || candidate.sqlState === "23000") return true;
+    current = candidate.cause;
+  }
+  return false;
+}
+
+export async function createDispensedBill(data: DispensedBillInput) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const idempotencyKey = data.items[0]?.idempotencyKey ?? "";
+  try {
+    return await db.transaction(async (transaction) => {
+    const prior = (await transaction.select().from(dispensingRecords).where(eq(dispensingRecords.idempotencyKey, data.items[0]?.idempotencyKey ?? "")).limit(1))[0];
+    if (prior) return { billId: prior.billId, created: false };
+
+    const consultation = data.consultationId
+      ? (await transaction.select().from(consultations).where(eq(consultations.consultationId, data.consultationId)).limit(1))[0]
+      : null;
+    if (data.consultationId && (!consultation || !consultation.isFinalized)) throw new Error("Consultation must be completed before billing");
+    const encounter = data.encounterId
+      ? (await transaction.select().from(encounters).where(eq(encounters.encounterId, data.encounterId)).limit(1))[0]
+      : null;
+    if (data.encounterId && (!encounter || consultation?.encounterId !== data.encounterId)) throw new Error("Encounter billing context is invalid");
+    if (data.appointmentId && consultation?.appointmentId !== data.appointmentId) throw new Error("Encounter billing context is invalid");
+
+    await transaction.insert(bills).values(data.bill);
+    for (const item of data.items) {
+      const current = (await transaction.select().from(inventory).where(eq(inventory.itemId, item.inventoryItemId)).limit(1))[0];
+      if (!current) throw new Error("Inventory item not found");
+      if (current.batchNumber !== item.batchNumber || current.expiryDate !== item.expiryDate) throw new Error("Inventory batch changed; refresh and try again");
+      if (new Date(`${current.expiryDate}T00:00:00Z`).getTime() < Date.now() - 86_400_000) throw new Error("Expired stock cannot be dispensed");
+      const requestedQuantity = Number(item.quantity ?? 0);
+      if (!Number.isInteger(requestedQuantity) || requestedQuantity <= 0) throw new Error("Dispensing quantity must be a positive integer");
+
+      const updateResult: any = await transaction
+        .update(inventory)
+        .set({ quantityAvailable: sql`COALESCE(${inventory.quantityAvailable}, 0) - ${requestedQuantity}` })
+        .where(and(
+          eq(inventory.itemId, item.inventoryItemId),
+          sql`COALESCE(${inventory.quantityAvailable}, 0) >= ${requestedQuantity}`,
+          sql`STR_TO_DATE(${inventory.expiryDate}, '%Y-%m-%d') >= CURRENT_DATE()`,
+        ));
+      const affectedRows = Number(updateResult?.affectedRows ?? updateResult?.[0]?.affectedRows ?? 0);
+      if (affectedRows !== 1) throw new Error("Insufficient stock or expired stock");
+
+      await transaction.insert(billItems).values(item);
+      await transaction.insert(dispensingRecords).values({
+        dispensingId: item.dispensingId,
+        idempotencyKey: item.idempotencyKey,
+        billId: data.bill.billId,
+        billItemId: item.billItemId!,
+        catalogItemId: item.catalogItemId ?? current.catalogItemId ?? null,
+        inventoryItemId: current.itemId,
+        batchNumber: current.batchNumber,
+        quantityDispensed: requestedQuantity,
+        actorId: data.actorId,
+        movementType: "DISPENSE",
+      });
+    }
+
+    const timestamp = toMysqlDateTime();
+    if (encounter) await transaction.update(encounters).set({ status: "Closed", closedAt: timestamp, updatedAt: timestamp }).where(eq(encounters.encounterId, encounter.encounterId));
+    if (data.appointmentId) await transaction.update(appointments).set({ status: "Completed", updatedAt: timestamp }).where(eq(appointments.appointmentId, data.appointmentId));
+    await transaction.insert(auditLogs).values({
+      logId: nanoid(20), userId: data.actorId, actionType: "PHARMACY_DISPENSED", tableName: "bills", recordId: data.bill.billId,
+      newValue: JSON.stringify({ billId: data.bill.billId, billItemIds: data.items.map((item) => item.billItemId), inventoryItemIds: data.items.map((item) => item.inventoryItemId) }),
+      timestamp: toMysqlDateTime(),
+    });
+    return { billId: data.bill.billId, created: true };
+    });
+  } catch (error) {
+    if (!isDuplicateIdempotencyError(error)) throw error;
+    const prior = (await db.select().from(dispensingRecords).where(eq(dispensingRecords.idempotencyKey, idempotencyKey)).limit(1))[0];
+    if (prior) return { billId: prior.billId, created: false };
+    throw error;
+  }
 }
 
 export async function getInventoryByName(itemName: string) {

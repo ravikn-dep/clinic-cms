@@ -1375,3 +1375,29 @@ This section records the user-authorized GitHub governance action; the migration
 - [x] Reconcile schema/migration metadata and documentation, fix only the specified trailing whitespace, and prove consultantLocation is introduced by exactly one migration with no conflict markers, secrets, credentials, debug logging, skipped tests, or synthetic data.
 - [x] Run static checks, full DB-connected validation, runtime smoke checks on development data only, and final diff review; stop for user decision on unexplained regressions or ambiguity.
 - [x] Commit and push only the integration branch after all acceptance gates pass; verify main and production remain untouched and record the final reconciliation evidence.
+
+## Final Merge PR — Integration Branch to Protected Main
+- [x] Verify repository, branch, and integration HEAD metadata before opening the PR.
+- [x] Open a normal pull request from integration/op-billing-main-reconciliation into main with the approved title and validation/safety body.
+- [x] Verify PR base, head SHA, mergeability, number, and URL; do not merge, deploy, or run production migrations.
+
+## GitHub Main Synchronization and Development Validation
+- [x] Verify current GitHub main, merged PR state, and merged commit ancestry before synchronization.
+- [x] Synchronize the managed worktree to the verified GitHub main commit without modifying production or creating a new publication.
+- [x] Inspect the connected development database against the synchronized schema and migrations; apply only a required development-only migration through the normal mechanism if drift is proven. No migration was required because the development schema already contained the synchronized fields and tables.
+- [x] Run TypeScript, full test, build, diff, and development Preview smoke validations; record exact results and stop before production publication.
+
+## Attachment 75 — Review, Verify, and Apply
+- [x] Read and summarize pasted_content_75.txt, extracting its exact scope, constraints, acceptance criteria, and authorized actions.
+- [x] Verify the attachment’s claims against the current synchronized Clinic CMS and development-only state; identify any conflicts or unsupported assumptions.
+- [x] Apply only explicitly authorized, safe changes while preserving validated behavior and excluding production, credentials, deployment, and unrelated files.
+- [x] Run the required static, test, build, diff, and development smoke validations; save a checkpoint and report the verified outcome.
+
+## Attachment 76 — Development E2E and Transactional Hardening
+- [x] Verify the managed checkpoint, branch/HEAD, clean worktree, Attachment 75 files, and development-only application of migration 0030.
+- [x] Use controlled development data only to execute one authenticated Billing → Medicine → final bill flow and record canonical before/after stock, bill, bill-item, dispensing, audit, and encounter evidence.
+- [x] Replay the same logical dispensing request and verify idempotency without duplicate bill, stock deduction, dispensing record, or audit event.
+- [x] Add and run focused DB-backed concurrency coverage for oversell prevention and failed-transaction rollback invariants; add identical-idempotency race coverage where practical.
+- [x] Fix only a proven transactional/idempotency defect, preserving the unique constraint and existing UI/workflow boundaries; do not add features or redesign pharmacy/PO/Goods Receipt flows.
+- [x] Re-run pnpm check, pnpm test --run, pnpm build, git diff --check, and authenticated development UI acceptance; verify migration 0030 remains forward-only and deterministic.
+- [x] Save a checkpoint and report exact START/END HEAD, E2E evidence, transaction invariants, files changed, Git status, blockers, and GitHub-publication readiness; do not publish or deploy.

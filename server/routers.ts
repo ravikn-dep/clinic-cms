@@ -1227,6 +1227,10 @@ export const appRouter = router({
       return db.getLowStockItems();
     }),
 
+    searchForBilling: protectedProcedure
+      .input(z.object({ query: z.string().max(100).default("") }))
+      .query(async ({ input }) => db.searchInventoryForBilling(input.query)),
+
     update: protectedProcedure
       .input(z.object({
         itemId: z.string(),
@@ -1423,6 +1427,58 @@ export const appRouter = router({
         );
 
         return billWithInvoice;
+      }),
+
+    createDispensed: protectedProcedure
+      .input(z.object({
+        patientId: z.string().trim().min(1),
+        consultationId: z.string().trim().min(1).optional(),
+        appointmentId: z.string().trim().min(1).optional(),
+        encounterId: z.string().trim().min(1).optional(),
+        items: z.array(z.object({
+          itemType: z.literal("Medicine"),
+          description: z.string().trim().min(1),
+          quantity: z.number().int().positive(),
+          unitPrice: z.string().regex(/^\d+(\.\d{1,2})?$/),
+          inventoryItemId: z.string().trim().min(1),
+          catalogItemId: z.string().trim().min(1).nullable().optional(),
+          batchNumber: z.string().trim().min(1),
+          expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        })).min(1),
+        discountAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
+        taxAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).default("0"),
+        idempotencyKey: z.string().trim().min(16).max(100),
+      }))
+      .mutation(async ({ input, ctx }) => {
+        const totalAmount = input.items.reduce((sum, item) => sum + Number(item.unitPrice) * item.quantity, 0);
+        const discountAmount = Number(input.discountAmount);
+        const taxAmount = Number(input.taxAmount);
+        const billId = utils.generateBillId();
+        const result = await db.createDispensedBill({
+          bill: {
+            billId,
+            patientId: input.patientId,
+            consultationId: input.consultationId ?? null,
+            totalAmount: totalAmount.toFixed(2) as any,
+            discountAmount: discountAmount.toFixed(2) as any,
+            taxAmount: taxAmount.toFixed(2) as any,
+            finalAmount: (totalAmount - discountAmount + taxAmount).toFixed(2) as any,
+            paymentStatus: "Pending",
+          },
+          items: input.items.map((item, index) => ({
+            ...item,
+            billId,
+            billItemId: utils.generateBillItemId(),
+            subtotal: (Number(item.unitPrice) * item.quantity).toFixed(2) as any,
+            dispensingId: utils.generateAuditLogId(),
+            idempotencyKey: `${input.idempotencyKey}:${index}`,
+          })),
+          actorId: String(ctx.user.id),
+          consultationId: input.consultationId,
+          appointmentId: input.appointmentId,
+          encounterId: input.encounterId,
+        });
+        return { ...result, patientId: input.patientId };
       }),
 
     createEncounter: protectedProcedure
