@@ -44,8 +44,31 @@ export const billItems = mysqlTable("billItems", {
 	quantity: int().default(1),
 	unitPrice: decimal({ precision: 10, scale: 2 }),
 	subtotal: decimal({ precision: 10, scale: 2 }),
+	catalogItemId: varchar({ length: 50 }),
+	inventoryItemId: varchar({ length: 50 }),
+	batchNumber: varchar({ length: 100 }),
+	expiryDate: varchar({ length: 10 }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
+
+export const dispensingRecords = mysqlTable("dispensingRecords", {
+	dispensingId: varchar({ length: 50 }).primaryKey(),
+	idempotencyKey: varchar({ length: 100 }).notNull(),
+	billId: varchar({ length: 50 }).notNull(),
+	billItemId: varchar({ length: 50 }).notNull(),
+	catalogItemId: varchar({ length: 50 }),
+	inventoryItemId: varchar({ length: 50 }).notNull(),
+	batchNumber: varchar({ length: 100 }).notNull(),
+	quantityDispensed: int().notNull(),
+	actorId: varchar({ length: 100 }).notNull(),
+	movementType: varchar({ length: 50 }).notNull().default("DISPENSE"),
+	createdAt: timestamp({ mode: 'string' }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("dispensingRecords_idempotency_unique").on(table.idempotencyKey),
+	uniqueIndex("dispensingRecords_dispensingId_unique").on(table.dispensingId),
+	index("dispensingRecords_billId_idx").on(table.billId),
+	index("dispensingRecords_inventoryItemId_idx").on(table.inventoryItemId),
+]);
 
 export const billTemplates = mysqlTable("billTemplates", {
 	templateId: varchar({ length: 50 }).notNull(),

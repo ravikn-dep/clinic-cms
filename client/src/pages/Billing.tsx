@@ -22,6 +22,10 @@ type BillItem = {
   description: string;
   quantity: string;
   unitPrice: string;
+  inventoryItemId?: string;
+  catalogItemId?: string | null;
+  batchNumber?: string;
+  expiryDate?: string;
 };
 
 type BillFormState = {
@@ -90,6 +94,7 @@ export default function Billing() {
   const [selectedBillingDate, setSelectedBillingDate] = useState(() => clinicToday());
   const [highlightedBillId, setHighlightedBillId] = useState<string | null>(null);
   const locationSearch = typeof window === "undefined" ? "" : window.location.search;
+  const [inventorySearch, setInventorySearch] = useState("");
 
   // Handle query parameters from Patient Records "Generate Bill" button
   useEffect(() => {
@@ -151,6 +156,10 @@ export default function Billing() {
     { date: selectedBillingDate },
     { enabled: showNewBill, refetchOnWindowFocus: false },
   );
+  const inventorySearchQuery = trpc.inventory.searchForBilling.useQuery(
+    { query: inventorySearch },
+    { enabled: showNewBill, refetchOnWindowFocus: false },
+  );
 
   const focusGeneratedBill = (billId: string) => {
     setHighlightedBillId(billId);
@@ -170,6 +179,19 @@ export default function Billing() {
     onError: (error) => {
       toast.error(error.message || "Unable to create invoice.");
     },
+  });
+
+  const createDispensedBill = trpc.bills.createDispensed.useMutation({
+    onSuccess: (result) => {
+      toast.success(result.created === false ? "This dispensing request was already processed." : `Pharmacy bill ${result.billId} created and stock dispensed.`);
+      setForm(initialBillForm);
+      setShowNewBill(false);
+      setInventorySearch("");
+      setHighlightedBillId(result.billId);
+      void utils.bills.getAll.invalidate();
+      void utils.inventory.getAll.invalidate();
+    },
+    onError: (error) => toast.error(error.message || "Unable to dispense pharmacy items."),
   });
 
   const createEncounterBill = trpc.bills.createEncounter.useMutation({
@@ -300,6 +322,37 @@ export default function Billing() {
       quantity: Number.parseInt(item.quantity, 10),
       unitPrice: parseCurrency(item.unitPrice).toString(),
     }));
+    const pharmacyItems = form.items.filter((item) => item.itemType === "Medicine");
+    if (pharmacyItems.length > 0) {
+      if (pharmacyItems.length !== form.items.length) {
+        toast.error("Create pharmacy items in a separate invoice from consultation or procedure lines.");
+        return;
+      }
+      if (pharmacyItems.some((item) => !item.inventoryItemId || !item.batchNumber || !item.expiryDate)) {
+        toast.error("Select a valid, unexpired inventory batch for every medicine item.");
+        return;
+      }
+      createDispensedBill.mutate({
+        patientId: form.patientId.trim(),
+        consultationId: form.consultationId.trim() || undefined,
+        appointmentId: consultationNotes?.appointmentId || undefined,
+        encounterId: form.encounterId.trim() || undefined,
+        items: pharmacyItems.map((item) => ({
+          itemType: "Medicine" as const,
+          description: item.description.trim(),
+          quantity: Number.parseInt(item.quantity, 10),
+          unitPrice: parseCurrency(item.unitPrice).toString(),
+          inventoryItemId: item.inventoryItemId!,
+          catalogItemId: item.catalogItemId ?? null,
+          batchNumber: item.batchNumber!,
+          expiryDate: item.expiryDate!,
+        })),
+        discountAmount: parseCurrency(form.discountAmount).toString(),
+        taxAmount: parseCurrency(form.taxAmount).toString(),
+        idempotencyKey: `${form.patientId.trim()}-${Date.now()}-${crypto.randomUUID()}`,
+      });
+      return;
+    }
     if (form.consultationId.trim() && (consultationNotes?.appointmentId || form.encounterId.trim())) {
       createEncounterBill.mutate({
         consultationId: consultationNotes!.consultationId,
@@ -347,6 +400,23 @@ export default function Billing() {
         item.id === itemId ? { ...item, [field]: value } : item
       ),
     }));
+  };
+
+  const selectInventoryItem = (itemId: string, selected: NonNullable<typeof inventorySearchQuery.data>[number]) => {
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((item) => item.id === itemId ? {
+        ...item,
+        itemType: "Medicine",
+        description: selected.canonicalName || selected.itemName,
+        unitPrice: String(selected.unitPrice ?? "0"),
+        inventoryItemId: selected.itemId,
+        catalogItemId: selected.catalogItemId,
+        batchNumber: selected.batchNumber,
+        expiryDate: selected.expiryDate,
+      } : item),
+    }));
+    setInventorySearch("");
   };
 
   const addItem = () => {
@@ -712,7 +782,23 @@ export default function Billing() {
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">Description *</Label>
+                        {item.itemType === "Medicine" ? (
+                          <>
+                            <Input value={inventorySearch} onChange={(event) => setInventorySearch(event.target.value)} placeholder="Search valid stock" className="transition-colors focus-visible:ring-teal-200" />
+                            <div className="max-h-36 space-y-1 overflow-y-auto rounded-md border bg-white p-1">
+                              {(inventorySearchQuery.data ?? []).map((stock) => (
+                                <button key={stock.itemId} type="button" className="w-full rounded px-2 py-1 text-left text-xs hover:bg-teal-50" onClick={() => selectInventoryItem(item.id, stock)}>
+                                  <span className="font-medium">{stock.canonicalName || stock.itemName}</span>
+                                  <span className="block text-muted-foreground">Batch {stock.batchNumber} · Exp {stock.expiryDate} · {stock.quantityAvailable} available · ₹{stock.unitPrice}</span>
+                                </button>
+                              ))}
+                              {inventorySearchQuery.isLoading ? <p className="px-2 py-1 text-xs text-muted-foreground">Searching valid stock...</p> : null}
+                              {!inventorySearchQuery.isLoading && inventorySearchQuery.data?.length === 0 ? <p className="px-2 py-1 text-xs text-muted-foreground">No unexpired stock found.</p> : null}
+                            </div>
+                          </>
+                        ) : null}
                         <Input value={item.description} onChange={(event) => updateItem(item.id, "description", event.target.value)} placeholder="Item description" className="transition-colors focus-visible:ring-teal-200" />
+                        {item.itemType === "Medicine" && item.inventoryItemId ? <p className="text-xs text-teal-700">Batch {item.batchNumber} · expires {item.expiryDate} · available stock checked at dispense</p> : null}
                       </div>
                       <div className="space-y-2">
                         <Label className="text-xs">Qty *</Label>
