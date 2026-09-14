@@ -189,13 +189,14 @@ async function bootstrap() {
     "purchaseOrders", "purchaseOrderItems", "purchaseOrderHistory", "purchaseOrderExtractionReviews", "catalogItems", "catalogItemAliases", "goodsReceipts", "goodsReceiptItems", "stockMovements",
     "appointments", "consultantAvailability", "notificationPreferences", "rolePermissions", "vendors", "appointmentBookingLocks",
     "enquiries", "externalApiAuditLogs", "externalIdempotencyKeys", "externalRequestReplays", "procurementPostingLocks", "encounters", "patientIdSequences",
+    "scannedGoodsReceipts", "scannedGoodsReceiptItems", "scannedReceiptStockMovements", "scannedReceiptInventoryLocks",
   ];
 
   for (const reqTable of requiredTables) {
     const found = tables.some(t => t.toLowerCase() === reqTable.toLowerCase());
     if (!found) await fail(connection, `Required table missing: ${reqTable}`);
   }
-  console.log("[Verification] All 31 required tables verified successfully.");
+  console.log("[Verification] All 35 required tables verified successfully.");
 
   const expectedPrimaryKeys: Array<[string, string[]]> = [
     ["users", ["id"]],
@@ -229,12 +230,16 @@ async function bootstrap() {
 	["procurementPostingLocks", ["purchaseOrderId"]],
     ["encounters", ["encounterId"]],
     ["patientIdSequences", ["sequenceDate"]],
+    ["scannedGoodsReceipts", ["receiptId"]],
+    ["scannedGoodsReceiptItems", ["receiptItemId"]],
+    ["scannedReceiptStockMovements", ["movementId"]],
+    ["scannedReceiptInventoryLocks", ["lockKey"]],
   ];
 
   for (const [table, columns] of expectedPrimaryKeys) {
     await assertPrimaryKey(connection, table, columns);
   }
-  console.log("[Verification] Exact PRIMARY KEY columns verified on all 31 tables.");
+  console.log("[Verification] Exact PRIMARY KEY columns verified on all 35 tables.");
 
   const [usersCols] = await connection.query("SHOW COLUMNS FROM `users` WHERE Field = 'id'");
   const usersIdCol = (usersCols as any[])[0];
@@ -299,6 +304,11 @@ async function bootstrap() {
     ["patientIdSequences", "patientIdSequences_sequenceDate_unique", ["sequenceDate"]],
     ["consultations", "consultations_encounterId_unique", ["encounterId"]],
     ["bills", "bills_encounterId_unique", ["encounterId"]],
+    ["scannedGoodsReceipts", "scannedGoodsReceipts_vendor_receipt_date_unique", ["normalizedVendorName", "receiptNumber", "receiptDate"]],
+    ["scannedGoodsReceipts", "scannedGoodsReceipts_submission_unique", ["reviewSubmissionId"]],
+    ["scannedGoodsReceiptItems", "scannedGoodsReceiptItems_receipt_line_unique", ["receiptId", "lineNumber"]],
+    ["scannedGoodsReceiptItems", "scannedGoodsReceiptItems_receipt_catalog_batch_unique", ["receiptId", "catalogItemId", "batchNumber", "expiryDate"]],
+    ["scannedReceiptStockMovements", "scannedReceiptStockMovements_receiptItem_unique", ["receiptItemId"]],
 
   ];
 
@@ -315,7 +325,10 @@ async function bootstrap() {
     ],
 	["purchaseOrders", "purchaseOrders_vendorId_idx", ["vendorId"]],
 	["vendors", "vendors_active_normalizedVendorName_idx", ["isActive", "normalizedVendorName"]],
-	["vendors", "vendors_normalizedGstNumber_idx", ["normalizedGstNumber"]],
+		["vendors", "vendors_normalizedGstNumber_idx", ["normalizedGstNumber"]],
+    ["scannedGoodsReceipts", "scannedGoodsReceipts_receivedAt_idx", ["receivedAt"]],
+    ["scannedGoodsReceiptItems", "scannedGoodsReceiptItems_catalog_batch_idx", ["catalogItemId", "batchNumber", "expiryDate"]],
+    ["scannedReceiptStockMovements", "scannedReceiptStockMovements_receipt_idx", ["receiptId"]],
   ];
 
   for (const [table, indexName, columns] of requiredIndexes) {
@@ -341,7 +354,7 @@ async function bootstrap() {
   }
   console.log("[Verification] purchaseOrderItems.receivedQuantity verified.");
 
-  const specificEntities = ["goodsReceipts", "goodsReceiptItems", "stockMovements", "externalRequestReplays", "purchaseOrderExtractionReviews", "catalogItems", "catalogItemAliases", "procurementPostingLocks"];
+  const specificEntities = ["goodsReceipts", "goodsReceiptItems", "stockMovements", "externalRequestReplays", "purchaseOrderExtractionReviews", "catalogItems", "catalogItemAliases", "procurementPostingLocks", "scannedGoodsReceipts", "scannedGoodsReceiptItems", "scannedReceiptStockMovements", "scannedReceiptInventoryLocks"];
   for (const entity of specificEntities) {
     await connection.query(`SELECT COUNT(*) as cnt FROM \`${entity}\``);
     console.log(`[Verification] Entity table '${entity}' is accessible and queryable.`);
