@@ -22,6 +22,7 @@ All dates use `YYYY-MM-DD`. Appointment times use a 24-hour `HH:MM` format and r
 | Replay resistance | A timestamp is accepted only within five minutes of server time |
 | Rate limit | 120 authenticated requests per service key and source IP per minute |
 | Safe response policy | The API exposes only operational metadata needed for patient intake and appointments |
+| Contact number disclosure | Every response containing a patient `contactNumber` returns it masked as `+91••••••NNNN` (last 4 digits only) — never the raw stored value |
 
 ## HMAC authentication
 
@@ -91,6 +92,7 @@ Administrators grant scopes per external HMAC key. The completion route is delib
 | 10 | `POST /appointments/:appointmentId/check-in` | `appointments:write` | Record patient arrival/check-in |
 | 11 | `POST /appointments/:appointmentId/complete` | `appointments:complete` | Record OP completion under separately authorized scope |
 | 12 | `POST /appointments/:appointmentId/no-show` | `appointments:write` | Record a no-show and update enquiry lifecycle |
+| 13 | `POST /patients/:patientId/enquiries` | `enquiries:write` | Record a new enquiry for an existing, already-registered patient |
 
 ## Endpoint examples
 
@@ -353,6 +355,31 @@ POST /api/external/v1/appointments/APT-REDACTED/no-show
 }
 ```
 
+### 13. Create enquiry for an existing patient
+
+Use this route when a caller already has a `patientId` (from search or a prior registration) and needs to record a new, independent enquiry — for example, a repeat caller reaching out again through a different channel. This does not create or modify the patient record. Requires `Idempotency-Key`, same semantics as patient/appointment creation.
+
+```http
+POST /api/external/v1/patients/DOCM-REDACTED-OP001/enquiries
+Idempotency-Key: enquiry-20260812-0001
+
+{
+  "channel": "PHONE",
+  "sourceDetail": "repeat-caller-follow-up",
+  "preferredLanguage": "hi-IN"
+}
+```
+
+```json
+{
+  "requestId": "va-20260812-000013",
+  "enquiryId": "ENQ-REDACTED",
+  "patientId": "DOCM-REDACTED-OP001"
+}
+```
+
+Unlike the `enquiry` object embedded in `POST /patients`, `preferredLanguage` is required here (no default) and `channel` accepts the same values listed above. A `patientId` that does not match an existing patient returns `404 NOT_FOUND` and never creates an enquiry.
+
 ## Idempotency, auditing, and operational boundaries
 
 The API records an external audit entry for successful, denied, failed, and idempotent replay outcomes. The audit record contains an external request identifier, service key identifier, resource/action metadata, result, and safe metadata only. It does not store an HMAC secret, raw signature, clinical note, transcript, prescription, or treatment-plan content.
@@ -397,4 +424,4 @@ Example **shape only** — the values below are placeholders and must not be dep
 }
 ```
 
-Grant `appointments:complete` only when the external service has been separately approved to record OP completion. Do not make it a default scheduling scope.
+Grant `appointments:complete` only when the external service has been separately approved to record OP completion. Do not make it a default scheduling scope. Similarly, grant `enquiries:write` only to a service that legitimately records enquiries for existing patients — it is a distinct, least-privilege scope and is never implied by `patients:write` or `appointments:write`.

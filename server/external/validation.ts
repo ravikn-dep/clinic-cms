@@ -5,7 +5,7 @@ const TIME_PATTERN = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 
 export const EXTERNAL_LANGUAGE_CODES = ["en-IN", "hi-IN", "te-IN", "mixed"] as const;
 
-export { normalizeIndianMobile } from "../../shared/indianMobile";
+export { maskIndianMobile, normalizeIndianMobile } from "../../shared/indianMobile";
 
 export function isValidDate(value: string): boolean {
   if (!DATE_PATTERN.test(value)) return false;
