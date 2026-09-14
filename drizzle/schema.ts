@@ -572,3 +572,68 @@ export const externalRequestReplays = mysqlTable("externalRequestReplays", {
 	uniqueIndex("externalRequestReplays_key_request_unique").on(table.serviceKeyId, table.requestId),
 	index("externalRequestReplays_createdAt_idx").on(table.createdAt),
 ]);
+
+/** Direct supplier-receipt workflow for scanned invoices. */
+export const scannedGoodsReceipts = mysqlTable("scannedGoodsReceipts", {
+	receiptId: varchar({ length: 50 }).primaryKey(),
+	receiptNumber: varchar({ length: 100 }).notNull(),
+	receiptDate: varchar({ length: 10 }).notNull(),
+	vendorName: varchar({ length: 255 }).notNull(),
+	normalizedVendorName: varchar({ length: 255 }).notNull(),
+	vendorGstin: varchar({ length: 50 }),
+	documentType: mysqlEnum(["PURCHASE_ORDER", "GST_INVOICE", "UNKNOWN"]).notNull(),
+	reviewSubmissionId: varchar({ length: 100 }).notNull(),
+	reviewJson: text().notNull(),
+	warningsJson: text().notNull(),
+	receivedBy: varchar({ length: 100 }).notNull(),
+	receivedAt: timestamp({ mode: "string" }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+	status: mysqlEnum(["POSTED", "VOIDED"]).default("POSTED").notNull(),
+	createdAt: timestamp({ mode: "string" }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("scannedGoodsReceipts_vendor_receipt_date_unique").on(table.normalizedVendorName, table.receiptNumber, table.receiptDate),
+	uniqueIndex("scannedGoodsReceipts_submission_unique").on(table.reviewSubmissionId),
+	index("scannedGoodsReceipts_receivedAt_idx").on(table.receivedAt),
+]);
+
+export const scannedGoodsReceiptItems = mysqlTable("scannedGoodsReceiptItems", {
+	receiptItemId: varchar({ length: 50 }).primaryKey(),
+	receiptId: varchar({ length: 50 }).notNull(),
+	lineNumber: int().notNull(),
+	catalogItemId: varchar({ length: 50 }).notNull(),
+	itemName: varchar({ length: 255 }).notNull(),
+	extractedDescription: varchar({ length: 255 }).notNull(),
+	batchNumber: varchar({ length: 100 }).notNull(),
+	expiryDate: varchar({ length: 10 }).notNull(),
+	receivedQuantity: int().notNull(),
+	unitCost: decimal({ precision: 10, scale: 2 }).notNull(),
+	previousQuantity: int().notNull(),
+	resultingQuantity: int().notNull(),
+	createdAt: timestamp({ mode: "string" }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("scannedGoodsReceiptItems_receipt_line_unique").on(table.receiptId, table.lineNumber),
+	uniqueIndex("scannedGoodsReceiptItems_receipt_catalog_batch_unique").on(table.receiptId, table.catalogItemId, table.batchNumber, table.expiryDate),
+	index("scannedGoodsReceiptItems_catalog_batch_idx").on(table.catalogItemId, table.batchNumber, table.expiryDate),
+]);
+
+export const scannedReceiptStockMovements = mysqlTable("scannedReceiptStockMovements", {
+	movementId: varchar({ length: 50 }).primaryKey(),
+	receiptId: varchar({ length: 50 }).notNull(),
+	receiptItemId: varchar({ length: 50 }).notNull(),
+	inventoryItemId: varchar({ length: 50 }).notNull(),
+	catalogItemId: varchar({ length: 50 }).notNull(),
+	itemName: varchar({ length: 255 }).notNull(),
+	batchNumber: varchar({ length: 100 }).notNull(),
+	quantityAdded: int().notNull(),
+	previousQuantity: int().notNull(),
+	resultingQuantity: int().notNull(),
+	actorId: varchar({ length: 100 }).notNull(),
+	createdAt: timestamp({ mode: "string" }).default(sql`CURRENT_TIMESTAMP`).notNull(),
+}, (table) => [
+	uniqueIndex("scannedReceiptStockMovements_receiptItem_unique").on(table.receiptItemId),
+	index("scannedReceiptStockMovements_receipt_idx").on(table.receiptId),
+]);
+
+export const scannedReceiptInventoryLocks = mysqlTable("scannedReceiptInventoryLocks", {
+	lockKey: varchar({ length: 255 }).primaryKey(),
+	updatedAt: timestamp({ mode: "string" }).defaultNow().onUpdateNow().notNull(),
+});
