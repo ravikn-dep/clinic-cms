@@ -7,6 +7,7 @@ import {
   EXTERNAL_LANGUAGE_CODES,
   isValidDate,
   isValidTime,
+  maskIndianMobile,
   normalizeIndianMobile,
   requestHash,
 } from "./validation";
@@ -76,6 +77,12 @@ const appointmentCreateSchema = z.object({
 const rescheduleSchema = z.object({
   appointmentDate: z.string().refine(isValidDate, "Use YYYY-MM-DD for appointmentDate"),
   appointmentTime: z.string().refine(isValidTime, "Use 24-hour HH:MM for appointmentTime"),
+});
+
+const enquiryCreateSchema = z.object({
+  channel: channelSchema,
+  sourceDetail: z.string().trim().max(255).optional(),
+  preferredLanguage: languageSchema,
 });
 
 function getRequestId(req: ExternalRequest) {
@@ -295,7 +302,7 @@ externalApiRouter.get("/patients/search", requireScope("patients:read"), async (
         patientId: patient.patientId,
         firstName: patient.firstName,
         lastName: patient.lastName,
-        contactNumber: patient.contactNumber,
+        contactNumber: maskIndianMobile(patient.contactNumber),
         age: patient.age,
       })),
     });
@@ -333,7 +340,36 @@ externalApiRouter.post("/patients", requireScope("patients:write"), async (req: 
         status: 201,
         resourceType: "patient",
         resourceId: registration.patientId,
-        body: { patient: { patientId: registration.patientId, firstName: registration.patient.firstName, lastName: registration.patient.lastName, contactNumber: registration.patient.contactNumber }, enquiryId },
+        body: { patient: { patientId: registration.patientId, firstName: registration.patient.firstName, lastName: registration.patient.lastName, contactNumber: maskIndianMobile(registration.patient.contactNumber) }, enquiryId },
+      };
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+externalApiRouter.post("/patients/:patientId/enquiries", requireScope("enquiries:write"), async (req: ExternalRequest, res, next) => {
+  try {
+    const input = enquiryCreateSchema.safeParse(req.body);
+    if (!input.success) return apiError(res, getRequestId(req), 400, "VALIDATION_ERROR", input.error.issues[0]?.message ?? "Invalid enquiry data.");
+    const patient = await db.getPatientById(req.params.patientId);
+    if (!patient) return apiError(res, getRequestId(req), 404, "NOT_FOUND", "Patient not found.");
+
+    return await requireIdempotency(req, res, "enquiries.create", async () => {
+      const enquiryId = `ENQ-${nanoid(16).toUpperCase()}`;
+      await db.createEnquiry({
+        enquiryId,
+        patientId: patient.patientId,
+        channel: input.data.channel,
+        sourceDetail: input.data.sourceDetail ?? null,
+        preferredLanguage: input.data.preferredLanguage,
+        lifecycleStage: "DETAILS_COLLECTED",
+      });
+      return {
+        status: 201,
+        resourceType: "enquiry",
+        resourceId: enquiryId,
+        body: { enquiryId, patientId: patient.patientId },
       };
     });
   } catch (error) {

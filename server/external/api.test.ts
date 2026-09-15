@@ -47,6 +47,7 @@ const ALL_SCOPES = [
   "appointments:read",
   "appointments:write",
   "appointments:complete",
+  "enquiries:write",
 ];
 const originalKeyring = process.env.EXTERNAL_API_HMAC_KEYS;
 
@@ -203,11 +204,22 @@ describe("external API patient and availability flows", () => {
     expect((await request.response.json()).patients[0]).toMatchObject({ patientId: "OP-001", age: 42 });
   });
 
+  it("masks the patient contact number in search results — never returns the raw number", async () => {
+    mockState.db.searchPatients.mockResolvedValue([{ patientId: "OP-001", firstName: "Anita", lastName: "Rao", contactNumber: "+919876543210", age: 42 }]);
+    const request = await signedRequest("GET", "/patients/search?query=9876543210");
+    const body = await request.response.json();
+    expect(body.patients[0].contactNumber).toBe("+91••••••3210");
+    expect(body.patients[0].contactNumber).not.toContain("9876543210");
+  });
+
   it("creates a patient once and replays an identical idempotent request without a second registration", async () => {
     const body = { firstName: "Anita", lastName: "Rao", age: 42, gender: "Female", contactNumber: "9876543210", enquiry: { channel: "VOICE", preferredLanguage: "te-IN" } };
     const created = await signedRequest("POST", "/patients", body, { headers: { "idempotency-key": "patient-create-0001" } });
     expect(created.response.status).toBe(201);
     expect(mockState.registration).toHaveBeenCalledTimes(1);
+    const createdBody = await created.response.json();
+    expect(createdBody.patient.contactNumber).toBe("+91••••••3210");
+    expect(createdBody.patient.contactNumber).not.toContain("9876543210");
 
     mockState.db.getExternalIdempotencyRecord.mockResolvedValue({
       operation: "patients.create", idempotencyKey: "patient-create-0001", requestHash: (await import("./validation")).requestHash(body), serviceKeyId: "test-key", responseStatus: 201, responseBody: { requestId: "previous", patient: { patientId: "P-TEST-001" } }, resourceType: "patient", resourceId: "P-TEST-001",
@@ -233,6 +245,78 @@ describe("external API patient and availability flows", () => {
     const invalid = await signedRequest("GET", "/consultants/7/slots?date=13-08-2026");
     expect(invalid.response.status).toBe(400);
     expect((await invalid.response.json()).error.code).toBe("VALIDATION_ERROR");
+  });
+});
+
+describe("external API existing-patient enquiry creation", () => {
+  it("requires the dedicated enquiries:write scope — patients:write and appointments:write alone are not enough", async () => {
+    configureKey(["patients:write", "appointments:write", "appointments:complete"]);
+    const response = await signedRequest(
+      "POST",
+      "/patients/P-TEST-001/enquiries",
+      { channel: "PHONE", preferredLanguage: "en-IN" },
+      { headers: { "idempotency-key": "enquiry-scope-0001" } },
+    );
+    expect(response.response.status).toBe(403);
+    expect((await response.response.json()).error.code).toBe("SCOPE_FORBIDDEN");
+    expect(mockState.db.createEnquiry).not.toHaveBeenCalled();
+  });
+
+  it("creates an enquiry for an existing patient and links it by patientId", async () => {
+    const response = await signedRequest(
+      "POST",
+      "/patients/P-TEST-001/enquiries",
+      { channel: "PHONE", sourceDetail: "repeat-caller", preferredLanguage: "en-IN" },
+      { headers: { "idempotency-key": "enquiry-0001" } },
+    );
+    expect(response.response.status).toBe(201);
+    const body = await response.response.json();
+    expect(body.patientId).toBe("P-TEST-001");
+    expect(typeof body.enquiryId).toBe("string");
+    expect(mockState.db.createEnquiry).toHaveBeenCalledWith(
+      expect.objectContaining({ patientId: "P-TEST-001", channel: "PHONE", sourceDetail: "repeat-caller", preferredLanguage: "en-IN" }),
+    );
+  });
+
+  it("returns 404 for a patient that does not exist, and never calls createEnquiry", async () => {
+    mockState.db.getPatientById.mockResolvedValue(null);
+    const response = await signedRequest(
+      "POST",
+      "/patients/does-not-exist/enquiries",
+      { channel: "VOICE", preferredLanguage: "mixed" },
+      { headers: { "idempotency-key": "enquiry-0002" } },
+    );
+    expect(response.response.status).toBe(404);
+    expect((await response.response.json()).error.code).toBe("NOT_FOUND");
+    expect(mockState.db.createEnquiry).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unsupported channel or missing preferredLanguage", async () => {
+    const badChannel = await signedRequest(
+      "POST",
+      "/patients/P-TEST-001/enquiries",
+      { channel: "CARRIER_PIGEON", preferredLanguage: "en-IN" },
+      { headers: { "idempotency-key": "enquiry-0003" } },
+    );
+    expect(badChannel.response.status).toBe(400);
+    expect((await badChannel.response.json()).error.code).toBe("VALIDATION_ERROR");
+
+    const missingLanguage = await signedRequest(
+      "POST",
+      "/patients/P-TEST-001/enquiries",
+      { channel: "VOICE" },
+      { headers: { "idempotency-key": "enquiry-0004" } },
+    );
+    expect(missingLanguage.response.status).toBe(400);
+    expect((await missingLanguage.response.json()).error.code).toBe("VALIDATION_ERROR");
+    expect(mockState.db.createEnquiry).not.toHaveBeenCalled();
+  });
+
+  it("requires Idempotency-Key, matching every other mutating external endpoint", async () => {
+    const response = await signedRequest("POST", "/patients/P-TEST-001/enquiries", { channel: "VOICE", preferredLanguage: "mixed" });
+    expect(response.response.status).toBe(400);
+    expect((await response.response.json()).error.code).toBe("IDEMPOTENCY_REQUIRED");
+    expect(mockState.db.createEnquiry).not.toHaveBeenCalled();
   });
 });
 

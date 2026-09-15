@@ -7,7 +7,8 @@ export type ExternalApiScope =
   | "consultants:read"
   | "appointments:read"
   | "appointments:write"
-  | "appointments:complete";
+  | "appointments:complete"
+  | "enquiries:write";
 
 export type ExternalApiKey = {
   secret: string;
