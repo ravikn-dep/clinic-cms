@@ -1,7 +1,7 @@
 import { count, desc, eq, like, lte, inArray, sql, and, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
-import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, catalogItems, catalogItemAliases, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays, procurementPostingLocks, encounters, patientIdSequences, dispensingRecords } from "../drizzle/schema";
+import { users, patients, consultations, inventory, bills, billItems, billTemplates, auditLogs, notifications, purchaseOrders, purchaseOrderItems, purchaseOrderHistory, purchaseOrderExtractionReviews, goodsReceipts, goodsReceiptItems, stockMovements, scannedGoodsReceipts, scannedGoodsReceiptItems, scannedReceiptStockMovements, scannedReceiptInventoryLocks, appointments, consultantAvailability, notificationPreferences, rolePermissions, vendors, catalogItems, catalogItemAliases, appointmentBookingLocks, enquiries, externalApiAuditLogs, externalIdempotencyKeys, externalRequestReplays, procurementPostingLocks, encounters, patientIdSequences, dispensingRecords } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import bcrypt from 'bcrypt';
 import { nanoid } from "nanoid";
@@ -2745,4 +2745,207 @@ export async function getBillingCandidatesByDate(appointmentDate: string) {
     return { appointment: { appointmentId: null, patientId: encounter.patientId, consultantId: encounter.consultantId, appointmentDate, appointmentTime: date.toISOString().slice(11, 16), status: encounter.status, appointmentSource: encounter.source }, patient, consultation, bill, consultant, encounter };
   });
   return [...appointmentRows, ...directAsLegacyShape];
+}
+
+export type ScannedGoodsReceiptLineInput = {
+  lineNumber: number;
+  catalogItemId: string;
+  extractedDescription: string;
+  batchNumber: string;
+  expiryDate: string;
+  receivedQuantity: number;
+  unitCost: string;
+};
+
+export type CreateScannedGoodsReceiptInput = {
+  receiptId: string;
+  reviewSubmissionId: string;
+  receiptNumber: string;
+  receiptDate: string;
+  vendorName: string;
+  vendorGstin?: string | null;
+  documentType: "PURCHASE_ORDER" | "GST_INVOICE" | "UNKNOWN";
+  reviewJson: string;
+  warningsJson: string;
+  receivedBy: string;
+  lines: ScannedGoodsReceiptLineInput[];
+};
+
+function assertScannedReceiptCalendarDate(value: string, label: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error(`${label} must use YYYY-MM-DD`);
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) throw new Error(`${label} is invalid`);
+}
+
+async function lockScannedReceiptInventoryBatch(transaction: any, lockKey: string) {
+  await transaction.execute(sql`
+    INSERT INTO ${scannedReceiptInventoryLocks} (${scannedReceiptInventoryLocks.lockKey})
+    VALUES (${lockKey})
+    ON DUPLICATE KEY UPDATE ${scannedReceiptInventoryLocks.updatedAt} = NOW()
+  `);
+}
+
+export async function createScannedGoodsReceipt(input: CreateScannedGoodsReceiptInput) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const vendorName = input.vendorName.trim();
+  const receiptNumber = input.receiptNumber.trim();
+  if (!vendorName) throw new Error("Supplier name is required before posting a goods receipt");
+  if (!receiptNumber) throw new Error("Supplier receipt or invoice number is required before posting");
+  assertScannedReceiptCalendarDate(input.receiptDate, "Receipt date");
+  if (input.lines.length === 0) throw new Error("At least one reviewed receipt line is required");
+  const normalizedVendorName = normalizeVendorName(vendorName);
+
+  return db.transaction(async (transaction) => {
+    const bySubmission = await transaction.select().from(scannedGoodsReceipts)
+      .where(eq(scannedGoodsReceipts.reviewSubmissionId, input.reviewSubmissionId)).limit(1);
+    if (bySubmission[0]) return { success: true, idempotent: true, receiptId: bySubmission[0].receiptId, lines: [] as Array<Record<string, unknown>> };
+
+    const byFingerprint = await transaction.select().from(scannedGoodsReceipts).where(and(
+      eq(scannedGoodsReceipts.normalizedVendorName, normalizedVendorName),
+      eq(scannedGoodsReceipts.receiptNumber, receiptNumber),
+      eq(scannedGoodsReceipts.receiptDate, input.receiptDate),
+    )).limit(1);
+    if (byFingerprint[0]) return { success: true, idempotent: true, receiptId: byFingerprint[0].receiptId, lines: [] as Array<Record<string, unknown>> };
+
+    const duplicateLine = new Set<string>();
+    for (const line of input.lines) {
+      const batchNumber = line.batchNumber.trim();
+      if (!line.catalogItemId) throw new Error(`Receipt line ${line.lineNumber} requires a governed catalog match`);
+      if (!batchNumber) throw new Error(`Receipt line ${line.lineNumber} requires a batch number`);
+      assertScannedReceiptCalendarDate(line.expiryDate, `Expiry date for receipt line ${line.lineNumber}`);
+      if (!Number.isInteger(line.receivedQuantity) || line.receivedQuantity <= 0) throw new Error(`Receipt line ${line.lineNumber} quantity must be a positive whole number`);
+      if (!Number.isFinite(Number(line.unitCost)) || Number(line.unitCost) < 0) throw new Error(`Receipt line ${line.lineNumber} unit cost must be a valid non-negative amount`);
+      const identity = `${line.catalogItemId}|${batchNumber}|${line.expiryDate}`;
+      if (duplicateLine.has(identity)) throw new Error("A receipt can include a catalog batch only once");
+      duplicateLine.add(identity);
+    }
+
+    const catalogIds = Array.from(new Set(input.lines.map((line) => line.catalogItemId)));
+    const catalogRows = await transaction.select().from(catalogItems).where(inArray(catalogItems.catalogItemId, catalogIds));
+    const catalogById = new Map(catalogRows.map((catalog) => [catalog.catalogItemId, catalog]));
+    for (const catalogId of catalogIds) {
+      const catalog = catalogById.get(catalogId);
+      if (!catalog || !Boolean(catalog.active)) throw new Error("Every receipt line must resolve to an active catalog item before posting");
+    }
+
+    await transaction.insert(scannedGoodsReceipts).values({
+      receiptId: input.receiptId,
+      receiptNumber,
+      receiptDate: input.receiptDate,
+      vendorName,
+      normalizedVendorName,
+      vendorGstin: input.vendorGstin?.trim() || null,
+      documentType: input.documentType,
+      reviewSubmissionId: input.reviewSubmissionId,
+      reviewJson: input.reviewJson,
+      warningsJson: input.warningsJson,
+      receivedBy: input.receivedBy,
+      status: "POSTED",
+    });
+
+    const postedLines: Array<Record<string, unknown>> = [];
+    for (const line of input.lines) {
+      const catalog = catalogById.get(line.catalogItemId)!;
+      const batchNumber = line.batchNumber.trim();
+      const lockKey = `${line.catalogItemId}|${batchNumber}|${line.expiryDate}`;
+      await lockScannedReceiptInventoryBatch(transaction, lockKey);
+
+      const currentRows = await transaction.select().from(inventory).where(and(
+        eq(inventory.catalogItemId, line.catalogItemId),
+        eq(inventory.batchNumber, batchNumber),
+        eq(inventory.expiryDate, line.expiryDate),
+      )).limit(1);
+      const current = currentRows[0];
+      if (!current) {
+        const legacy = await transaction.select().from(inventory).where(and(
+          eq(inventory.itemName, catalog.canonicalName),
+          eq(inventory.batchNumber, batchNumber),
+          eq(inventory.expiryDate, line.expiryDate),
+        )).limit(1);
+        if (legacy[0]) throw new Error(`Existing batch stock for ${catalog.canonicalName} requires catalog reconciliation before posting`);
+      }
+
+      const previousQuantity = Number(current?.quantityAvailable ?? 0);
+      const resultingQuantity = previousQuantity + line.receivedQuantity;
+      const inventoryItemId = current?.itemId ?? nanoid(20);
+      const receiptItemId = nanoid(20);
+      const now = toMysqlDateTime();
+      if (current) {
+        await transaction.update(inventory).set({
+          quantityAvailable: resultingQuantity,
+          unitPrice: line.unitCost as any,
+          sourceGoodsReceiptId: input.receiptId,
+          lastRestocked: now,
+        }).where(eq(inventory.itemId, current.itemId));
+      } else {
+        await transaction.insert(inventory).values({
+          itemId: inventoryItemId,
+          itemName: catalog.canonicalName,
+          catalogItemId: line.catalogItemId,
+          batchNumber,
+          expiryDate: line.expiryDate,
+          quantityAvailable: line.receivedQuantity,
+          reorderLevel: 10,
+          unitPrice: line.unitCost as any,
+          sourceGoodsReceiptId: input.receiptId,
+          lastRestocked: now,
+        });
+      }
+
+      await transaction.insert(scannedGoodsReceiptItems).values({
+        receiptItemId,
+        receiptId: input.receiptId,
+        lineNumber: line.lineNumber,
+        catalogItemId: line.catalogItemId,
+        itemName: catalog.canonicalName,
+        extractedDescription: line.extractedDescription.trim(),
+        batchNumber,
+        expiryDate: line.expiryDate,
+        receivedQuantity: line.receivedQuantity,
+        unitCost: line.unitCost as any,
+        previousQuantity,
+        resultingQuantity,
+      });
+      await transaction.insert(scannedReceiptStockMovements).values({
+        movementId: nanoid(20),
+        receiptId: input.receiptId,
+        receiptItemId,
+        inventoryItemId,
+        catalogItemId: line.catalogItemId,
+        itemName: catalog.canonicalName,
+        batchNumber,
+        quantityAdded: line.receivedQuantity,
+        previousQuantity,
+        resultingQuantity,
+        actorId: input.receivedBy,
+      });
+      postedLines.push({ receiptItemId, inventoryItemId, catalogItemId: line.catalogItemId, itemName: catalog.canonicalName, batchNumber, expiryDate: line.expiryDate, quantityAdded: line.receivedQuantity, previousQuantity, resultingQuantity });
+    }
+
+    await transaction.insert(auditLogs).values({
+      logId: nanoid(20),
+      userId: input.receivedBy,
+      actionType: "SCANNED_RECEIPT_POSTED",
+      tableName: "scannedGoodsReceipts",
+      recordId: input.receiptId,
+      newValue: JSON.stringify({ receiptNumber, receiptDate: input.receiptDate, vendorName, lineCount: postedLines.length, reviewSubmissionId: input.reviewSubmissionId }),
+      timestamp: toMysqlDateTime(),
+    });
+
+    return { success: true, idempotent: false, receiptId: input.receiptId, lines: postedLines };
+  });
+}
+
+export async function getScannedGoodsReceiptMetrics(filters?: { receivedBy?: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [metrics] = await db.select({
+    postedReceipts: sql<number>`count(distinct ${scannedGoodsReceipts.receiptId})`,
+    receivedUnits: sql<number>`coalesce(sum(${scannedGoodsReceiptItems.receivedQuantity}), 0)`,
+  }).from(scannedGoodsReceipts)
+    .leftJoin(scannedGoodsReceiptItems, eq(scannedGoodsReceiptItems.receiptId, scannedGoodsReceipts.receiptId))
+    .where(filters?.receivedBy ? eq(scannedGoodsReceipts.receivedBy, filters.receivedBy) : undefined);
+  return { postedReceipts: Number(metrics?.postedReceipts ?? 0), receivedUnits: Number(metrics?.receivedUnits ?? 0) };
 }

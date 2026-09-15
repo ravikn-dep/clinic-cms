@@ -2,9 +2,9 @@ name: CI Validation
 
 on:
   push:
-    branches: [ main, validation/manus-step2-ci ]
+    branches: [main, validation/manus-step2-ci]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   validate:
@@ -67,3 +67,80 @@ jobs:
 
       - name: Run production build
         run: pnpm build
+
+  goods_receipt_mysql:
+    name: Goods Receipt MySQL 8 Gate
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+          MYSQL_DATABASE: clinic_goods_receipt_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -prootpassword"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 10
+          run_install: false
+      - name: Get pnpm store directory
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify migration 0031 artifacts
+        shell: bash
+        run: |
+          test -f drizzle/0031_light_punisher.sql
+          test -f drizzle/meta/0031_snapshot.json
+          node -e 'const j=require("./drizzle/meta/_journal.json"); if (!j.entries.some((e) => e.tag === "0031_light_punisher")) process.exit(1)'
+          grep -q 'scannedGoodsReceipts' drizzle/baseline/current_schema.sql
+          grep -q 'scannedReceiptStockMovements' drizzle/baseline/current_schema.sql
+      - name: Bootstrap current schema on ephemeral MySQL 8
+        env:
+          DATABASE_URL: mysql://root:rootpassword@127.0.0.1:3306/clinic_goods_receipt_test
+        run: pnpm db:bootstrap
+      - name: Run scanned Goods Receipt database regression
+        env:
+          DATABASE_URL: mysql://root:rootpassword@127.0.0.1:3306/clinic_goods_receipt_test
+          EXTERNAL_API_HMAC_KEYS: '{"key-1":{"secret":"12345678901234567890123456789012","scopes":["appointments:read"],"active":true}}'
+          MOCK_OCR: "true"
+        run: pnpm test --run server/scannedGoodsReceipt.db.test.ts
+      - name: Run focused OCR/parser/review/catalog regressions
+        env:
+          DATABASE_URL: mysql://root:rootpassword@127.0.0.1:3306/clinic_goods_receipt_test
+          EXTERNAL_API_HMAC_KEYS: '{"key-1":{"secret":"12345678901234567890123456789012","scopes":["appointments:read"],"active":true}}'
+          MOCK_OCR: "true"
+        run: pnpm test --run server/ocr.test.ts server/pdfOcr.test.ts server/poParsing.test.ts server/poReviewPrefill.test.ts server/goodsReceiptReview.test.ts server/catalogMatching.test.ts
+      - name: Run TypeScript check
+        run: pnpm check
+      - name: Run full test suite
+        env:
+          DATABASE_URL: mysql://root:rootpassword@127.0.0.1:3306/clinic_goods_receipt_test
+          EXTERNAL_API_HMAC_KEYS: '{"key-1":{"secret":"12345678901234567890123456789012","scopes":["appointments:read"],"active":true}}'
+          MOCK_OCR: "true"
+        run: pnpm test --run
+      - name: Run production build
+        run: pnpm build
+      - name: Check diff hygiene
+        run: git diff --check

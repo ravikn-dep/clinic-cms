@@ -31,6 +31,7 @@ import { FIXED_CLINIC_BRANDING } from "../shared/clinicBranding";
 import { normalizeIndianMobile } from "./external/validation";
 import { hasStrongDuplicate, rankPatientCandidates } from "./visitWorkflow";
 import { isReadyForBilling } from "./paperFirstWorkflow";
+import { goodsReceiptScanRouter } from "./goodsReceiptScan";
 
 /**
  * Security and RBAC boundary for the clinic CMS.
@@ -380,6 +381,7 @@ function safeCatalogWriteError(error: unknown): Error {
 }
 
 export const appRouter = router({
+  goodsReceiptScan: goodsReceiptScanRouter,
   system: systemRouter,
 
   ocr: router({

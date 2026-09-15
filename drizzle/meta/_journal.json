@@ -218,6 +218,13 @@
       "when": 1788316949002,
       "tag": "0030_purple_infant_terrible",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "5",
+      "when": 1789221954148,
+      "tag": "0031_light_punisher",
+      "breakpoints": true
     }
   ]
 }
