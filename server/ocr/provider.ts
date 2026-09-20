@@ -1,3 +1,4 @@
+import { ForgeOcrProvider, isForgeConfigured } from './forgeOcrProvider';
 import { GoogleVisionProvider } from './googleVisionProvider';
 import type { OcrProvider, OcrInput, OcrResult } from './types';
 export { isSafeOcrClientError, validateOcrInput } from './document';
@@ -24,6 +25,12 @@ class MockOcrProvider implements OcrProvider {
   }
 }
 
+class FailClosedOcrProvider implements OcrProvider {
+  async extractDocument(): Promise<OcrResult> {
+    throw new Error('OCR_PROVIDER_INITIALIZATION_FAILED');
+  }
+}
+
 class SanitizingProviderWrapper implements OcrProvider {
   constructor(private inner: OcrProvider) {}
 
@@ -35,11 +42,12 @@ class SanitizingProviderWrapper implements OcrProvider {
       if (
         rawErr.includes('OCR_PROVIDER_INITIALIZATION_FAILED') ||
         rawErr.includes('OCR_PROVIDER_PROCESSING_FAILED') ||
+        rawErr.includes('OCR_PROVIDER_TIMEOUT') ||
         isSafeOcrClientError(rawErr)
       ) {
         throw error;
       }
-      console.error('[OcrProvider] Sanitized raw provider error:', rawErr);
+      console.error('[OcrProvider] Sanitized raw provider error');
       throw new Error('OCR_PROVIDER_PROCESSING_FAILED');
     }
   }
@@ -52,17 +60,27 @@ export function setOcrProvider(provider: OcrProvider | null) {
 }
 
 export function getOcrProvider(): OcrProvider {
-  if (activeProvider) {
-    return activeProvider;
-  }
-  // If in test environment, mock mode, or GOOGLE_APPLICATION_CREDENTIALS is not configured, fallback to MockOcrProvider
-  if (process.env.NODE_ENV === 'test' || process.env.MOCK_OCR === 'true' || !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  if (activeProvider) return activeProvider;
+
+  if (process.env.NODE_ENV === 'test' || process.env.VITEST === 'true' || process.env.MOCK_OCR === 'true') {
     return new SanitizingProviderWrapper(new MockOcrProvider());
   }
-  try {
+
+  const configuredProvider = process.env.OCR_PROVIDER?.trim().toLowerCase();
+  if (configuredProvider === 'google' || configuredProvider === 'google-cloud-vision') {
+    if (!process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()) {
+      return new SanitizingProviderWrapper(new FailClosedOcrProvider());
+    }
     return new SanitizingProviderWrapper(new GoogleVisionProvider());
-  } catch (error) {
-    console.warn('[OCR] Failed to initialize GoogleVisionProvider, falling back to mock provider:', error);
-    return new SanitizingProviderWrapper(new MockOcrProvider());
   }
+
+  if (isForgeConfigured()) {
+    return new SanitizingProviderWrapper(new ForgeOcrProvider());
+  }
+
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim()) {
+    return new SanitizingProviderWrapper(new GoogleVisionProvider());
+  }
+
+  return new SanitizingProviderWrapper(new FailClosedOcrProvider());
 }

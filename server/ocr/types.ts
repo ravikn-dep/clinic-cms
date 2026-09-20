@@ -15,7 +15,7 @@ export type OcrPage = {
 };
 
 export type OcrResult = {
-  provider: "google-cloud-vision" | "mock-ocr";
+  provider: "google-cloud-vision" | "manus-forge" | "mock-ocr";
   fullText: string;
   pages: OcrPage[];
   sourceMimeType: "image/jpeg" | "image/png" | "application/pdf";
