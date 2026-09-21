@@ -72,6 +72,7 @@ describe("Manus Forge OCR provider", () => {
   it("selects Forge in production when the built-in Forge capability is configured", async () => {
     process.env.NODE_ENV = "production";
     delete process.env.VITEST;
+    delete process.env.MOCK_OCR;
     process.env.BUILT_IN_FORGE_API_KEY = "test-only-placeholder";
     delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
     invokeLLM.mockResolvedValue(successfulResponse("Synthetic transcription"));
