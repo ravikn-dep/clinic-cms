@@ -221,7 +221,7 @@ export default function PurchaseOrders() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageRotation, setImageRotation] = useState(0);
   const [scanPageCount, setScanPageCount] = useState<number | null>(null);
-  const [reviewExtractionProvider, setReviewExtractionProvider] = useState<"google-cloud-vision" | "mock-ocr" | null>(null);
+  const [reviewExtractionProvider, setReviewExtractionProvider] = useState<"google-cloud-vision" | "manus-forge" | "mock-ocr" | null>(null);
   const [reviewSubmissionId, setReviewSubmissionId] = useState<string | null>(null);
   const [catalogDecisions, setCatalogDecisions] = useState<Record<number, CatalogDecisionInput>>({});
   const [evidenceConfirmation, setEvidenceConfirmation] = useState<{ purchaseOrderId: string; reviewId: string } | null>(null);

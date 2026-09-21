@@ -1836,7 +1836,7 @@ export const appRouter = router({
     createFromReviewedExtraction: protectedProcedure
       .input(purchaseOrderCreateInputSchema.extend({
         reviewSubmissionId: z.string().uuid(),
-        extractionProvider: z.enum(["google-cloud-vision", "mock-ocr"]),
+        extractionProvider: z.enum(["google-cloud-vision", "manus-forge", "mock-ocr"]),
         review: purchaseOrderReviewPrefillSchema,
         catalogResolutions: z.array(catalogResolutionInputSchema).max(100).default([]),
       }))
